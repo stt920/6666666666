@@ -1,0 +1,432 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                19/Jun/2013  12:54:52 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  near                                               #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\zep.c             #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\zep.c -D          #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=near --calling_convention=xdata_reent #
+#                          rant --place_constants=data --nr_virtual_regs 8    #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\zep.lst                               #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\zep.r51                                #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\zep.c
+      1          /*
+      2          *2006/08/16 WXL 2.0
+      3           *
+      4           */
+      5          
+      6          /*
+      7          V0.2 added PC-based binding         21/July/2006
+      8          V0.1 Initial Release                10/July/2006
+      9          
+     10          */
+     11          
+     12          
+     13          /*
+     14          Handles messages for the Zero Endpoint
+     15          
+     16          */
+     17          
+     18          #include "compiler.h"               //compiler specific
+     19          #include "6lowsn_common_types.h"
+     20          #include "6lowsn_config.h"
+     21          #include "ieee_lrwpan_defs.h"
+     22          #include "hal.h"
+     23          #include "console.h"
+     24          #include "debug.h"
+     25          #include "phy.h"
+     26          #include "mac.h"
+     27          #include "adp.h"
+     28          #include "aps.h"
+     29          #include "zep.h"
+     30          #include "neighbor.h"
+     31          #include "evboard.h"
+     32          
+     33          #ifdef LOWSN_USE_PC_BIND
+     34          #include "pcbind.h"
+     35          #endif
+     36          
+     37          ZEP_STATE_ENUM zepState;
+     38          ZEP_PIB zep_pib;
+     39          
+     40          
+     41          static void zepCommonFmt(SADDR dst_saddr, BYTE cluster);
+     42          
+     43          //locals
+     44          #ifdef LOWSN_FFD
+     45          static LOWSN_STATUS_ENUM zepHandleEndDeviceAnnounce(void);
+     46          #endif
+     47          
+     48          
+     49          
+     50          void zepInit(void){
+     51          	zepState = ZEP_STATE_IDLE;
+     52          	zep_pib.flags.val = 0;
+     53          }
+     54          
+     55          void zepFSM(void) {
+     56          	//does not do much right now
+     57          
+     58          	if (zep_pib.flags.bits.Alarm) {
+     59          		//flash LED1 at 200ms rate
+     60          		if ((halMACTimerNowDelta(zep_pib.alarm_timer)) > MSECS_TO_MACTICKS(200)) {
+     61          			//toggle LED1
+     62          			if (EVB_LED1_STATE()) {
+     63          		     EVB_LED1_OFF();
+     64          			 } else {
+     65                            EVB_LED1_ON();
+     66          				 }
+     67                      zep_pib.alarm_timer = halGetMACTimer();
+     68          		}
+     69          
+     70          
+     71          	}
+     72          
+     73          }
+     74          
+     75          //right now, we only handle simple RX packets.
+     76          //This must completely process the current packet and post jobs if this
+     77          //needs to be handled.
+     78          LOWSN_STATUS_ENUM zepHandleRxPacket(void) {
+     79          
+     80               LOWSN_STATUS_ENUM rstatus;
+     81          	 BYTE *ptr;
+     82          
+     83          	 rstatus = LOWSN_STATUS_SUCCESS;
+     84          	 ptr = aplGetRxMsgData();
+     85          	switch (a_aps_rx_data.cluster) {
+     86          #ifdef LOWSN_FFD
+     87          			   case ZEP_END_DEVICE_ANNOUNCE:
+     88          				   rstatus = zepHandleEndDeviceAnnounce();
+     89          				   if (rstatus ==LOWSN_STATUS_SUCCESS) {
+     90          					   rstatus = usrZepRxCallback();
+     91          				   }
+     92          				   break;
+     93          #endif
+     94          			case ZEP_EXTENDED_CMD:
+     95          				   switch(*ptr)
+     96          				   {
+     97          			          case ZEP_EXT_NODE_INFO_RSP:
+     98          #ifdef LOWSN_COORDINATOR
+     99          #ifdef LOWSN_USE_PC_BIND
+    100          							 //forward the ZEP info to the PC client
+    101          		                     pbdHandleZepForward();
+    102          #endif
+    103          #endif
+    104          				             rstatus = usrZepRxCallback();
+    105          							 break;
+    106          					  case ZEP_EXT_PING:
+    107          #ifdef LOWSN_COORDINATOR
+    108          #ifdef LOWSN_USE_PC_BIND
+    109          							 //forward the ping to the PC client
+    110          		                     pbdHandleZepForward();
+    111          #endif
+    112          #endif
+    113          						     rstatus = LOWSN_STATUS_SUCCESS;
+    114          						     break;
+    115          
+    116          					  case ZEP_EXT_SEND_ALARM:
+    117          						     ptr++;
+    118          							 //check the mode
+    119          							 if (*ptr) {
+    120          								 //turn on the alarm
+    121          								 zep_pib.flags.bits.Alarm = 1;
+    122          								 zep_pib.alarm_timer = halGetMACTimer();
+    123          								 if (EVB_LED1_STATE())
+    124          								 {EVB_LED1_OFF();
+    125          								 } else {
+    126                                             EVB_LED1_ON();
+    127          								 }
+    128          							 }else {
+    129          								 //turn off the alarm
+    130                                           zep_pib.flags.bits.Alarm = 0;
+    131          								 //turn off the LED
+    132          								 EVB_LED1_OFF();
+    133          							 }
+    134          
+    135          
+    136          						    break;
+    137          
+    138          					  default:
+    139          						     break;
+    140          
+    141          				   }
+    142                                     break;
+    143          		        default:
+    144          				   DEBUG_STRING(DBG_INFO,"Unhandled Zero Endpoint Command, discarding.\n");
+    145          	}
+    146          	return(rstatus);
+    147          }
+    148          
+    149          static void zepCommonFmt(SADDR dst_saddr, BYTE cluster){
+    150          	a_aps_tx_data.flags.val = 0;
+    151              a_aps_tx_data.srcEP = 0;	//from endpoint 0
+    152          	a_aps_tx_data.tsn = apsGenTSN();
+    153          	a_aps_tx_data.cluster = cluster;
+    154          	a_aps_tx_data.dstMode = APS_DSTMODE_SHORT;
+    155          	a_aps_tx_data.dstSADDR = dst_saddr;  //destination
+    156          	a_aps_tx_data.dstEP = 0;     //to endpoint 0
+    157          	a_aps_tx_data.srcSADDR = macGetShortAddr();
+    158          	a_aps_tx_data.af_fcf = (1 | AF_FRM_TYPE_MSG);
+    159          	//use an ACK so that we know if this succeeds
+    160          	a_aps_tx_data.aps_fcf = APS_FRM_TYPE_DATA | APS_FRM_DLVRMODE_NORMAL | APS_FRM_ACKREQ_MASK;
+    161          	//set the loopback flag if this is for us, have to check this for every ZEP format
+    162          	if (a_aps_tx_data.dstSADDR == macGetShortAddr()) a_aps_tx_data.flags.bits.loopback = 1;
+    163          
+    164          }
+    165          
+    166          //send a payload that has our short address, so that a ping
+    167          //can be used to send our short address to somebody
+    168          //The main goal is to the APS ACK back
+    169          //as verification that this was delivered
+    170          //this ping packet is also forwarded to the PC client
+    171          //if PC binding is being used.
+    172          
+    173          void zepFmtPing(SADDR dst_saddr) {
+    174          	BYTE *ptr;
+    175             	a_aps_tx_data.usrPlen = 3;
+    176          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+    177              *ptr = (BYTE) (macGetShortAddr()>>8);
+    178              --ptr;
+    179              *ptr = (BYTE) (macGetShortAddr());
+    180              --ptr;
+    181          	*ptr = ZEP_EXT_PING;
+    182          	zepCommonFmt(dst_saddr,ZEP_EXTENDED_CMD);
+    183          }
+    184          
+    185          //turns an alarm on at the node
+    186          //if mode is nonzero, turn on the alarm
+    187          //if mode is zero, turn off the alarm
+    188          void zepFmtAlarm(SADDR dst_saddr, BYTE mode) {
+    189          	BYTE *ptr;
+    190             	a_aps_tx_data.usrPlen = 2;
+    191          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+    192              *ptr = mode;
+    193              --ptr;
+    194          	*ptr = ZEP_EXT_SEND_ALARM;
+    195          	zepCommonFmt(dst_saddr,ZEP_EXTENDED_CMD);
+    196          }
+    197          
+    198          
+    199          #ifdef LOWSN_FFD
+    200          //an End Device has sent us its short address, long address information.
+    201          //put this in the address map.
+    202          static LOWSN_STATUS_ENUM zepHandleEndDeviceAnnounce(void){
+    203          	BYTE *ptr;
+    204          	SADDR saddr;
+    205          
+    206          	if (aplGetRxMsgLen() != ZEP_PLEN_END_DEVICE_ANNOUNCE)  return (LRPAN_STATUS_ZEP_FAILED) ;  // wrong message length.
+    207          	ptr = aplGetRxMsgData();  //get pointer to data
+    208          	//parse the message.
+    209          	saddr =  *ptr;
+    210          	ptr++;
+    211          	saddr += (((UINT16)*ptr) << 8);
+    212          	ptr++;
+    213          	//enter this into the map
+    214              ntNewAddressMapEntry(ptr, saddr);
+    215          	return(LOWSN_STATUS_SUCCESS);
+    216          }
+    217          
+    218          #endif
+    219          
+    220          
+    221          
+    222          //put our long address, short address into the tmpTxBuffer
+    223          //so that it can be sent to the coordinator.
+    224          void zepFmtEndDeviceAnnounce(SADDR dst_saddr){
+    225          	BYTE *ptr;
+    226          
+    227          	//first, do the payload
+    228          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE] - 8;	
+    229          	//copy in the long address
+    230          	halGetProcessorIEEEAddress(ptr);
+    231          	//now put our short address
+    232          	--ptr;
+    233              *ptr = (BYTE) (macGetShortAddr()>>8);
+    234          
+    235              --ptr;
+    236              *ptr = (BYTE) (macGetShortAddr());
+    237          	
+    238              a_aps_tx_data.usrPlen = ZEP_PLEN_END_DEVICE_ANNOUNCE;
+    239          
+    240          	//now, the rest
+    241          	zepCommonFmt(dst_saddr,ZEP_END_DEVICE_ANNOUNCE);
+    242          		
+    243          }
+    244          
+    245          /* this is a custom Zero End point command that sends data that is spread
+    246          across several different Zigbee response commands into one. This info
+    247          is needed by the PC client in the binding demo
+    248          */
+    249          void zepFmtNodeInfoRsp(SADDR dst_saddr){
+    250          
+    251          	BYTE *ptr;
+    252          	BYTE i;
+    253          
+    254          	//endpoints first
+    255          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+    256          	//do the endpoints first.
+    257          	for (i=0;i<aps_pib.activeEPs;i++){
+    258          		--ptr;
+    259          		*ptr = apsEndPoints[i].epNum;
+    260          	}
+    261              --ptr;
+    262          	*ptr = aps_pib.activeEPs;
+    263          	
+    264          	//MAC capability code
+    265              --ptr;
+    266          	*ptr = mac_pib.macCapInfo;
+    267          
+    268          	//Node type
+    269              --ptr;
+    270          #if defined(LOWSN_COORDINATOR)
+    271          	*ptr = NODE_TYPE_COORD;
+    272          #elif defined(LOWSN_FFD)
+    273          	*ptr = NODE_TYPE_ROUTER;
+    274          #else
+    275              *ptr = NODE_TYPE_ENDDEVICE;
+    276          #endif
+    277              //my parent
+    278          	  --ptr;
+    279          	*ptr = (mac_pib.macCoordShortAddress >> 8) & 0xFF;
+    280          	
+    281          
+    282          	--ptr;	
+    283              *ptr = mac_pib.macCoordShortAddress & 0xFF;
+    284          
+    285          
+    286          	//my short address
+    287              --ptr;
+    288          	*ptr = (macGetShortAddr() >> 8) & 0xFF;
+    289          	
+    290          
+    291          	--ptr;	
+    292              *ptr = macGetShortAddr() & 0xFF;
+    293          
+    294          	//copy in the long address
+    295          	ptr = ptr - 8;
+    296          	halGetProcessorIEEEAddress(ptr);
+    297          
+    298          	//indentify this extended command
+    299          	--ptr;
+    300          	*ptr = ZEP_EXT_NODE_INFO_RSP;
+    301          
+    302          	a_aps_tx_data.usrPlen = aps_pib.activeEPs + ZEP_PLEN_NODE_INFO_RSP ;
+    303          
+    304          	//now, the rest
+    305          	zepCommonFmt(dst_saddr,ZEP_EXTENDED_CMD);
+    306          
+    307          }
+    308          
+    309          
+
+   Maximum stack usage in bytes:
+
+     Function                       ISTACK PSTACK XSTACK
+     --------                       ------ ------ ------
+     zepCommonFmt                       2      0     11
+     zepFSM                             0      0     15
+       -> halGetMACTimer                0      0     30
+       -> evbLedGet                     0      0     30
+       -> evbLedSet                     0      0     30
+       -> evbLedSet                     0      0     30
+       -> halGetMACTimer                0      0     30
+     zepFmtAlarm                        2      0      0
+       -> zepCommonFmt                  4      0      0
+     zepFmtEndDeviceAnnounce            0      0      8
+       -> halGetProcessorIEEEAddress
+                                        0      0     16
+       -> zepCommonFmt                  0      0     16
+     zepFmtNodeInfoRsp                  1      0     11
+       -> halGetProcessorIEEEAddress
+                                        0      0     22
+       -> zepCommonFmt                  0      0     22
+     zepFmtPing                         2      0      0
+       -> zepCommonFmt                  4      0      0
+     zepHandleRxPacket                  0      0     11
+       -> ntNewAddressMapEntry          0      0     22
+       -> usrZepRxCallback              0      0     22
+       -> halGetMACTimer                0      0     22
+       -> evbLedGet                     0      0     22
+       -> evbLedSet                     0      0     22
+       -> evbLedSet                     0      0     22
+       -> evbLedSet                     0      0     22
+       -> conPrintROMString_func        0      0     22
+     zepInit                            2      0      0
+
+
+   Segment part sizes:
+
+     Function/Label                       Bytes
+     --------------                       -----
+     zepState                                1
+     zep_pib                                 6
+     zepInit                                15
+     ??Subroutine8_0                         5
+     zepFSM                                 74
+     ?Subroutine1                           17
+     zepHandleRxPacket                     177
+     ?Subroutine7                            5
+     xxxxromstr                             46
+     zepCommonFmt                          110
+     ?Subroutine6                            6
+     zepFmtPing                             34
+     zepFmtAlarm                            23
+     zepFmtEndDeviceAnnounce                52
+     zepFmtNodeInfoRsp                     142
+     ?Subroutine3                            4
+     ?Subroutine5                            9
+     ?Subroutine2                            7
+     ??Subroutine9_0                         4
+     ?Subroutine0                            7
+     ?Subroutine4                           13
+     __Constant_ffffff                       4
+     ?<Initializer for __Constant_ffffff>    4
+     __Constant_3071                         4
+     ?<Initializer for __Constant_3071>      4
+
+ 
+  46 bytes in segment CODE_C
+ 704 bytes in segment NEAR_CODE
+   8 bytes in segment XDATA_I
+   8 bytes in segment XDATA_ID
+   7 bytes in segment XDATA_Z
+ 
+ 750 bytes of CODE  memory (+ 8 bytes shared)
+   7 bytes of XDATA memory (+ 8 bytes shared)
+
+Errors: none
+Warnings: none

@@ -1,0 +1,85 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:08 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc25 #
+#                          30\halNeighbor.c                                   #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc25 #
+#                          30\halNeighbor.c -D LOWSN_DEBUG -D                 #
+#                          aExtendedAddress_B7=0x00 -D                        #
+#                          aExtendedAddress_B6=0x53 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_SENSOR_TYPE=1    #
+#                          -lcN F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\rfd\List\ -o F:\6LoWSN\6lowsn_stack\obj\com #
+#                          piletest\iar51_cc2530\rfd\Obj\ -e --no_cse         #
+#                          --no_unroll --no_inline --no_code_motion           #
+#                          --no_tbaa --debug --core=plain --dptr=16,1         #
+#                          --data_model=large --code_model=banked             #
+#                          --calling_convention=xdata_reentrant               #
+#                          --place_constants=data --nr_virtual_regs 8 -I      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\ -I                           #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ol             #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\List\halNeighbor.lst                         #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\Obj\halNeighbor.r51                          #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc2530\halNeighbor.c
+      1          /*
+      2            V0.1 Initial Release   10/July/2006
+      3          
+      4          */
+      5          
+      6          
+      7          //allocating large blocks of memory can
+      8          //be problematic
+      9          
+     10          #include "compiler.h"
+     11          #include "6lowsn_config.h"         //user configurations
+     12          #include "6lowsn_common_types.h"
+     13          #include "neighbor.h"
+     14          
+     15          //Address table map
+     16          
+     17          MAPENTRY mac_addr_tbl[LOWSN_MAX_ADDRESS_MAP_ENTRIES];
+     18          
+     19          
+     20          
+     21          
+     22          
+
+
+   Segment part sizes:
+
+     Function/Label Bytes
+     -------------- -----
+     mac_addr_tbl     10
+
+ 
+ 10 bytes in segment XDATA_Z
+ 
+ 10 bytes of XDATA memory
+
+Errors: none
+Warnings: none

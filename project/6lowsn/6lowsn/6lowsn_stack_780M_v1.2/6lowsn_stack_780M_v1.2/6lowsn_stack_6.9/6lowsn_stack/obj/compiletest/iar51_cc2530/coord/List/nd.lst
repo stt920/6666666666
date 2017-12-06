@@ -1,0 +1,1578 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:32 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\nd.c              #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\nd.c -D           #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\nd.lst                                #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\nd.r51                                 #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\nd.c
+      1          /*********************************************************************
+      2              文件名：nd.c
+      3              作  者：ji shanyang
+      4              版  本：v1.0.0
+      5              日  期：2012.12
+      6              描  述：Neighbor Discover Protocol
+      7          *********************************************************************/
+      8          
+      9          #include <stdlib.h>
+     10          #include <string.h>
+     11          #include "6lowsn_common_types.h"
+     12          #include "6lowsn_config.h"
+     13          #include "halstack.h"
+     14          #include "console.h"
+     15          #include "debug.h"
+     16          #include "ds.h"
+     17          #include "nwk.h"
+     18          #include "icmpv6.h"
+     19          #include "mac.h"
+     20          #include "phy.h"
+     21          #include "nd.h"
+     22          #include "neighbor.h"
+     23          
+     24          
+     25          
+     26          
+     27          
+     28          /*------------------------------------------------------------------*/
+     29          /** @{ */
+     30          /** \name Pointers to the header structures.
+     31           *  All pointers except LOWSN_IP_BUF depend on lowsn_ext_len, which at
+     32           *  packet reception, is the total length of the extension headers.
+     33           *
+     34           *  The pointer to ND6 options header also depends on nd6_opt_offset,
+     35           *  which we set in each function.
+     36           *
+     37           *  Care should be taken when manipulating these buffers about the
+     38           *  value of these length variables
+     39           */
+     40          extern lowsn_ds6_pmtu_t pmtu;
+     41          extern lowsn_swap_buf_t lowsn_swap_buf;
+     42          extern lowsn_ds6_prefix_t lowsn_ds6_prefix_list[LOWSN_DS6_PREFIX_NB];	//brief prefix list
+     43          
+     44          
+     45          #define LOWSN_IP_BUF                ((lowsn_ip_hdr_t *)&lowsn_buf[LOWSN_LLH_LEN])  /**< Pointer to IP header */
+     46          #define LOWSN_ICMP_BUF            ((lowsn_icmp6_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])  /**< Pointer to ICMP header*/
+     47          /**@{  Pointers to messages just after icmp header */
+     48          #define LOWSN_ND6_RS_BUF            ((lowsn_nd6_rs_t  *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len])
+     49          #define LOWSN_ND6_RA_BUF            ((lowsn_nd6_ra_t  *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len])
+     50          #define LOWSN_ND6_NS_BUF            ((lowsn_nd6_ns_t  *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len])
+     51          #define LOWSN_ND6_NA_BUF            ((lowsn_nd6_na_t  *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len])
+     52          #define LOWSN_ND6_RED_BUF			((lowsn_nd6_red_t  *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len])
+     53          /** @} */
+     54          /** Pointer to ND option */
+     55          #define LOWSN_ND6_OPT_HDR_BUF  ((lowsn_nd6_opt_hdr_t *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len + nd6_opt_offset])
+     56          #define LOWSN_ND6_OPT_PREFIX_BUF ((lowsn_nd6_opt_prefix_info_t *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len + nd6_opt_offset])
+     57          #define LOWSN_ND6_OPT_MTU_BUF ((lowsn_nd6_opt_mtu_t *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len + nd6_opt_offset])
+     58          /** @} */
+     59          
+     60          
+     61          
+     62          static lowsn_ipaddr_t ipaddr;
+     63          static lowsn_ds6_prefix_t *prefix; /**  Pointer to a prefix list entry */
+     64          static lowsn_ds6_uaddr_t *addr; /**  Pointer to an interface uincast address */
+     65          
+     66          extern lowsn_ipv6_pib_t nwk_pib;
+     67          
+     68          //static uint16_t nd6_opt_offset; /** Offset from the end of the icmpv6 header to the option in lowsn_buf*/
+     69          //static uint8_t *nd6_opt_llao;   /**  Pointer to llao option in lowsn_buf */
+     70          //static lowsn_nd6_opt_prefix_info_t *nd6_opt_prefix_info; /**  Pointer to prefix information option in lowsn_buf */
+     71          //static lowsn_ds6_nbr_t *nbr; /**  Pointer to a nbr cache entry*/
+     72          //static lowsn_ds6_defrt_t *defrt; /**  Pointer to a router list entry */
+     73          //static lowsn_ds6_dest_t* dest; /**  Pointer to an destination cache entry */
+     74          //extern lowsn_ds6_dest_t lowsn_ds6_dest_cache[LOWSN_DS6_DEST_NB];
+     75          
+     76          
+     77          
+     78          /*---------------------------------------------------------------------------*/
+     79          // 构造Router Solicitation Message
+     80          // RFC4861 pp.18
+     81          
+     82          /*---------------------------------------------------------------------------*/
+     83          
+     84          void ndFmtRS(void)
+     85          {
+     86          	DEBUG_STRING(DBG_INFO,"ND: Format RS.\n");
+     87          
+     88          	phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+     89          
+     90          	// 填写options
+     91          	// Valid Options: Source link-layer address The link-layer address of the sender, if known. MUST NOT be included if the Source Address
+     92                 // is the unspecified address. Otherwise, it SHOULD be included on link layers that have addresses.
+     93          	// 暂时不填写，在mesh under下，无论是否是未指定地址，该域实际上可精简掉，mesh头
+     94          	// 会含有源节点的链路层地址
+     95          
+     96          	
+     97          	// Reserved
+     98          	phy_pib.currentTxFrm--;
+     99          	*phy_pib.currentTxFrm = 0x0;
+    100          	phy_pib.currentTxFrm--;
+    101          	*phy_pib.currentTxFrm = 0x0;
+    102          	phy_pib.currentTxFrm--;
+    103          	*phy_pib.currentTxFrm = 0x0;
+    104          	phy_pib.currentTxFrm--;
+    105          	*phy_pib.currentTxFrm = 0x0;
+    106          
+    107          	//checksum is added when all packet is ready, use 0 here.
+    108          	phy_pib.currentTxFrm--;
+    109          	*phy_pib.currentTxFrm = 0x0;
+    110          	phy_pib.currentTxFrm--;
+    111          	*phy_pib.currentTxFrm = 0x0;	
+    112          
+    113          	//code: 0
+    114          	phy_pib.currentTxFrm--;
+    115          	*phy_pib.currentTxFrm = 0x0;
+    116          	
+    117          	//type: 133
+    118          	phy_pib.currentTxFrm--;
+    119          	*phy_pib.currentTxFrm = ICMP6_RS;
+    120          
+    121          
+    122          	phy_pib.currentTxFlen = 4 + LOWSN_ICMPH_LEN;
+    123          
+    124          
+    125          	// set IP header
+    126          	a_nwk_tx_data.Version = LOWSN_IP6_VER;
+    127          	a_nwk_tx_data.TrafficClass=0x00;
+    128          	a_nwk_tx_data.FlowLabel = 0x00;
+    129          	a_nwk_tx_data.PayloadLength = phy_pib.currentTxFlen;
+    130          	a_nwk_tx_data.NextHeader = LOWSN_PROTO_ICMP6;
+    131          	a_nwk_tx_data.HopLimit = LOWSN_ND6_HOP_LIMIT;
+    132          
+    133          	lowsn_create_linklocal_allrouters_mcast(&a_nwk_tx_data.DstAddress);
+    134          
+    135          	ds6FindSrcIP(&a_nwk_tx_data.SrcAddress, &a_nwk_tx_data.DstAddress);
+    136          	//lowsn_create_unspecified(&a_nwk_tx_data.SrcAddress);
+    137          
+    138          	//a_nwk_tx_data.IPStartPtr = phy_pib.currentTxFrm - LOWSN_IPH_LEN;
+    139          
+    140          	return;
+    141          
+    142          }
+    143          
+    144          
+    145          
+    146          /*---------------------------------------------------------------------------*/
+    147          /**
+    148           * 构造 router advertisment
+    149           active_flag: 1: 路由器主动发起的RA，目标地址为组播地址；
+    150                           0或其他值:路由器收到RS后发出的RA，会额外解析收到的RS帧
+    151          
+    152           *
+    153           --------------------------------------------------------------------------*/
+    154           #ifdef LOWSN_FFD
+    155          
+    156          void ndFmtRA(BYTE active_flag)
+    157          {
+    158          
+    159          	BYTE i;
+    160          
+    161          	DEBUG_STRING(DBG_INFO,"ND: Format RA.\n");
+    162          
+    163          	phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+    164          	phy_pib.currentTxFlen = 0;
+    165          
+    166          	// options域目前只支持Prefix Information
+    167          	for(prefix = lowsn_ds6_prefix_list; prefix < lowsn_ds6_prefix_list + LOWSN_DS6_PREFIX_NB; prefix++) {
+    168              		//if((prefix->isused) && (prefix->advertise)) {
+    169              		if((prefix->isused) && (prefix->advertise)) {
+    170          			// Prefix	
+    171          			for(i=0; i<16; i++) {
+    172                 			phy_pib.currentTxFrm--;
+    173                        		*phy_pib.currentTxFrm = (prefix->ipaddr).u8[15-i];
+    174                 		}
+    175          
+    176          			// Reserved2
+    177          			phy_pib.currentTxFrm--;
+    178          			*phy_pib.currentTxFrm = 0x0;
+    179          			phy_pib.currentTxFrm--;
+    180          			*phy_pib.currentTxFrm = 0x0;
+    181          			phy_pib.currentTxFrm--;
+    182          			*phy_pib.currentTxFrm = 0x0;
+    183          			phy_pib.currentTxFrm--;
+    184          			*phy_pib.currentTxFrm = 0x0;
+    185          
+    186          			//Preferred Lifetime，暂时设定为无限长
+    187          			phy_pib.currentTxFrm--;
+    188          			*phy_pib.currentTxFrm = 0xFF;
+    189          			phy_pib.currentTxFrm--;
+    190          			*phy_pib.currentTxFrm = 0xFF;
+    191          			phy_pib.currentTxFrm--;
+    192          			*phy_pib.currentTxFrm = 0xFF;
+    193          			phy_pib.currentTxFrm--;
+    194          			*phy_pib.currentTxFrm = 0xFF;
+    195          
+    196          			//Valid Lifetime，暂时设定为无限长
+    197          			phy_pib.currentTxFrm--;
+    198          			*phy_pib.currentTxFrm = 0xFF;
+    199          			phy_pib.currentTxFrm--;
+    200          			*phy_pib.currentTxFrm = 0xFF;
+    201          			phy_pib.currentTxFrm--;
+    202          			*phy_pib.currentTxFrm = 0xFF;
+    203          			phy_pib.currentTxFrm--;
+    204          			*phy_pib.currentTxFrm = 0xFF;				
+    205          				
+    206          			// L, A, Reserved1
+    207          			phy_pib.currentTxFrm--;
+    208          			*phy_pib.currentTxFrm = prefix->l_a_reserved;
+    209          
+    210          			// Prefix Length
+    211          			phy_pib.currentTxFrm--;
+    212          			*phy_pib.currentTxFrm = prefix->length;
+    213          
+    214          			//Length
+    215          			phy_pib.currentTxFrm--;
+    216          			*phy_pib.currentTxFrm = 4;
+    217          
+    218          			// Type
+    219          			phy_pib.currentTxFrm--;
+    220          			*phy_pib.currentTxFrm = LOWSN_ND6_OPT_PREFIX_INFO;	
+    221          
+    222          			phy_pib.currentTxFlen += LOWSN_ND6_OPT_PREFIX_INFO_LEN;
+    223              		}
+    224          	}		
+    225          
+    226          	// Retrans Timer: 0
+    227          	phy_pib.currentTxFrm--;
+    228          	*phy_pib.currentTxFrm = 0x0;
+    229          	phy_pib.currentTxFrm--;
+    230          	*phy_pib.currentTxFrm = 0x0;
+    231          	phy_pib.currentTxFrm--;
+    232          	*phy_pib.currentTxFrm = 0x0;
+    233          	phy_pib.currentTxFrm--;
+    234          	*phy_pib.currentTxFrm = 0x0;
+    235          
+    236          	// Reachable Time: 0
+    237          	phy_pib.currentTxFrm--;
+    238          	*phy_pib.currentTxFrm = 0x0;
+    239          	phy_pib.currentTxFrm--;
+    240          	*phy_pib.currentTxFrm = 0x0;
+    241          	phy_pib.currentTxFrm--;
+    242          	*phy_pib.currentTxFrm = 0x0;
+    243          	phy_pib.currentTxFrm--;
+    244          	*phy_pib.currentTxFrm = 0x0;
+    245          
+    246          	// Router Lifetime: 0
+    247          	phy_pib.currentTxFrm--;
+    248          	*phy_pib.currentTxFrm = 0x0;
+    249          	phy_pib.currentTxFrm--;
+    250          	*phy_pib.currentTxFrm = 0x0;
+    251          
+    252          
+    253          	// Reserved, M, O: 0
+    254          	phy_pib.currentTxFrm--;
+    255          	*phy_pib.currentTxFrm = 0x0;
+    256          
+    257          	// Cur Hop Limit
+    258          	phy_pib.currentTxFrm--;
+    259          	*phy_pib.currentTxFrm = lowsn_ds6_if.cur_hop_limit;
+    260          
+    261          
+    262          	//checksum is added when all packet is ready, use 0 here.
+    263          	phy_pib.currentTxFrm--;
+    264          	*phy_pib.currentTxFrm = 0x0;
+    265          	phy_pib.currentTxFrm--;
+    266          	*phy_pib.currentTxFrm = 0x0;	
+    267          
+    268          	//code: 0
+    269          	phy_pib.currentTxFrm--;
+    270          	*phy_pib.currentTxFrm = 0x0;
+    271          	
+    272          	//type: 134
+    273          	phy_pib.currentTxFrm--;
+    274          	*phy_pib.currentTxFrm = ICMP6_RA;
+    275          
+    276          
+    277          	phy_pib.currentTxFlen += (12 + LOWSN_ICMPH_LEN);
+    278          
+    279          
+    280          	// set IP header
+    281          	a_nwk_tx_data.Version = LOWSN_IP6_VER;
+    282          	a_nwk_tx_data.TrafficClass=0x00;
+    283          	a_nwk_tx_data.FlowLabel = 0x00;
+    284          	a_nwk_tx_data.PayloadLength = phy_pib.currentTxFlen;
+    285          	a_nwk_tx_data.NextHeader = LOWSN_PROTO_ICMP6;
+    286          	a_nwk_tx_data.HopLimit = LOWSN_ND6_HOP_LIMIT;
+    287          
+    288          	// 目标节点地址
+    289          	if (active_flag == 1)  {
+    290          		lowsn_create_linklocal_allnodes_mcast(&a_nwk_tx_data.DstAddress);
+    291          	}
+    292          	else {
+    293          		// 使用收到的RS帧中的地址
+    294          		lowsn_ipaddr_copy(&a_nwk_tx_data.DstAddress, &a_nwk_rx_data.SrcAddress);
+    295          		//memcpy(&a_nwk_tx_data.DstAddress, &a_nwk_rx_data.SrcAddress, 16);
+    296          	}	
+    297          
+    298          	//  源节点地址
+    299                 // MUST be the link-local address assigned to the interface from which this message is sent.
+    300                //ds6FindSrcIP(&a_nwk_tx_data.SrcAddress, &a_nwk_tx_data.DstAddress);
+    301          	lowsn_ip6addr(&a_nwk_tx_data.SrcAddress,0xfe80,0,0,0,0,0,0,0);
+    302          
+    303          	//a_nwk_tx_data.IPStartPtr = phy_pib.currentTxFrm - LOWSN_IPH_LEN;
+    304          
+    305          
+    306          	return;
+    307          
+    308          }
+    309          
+    310          #endif
+    311          
+    312          
+    313          /*---------------------------------------------------------------------------
+    314          
+    315           *
+    316           * 解析Router Advertisement Message
+    317          *
+    318          *  暂时只支持更新prefix
+    319           *
+    320          
+    321          ---------------------------------------------------------------------------*/
+    322          
+    323          
+    324          void ndParseRA(void)
+    325          {
+    326          
+    327          	BYTE *ptr;
+    328          	BYTE options_len;
+    329          
+    330          	
+    331          	
+    332          	DEBUG_STRING(DBG_INFO,"ND: Received RA.\n");
+    333          
+    334          	ptr = a_nwk_rx_data.orgpkt.data + a_nwk_rx_data.pload_offset;
+    335          
+    336          
+    337          	// 对IPv6头部、ICMP头部、options长度等进行必要的检查，暂忽略。
+    338          
+    339          	// 只解析前缀，对其他域的解析暂忽略
+    340          
+    341          	// 指向options起始位置
+    342          	
+    343          	options_len = LOWSN_ICMPH_LEN+ LOWSN_ND6_RA_LEN;
+    344          
+    345          	while(options_len < a_nwk_rx_data.PayloadLength) {
+    346          
+    347          		ptr = ptr + options_len;
+    348          		options_len = options_len + (*(ptr+1)) << 3;
+    349          
+    350          		if (*ptr == LOWSN_ND6_OPT_PREFIX_INFO)  {
+    351          			
+    352          				DEBUG_STRING(DBG_INFO,"ND: Find RA Prefix.\n");
+    353          
+    354          				if(!lowsn_is_addr_link_local((IPADDR *)(ptr+16))) {
+    355          					
+    356          					if((*(ptr+3)) & LOWSN_ND6_RA_FLAG_ONLINK) {
+    357          						
+    358          						prefix = lowsn_ds6_prefix_lookup((IPADDR *)(ptr+16), *(ptr+2));
+    359          						if(prefix == NULL) {
+    360          							// 暂时发的总是时间无限长的前缀
+    361                                                           #ifndef LOWSN_FFD
+    362          							prefix = lowsn_ds6_prefix_add((IPADDR *)(ptr+16), *(ptr+2), 0);
+    363                                                              
+    364          							 // 收到前缀后的回调函数
+    365          							  usrGetPrefixCallback((IPADDR *)(ptr+16), *(ptr+2));
+    366          							  #endif
+    367          						}
+    368          					}
+    369          					
+    370          					if(((*(ptr+3)) & LOWSN_ND6_RA_FLAG_AUTONOMOUS) && (*(ptr+2) == LOWSN_DEFAULT_PREFIX_LEN)) {
+    371          	
+    372          						lowsn_ipaddr_copy(&ipaddr, (IPADDR *)(ptr+16));		//copy the ipv6 address prefix
+    373          						if (lowsn_ds6_if.iid_gen_method == LOWSN_IID_GLOBAL_SHORTADDR) {
+    374          							ds6GenInterfaceID16(&ipaddr,  macGetPanID(), macGetShortAddr());
+    375          						}
+    376          						else  {
+    377          							ds6GenInterfaceID64(&ipaddr);
+    378          						}
+    379          							
+    380          						addr = lowsn_ds6_uaddr_lookup(&ipaddr);
+    381          						if(addr == NULL) {
+    382          							if (lowsn_ds6_if.iid_gen_method == LOWSN_IID_GLOBAL_SHORTADDR) {
+    383          								lowsn_ds6_uaddr_add(&ipaddr, 0, ADDR_AUTOCONF_SHORTADDR);
+    384          							}	
+    385          							else  {
+    386          								lowsn_ds6_uaddr_add(&ipaddr, 0, ADDR_AUTOCONF_EUI64);
+    387          							}
+    388          						}		
+    389          							
+    390          					}
+    391          					
+    392          				  }
+    393          		}
+    394          
+    395          		else  {
+    396          			
+    397          				lowsn_len = 0;
+    398          				DEBUG_STRING(DBG_INFO,"ND: Received RA option is not supported.\n");
+    399          		}
+    400          	}	
+    401          
+    402           	 return;
+    403          
+    404          }
+    405          
+    406          
+    407          
+    408          #if 0
+    409          
+    410          
+    411          /*------------------------------------------------------------------*/
+    412          /* create a link layer address option */
+    413          static void
+    414          create_llao(uint8_t *llao, uint8_t type) {
+    415            llao[LOWSN_ND6_OPT_TYPE_OFFSET] = type;
+    416            llao[LOWSN_ND6_OPT_LEN_OFFSET] = LOWSN_ND6_OPT_LLAO_LEN >> 3;
+    417            memcpy(&llao[LOWSN_ND6_OPT_DATA_OFFSET], &lowsn_lladdr, LOWSN_LLADDR_LEN);
+    418            /* padding on some */
+    419            memset(&llao[LOWSN_ND6_OPT_DATA_OFFSET + LOWSN_LLADDR_LEN], 0,
+    420                   LOWSN_ND6_OPT_LLAO_LEN - 2 - LOWSN_LLADDR_LEN);
+    421          }
+    422          
+    423          
+    424          /*------------------------------------------------------------------*/
+    425          
+    426           /**
+    427           * \brief Process a neighbor solicitation
+    428           *
+    429           * The NS can be received in 3 cases (procedures):
+    430           * - sender is performing DAD (ip src = unspecified, no SLLAO option)
+    431           * - sender is performing NUD (ip dst = unicast)
+    432           * - sender is performing address resolution (ip dest = solicited node mcast
+    433           * address)
+    434           *
+    435           * We do:
+    436           * - if the tgt belongs to me, reply, otherwise ignore
+    437           * - if i was performing DAD for the same address, two cases:
+    438           * -- I already sent a NS, hence I win
+    439           * -- I did not send a NS yet, hence I lose
+    440           *
+    441           * If we need to send a NA in response (i.e. the NS was done for NUD, or
+    442           * address resolution, or DAD and there is a conflict), we do it in this
+    443           * function: set src, dst, tgt address in the three cases, then for all cases
+    444           * set the rest, including  SLLAO
+    445           *
+    446           */
+    447          void
+    448          lowsn_nd_ns_input(void)
+    449          {
+    450          	uint8_t flags;
+    451          	uint8_t llaoflag = 0;
+    452          	
+    453          	
+    454          	DEBUG_STRING(DBG_INFO, "Received NS from ");
+    455          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    456          	DEBUG_STRING(DBG_INFO, " to ");
+    457          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    458          	DEBUG_STRING(DBG_INFO, " with target address");
+    459          	PRINT6ADDR((lowsn_ipaddr_t *) (&LOWSN_ND6_NS_BUF->tgtipaddr));
+    460          	DEBUG_STRING(DBG_INFO, "\r\n");
+    461          	
+    462          #if LOWSN_CONF_IPV6_CHECKS
+    463          	if((LOWSN_IP_BUF->ttl != LOWSN_ND6_HOP_LIMIT) ||
+    464          			(lowsn_is_addr_mcast(&LOWSN_ND6_NS_BUF->tgtipaddr)) ||
+    465          			(LOWSN_ICMP_BUF->icode != 0)) {
+    466          		DEBUG_STRING(DBG_INFO, "NS received is bad\r\n");
+    467          		goto discard;
+    468          	}
+    469          	if(lowsn_len-40 < 24){
+    470          		DEBUG_STRING(DBG_INFO, "Discard RS for ICMP len\r\n");
+    471          		goto discard;
+    472          	}
+    473          #endif /* LOWSN_CONF_IPV6_CHECKS */
+    474          
+    475          	/* Options processing */
+    476          	nd6_opt_llao = NULL;
+    477          	nbr = NULL;
+    478          	nd6_opt_offset = LOWSN_ND6_NS_LEN;
+    479          	nbr = lowsn_ds6_nbr_lookup(&LOWSN_IP_BUF->srcipaddr);
+    480          	while(lowsn_l3_icmp_hdr_len + nd6_opt_offset < lowsn_len) {
+    481          #if LOWSN_CONF_IPV6_CHECKS
+    482          		if(LOWSN_ND6_OPT_HDR_BUF->len == 0) {
+    483          			DEBUG_STRING(DBG_INFO, "NS received is bad\r\n");
+    484          			goto discard;
+    485          		}
+    486          #endif /* LOWSN_CONF_IPV6_CHECKS */
+    487          		switch (LOWSN_ND6_OPT_HDR_BUF->type) {
+    488          			case LOWSN_ND6_OPT_SLLAO:		//source link layer address option
+    489          				llaoflag = 1;
+    490          				nd6_opt_llao = &lowsn_buf[lowsn_l2_l3_icmp_hdr_len + nd6_opt_offset];
+    491          #if LOWSN_CONF_IPV6_CHECKS
+    492          				/* There must be NO option in a DAD NS */
+    493          				if(lowsn_is_addr_unspecified(&LOWSN_IP_BUF->srcipaddr)) {
+    494          					DEBUG_STRING(DBG_INFO, "NS received is bad\r\n");
+    495          					goto discard;
+    496          				}
+    497          				else {
+    498          #endif /*LOWSN_CONF_IPV6_CHECKS */
+    499          //					nbr = lowsn_ds6_nbr_lookup(&LOWSN_IP_BUF->srcipaddr);
+    500          					if(nbr == NULL) {
+    501          						/*if the neighbor is not in the NBC then add a new entry in the NBC*/
+    502          						lowsn_ds6_nbr_add(&LOWSN_IP_BUF->srcipaddr,
+    503          								(lowsn_lladdr_t *)&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET],
+    504          								0, NBR_STALE);
+    505              	 		   }
+    506          					else {
+    507          						/*the neighbor is in the NCE but the link layer address in the NS message is different
+    508          						  *from that int NBC entry,then the node should update the neighbore's link layer address
+    509          						  *and update the neighbor cache entry's state to STALE*/
+    510          						if(memcmp(&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET],
+    511          								&nbr->lladdr, LOWSN_LLADDR_LEN) != 0) {
+    512          							memcpy(&nbr->lladdr, &nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET],LOWSN_LLADDR_LEN);
+    513          							nbr->state = NBR_STALE;
+    514          						}
+    515          						else {
+    516          							/*if the NCE's state is INCOMPLETE, the node should send the queuing packet in the
+    517          							  *queuing buffer(if any) and then send a NA message to respond to the NS message*/
+    518          							if(nbr->state == NBR_INCOMPLETE) {
+    519          								nbr->state = NBR_STALE;
+    520          							}
+    521          						}
+    522          					}
+    523          #if LOWSN_CONF_IPV6_CHECKS
+    524          				}
+    525          #endif /*LOWSN_CONF_IPV6_CHECKS */
+    526          			break;
+    527          
+    528          			default:
+    529          				DEBUG_STRING(DBG_INFO, "ND option not supported in NS");
+    530          			break;
+    531          		}
+    532          		nd6_opt_offset += (LOWSN_ND6_OPT_HDR_BUF->len << 3);
+    533          	}
+    534          	/*if there is no source linl layer address option in the NS message, the host MUST Do anything*/
+    535          	if(nbr != NULL){
+    536          		if((nbr->state == NBR_INCOMPLETE)&&(llaoflag == 0)){
+    537          			lowsn_len = 0;
+    538          			return;
+    539          		}
+    540          	}
+    541          
+    542          
+    543          	addr = lowsn_ds6_uaddr_lookup(&LOWSN_ND6_NS_BUF->tgtipaddr);
+    544          	if(addr != NULL) {
+    545          #if LOWSN_ND6_DEF_MAXDADNS > 0
+    546          		if(lowsn_is_addr_unspecified(&LOWSN_IP_BUF->srcipaddr)) {
+    547          			/* DAD CASE */
+    548          #if LOWSN_CONF_IPV6_CHECKS
+    549          			if(!lowsn_is_addr_solicited_node(&LOWSN_IP_BUF->destipaddr)) {
+    550          				DEBUG_STRING(DBG_INFO, "NS received is bad\r\n");
+    551          				goto discard;
+    552          			}
+    553          #endif /* LOWSN_CONF_IPV6_CHECKS */
+    554          			if(addr->state != ADDR_TENTATIVE) {
+    555          				lowsn_create_linklocal_allnodes_mcast(&LOWSN_IP_BUF->destipaddr);
+    556          				ds6FindSrcIP(&LOWSN_IP_BUF->srcipaddr, &LOWSN_IP_BUF->destipaddr);
+    557          				flags = LOWSN_ND6_NA_FLAG_OVERRIDE;
+    558          				goto create_na;
+    559          			}
+    560          			else {
+    561          				/** \todo if I sent a NS before him, I win */
+    562          				lowsn_ds6_dad_failed(addr);
+    563          				goto discard;
+    564          			}
+    565          		}
+    566          #else /* LOWSN_ND6_DEF_MAXDADNS > 0 */
+    567          		if(lowsn_is_addr_unspecified(&LOWSN_IP_BUF->srcipaddr)) {
+    568          			/* DAD CASE */
+    569          			goto discard;
+    570          		}
+    571          #endif /* LOWSN_ND6_DEF_MAXDADNS > 0 */
+    572          
+    573          
+    574          #if LOWSN_CONF_IPV6_CHECKS
+    575          		if(lowsn_ds6_is_my_uaddr(&LOWSN_IP_BUF->srcipaddr)) {
+    576                  /**
+    577                   * \NOTE do we do something here? we both are using the same address.
+    578                   * If we are doing dad, we could cancel it, though we should receive a
+    579                   * NA in response of DAD NS we sent, hence DAD will fail anyway. If we
+    580                   * were not doing DAD, it means there is a duplicate in the network!
+    581                   */
+    582          			DEBUG_STRING(DBG_INFO, "NS received is bad\r\n");
+    583          			goto discard;
+    584          		}
+    585          #endif /*LOWSN_CONF_IPV6_CHECKS */
+    586          
+    587          		/* Address resolution case */
+    588          		if(lowsn_is_addr_solicited_node(&LOWSN_IP_BUF->destipaddr)) {
+    589          			lowsn_ipaddr_copy(&LOWSN_IP_BUF->destipaddr, &LOWSN_IP_BUF->srcipaddr);
+    590          			lowsn_ipaddr_copy(&LOWSN_IP_BUF->srcipaddr, &LOWSN_ND6_NS_BUF->tgtipaddr);
+    591          			flags = LOWSN_ND6_NA_FLAG_SOLICITED | LOWSN_ND6_NA_FLAG_OVERRIDE;
+    592          			goto create_na;
+    593          		}
+    594          
+    595              /* NUD CASE */
+    596          		if(lowsn_ds6_uaddr_lookup(&LOWSN_IP_BUF->destipaddr) == addr) {
+    597          			lowsn_ipaddr_copy(&LOWSN_IP_BUF->destipaddr, &LOWSN_IP_BUF->srcipaddr);
+    598          			lowsn_ipaddr_copy(&LOWSN_IP_BUF->srcipaddr, &LOWSN_ND6_NS_BUF->tgtipaddr);
+    599          			flags = LOWSN_ND6_NA_FLAG_SOLICITED | LOWSN_ND6_NA_FLAG_OVERRIDE;
+    600          			goto create_na;
+    601          		}
+    602          		else {
+    603          #if LOWSN_CONF_IPV6_CHECKS
+    604          			DEBUG_STRING(DBG_INFO, "NS received is bad\r\n");
+    605          			goto discard;
+    606          #endif /* LOWSN_CONF_IPV6_CHECKS */
+    607          		}
+    608          	}
+    609          	else {
+    610          		goto discard;
+    611          	}
+    612          
+    613          
+    614          create_na:
+    615          	/* If the node is a router it should set R flag in NAs */
+    616          #ifdef LOWSN_COORDINATOR
+    617          	flags = flags | LOWSN_ND6_NA_FLAG_ROUTER;
+    618          #endif
+    619          	lowsn_ext_len = 0;
+    620          	LOWSN_IP_BUF->vtc = 0x60;
+    621          	LOWSN_IP_BUF->tcflow = 0;
+    622          	LOWSN_IP_BUF->flow = 0;
+    623          	LOWSN_IP_BUF->len[0] = 0;       /* length will not be more than 255 */
+    624          	LOWSN_IP_BUF->len[1] = LOWSN_ICMPH_LEN + LOWSN_ND6_NA_LEN + LOWSN_ND6_OPT_LLAO_LEN;
+    625          	LOWSN_IP_BUF->proto = LOWSN_PROTO_ICMP6;
+    626          	LOWSN_IP_BUF->ttl = LOWSN_ND6_HOP_LIMIT;
+    627          
+    628          	LOWSN_ICMP_BUF->type = ICMP6_NA;
+    629          	LOWSN_ICMP_BUF->icode = 0;
+    630          
+    631          	LOWSN_ND6_NA_BUF->flagsreserved = flags;
+    632          	memcpy(&LOWSN_ND6_NA_BUF->tgtipaddr, &addr->ipaddr, sizeof(lowsn_ipaddr_t));
+    633          
+    634          	create_llao(&lowsn_buf[lowsn_l2_l3_icmp_hdr_len + LOWSN_ND6_NA_LEN], LOWSN_ND6_OPT_TLLAO);
+    635          
+    636          	LOWSN_ICMP_BUF->icmpchksum = 0;
+    637          	LOWSN_ICMP_BUF->icmpchksum = ~ lowsn_icmp6chksum();
+    638          
+    639          	lowsn_len = LOWSN_IPH_LEN + LOWSN_ICMPH_LEN + LOWSN_ND6_NA_LEN + LOWSN_ND6_OPT_LLAO_LEN;
+    640          	
+    641          	DEBUG_STRING(DBG_INFO, "Sending NA to ");
+    642          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    643          	DEBUG_STRING(DBG_INFO, " from ");
+    644          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    645          	DEBUG_STRING(DBG_INFO, " with target address ");
+    646          	PRINT6ADDR(&LOWSN_ND6_NA_BUF->tgtipaddr);
+    647          	DEBUG_STRING(DBG_INFO, "\r\n");
+    648          	
+    649          	/* send the queuing paket in the queuing buffer, because the node can't send the
+    650          	 * queuing buffer at once, so we should copy the NA message to the swap buffer
+    651          	 * and copy the queuing buffer of the neighbor to the lowsn_buf*/
+    652          #if LOWSN_CONF_IPV6_QUEUE_PKT
+    653          	if((nbr!=NULL)&&(nbr->queue_buflen!=0)){
+    654          //		if(tmpnbr->queue_buflen != 0){
+    655          			DEBUG_STRING(DBG_INFO, "Copy NA to swap buf\r\n");
+    656          			lowsn_swap_buf.buflen = lowsn_len;
+    657          			memcpy(lowsn_swap_buf.buf, LOWSN_IP_BUF, lowsn_swap_buf.buflen);
+    658          			
+    659          			DEBUG_STRING(DBG_INFO, "Copy the queuing pkt to lowsn_buf\r\n");
+    660          //			lowsn_len = tmpnbr->queue_buflen;
+    661          //			memcpy(LOWSN_IP_BUF, tmpnbr->queue_buf, lowsn_len);
+    662          			lowsn_len = nbr->queue_buflen;
+    663          			memcpy(LOWSN_IP_BUF, nbr->queue_buf, lowsn_len);
+    664          //		}
+    665          	}
+    666          #endif /*LOWSN_CONF_IPV6_QUEUE_PKT*/
+    667          
+    668          	return;
+    669          
+    670          discard:
+    671          	lowsn_len = 0;
+    672          	return;
+    673          }
+    674          
+    675          /*---------------------------------------------------------------------------*/
+    676          /**
+    677           * \brief Send a neighbor solicitation,
+    678           * \param src pointer to the src of the NS if known
+    679           * \param dest pointer to ip address to send the NS, for DAD or ADDR Resol,
+    680           * MUST be NULL, for NUD, must be correct unicast dest
+    681           * \param tgt  pointer to ip address to fill the target address field, must
+    682           * not be NULL
+    683           *
+    684           * - RFC 4861, 7.2.2 :
+    685           *   "If the source address of the packet prompting the solicitation is the
+    686           *   same as one of the addresses assigned to the outgoing interface, that
+    687           *   address SHOULD be placed in the IP Source Address of the outgoing
+    688           *   solicitation.  Otherwise, any one of the addresses assigned to the
+    689           *   interface should be used."
+    690           *   This is why we have a src ip address as argument. If NULL, we will do
+    691           *   src address selection, otherwise we use the argument.
+    692           *
+    693           * - we check if it is a NS for Address resolution  or NUD, if yes we include
+    694           *   a SLLAO option, otherwise no.
+    695           */
+    696          void
+    697          lowsn_nd_ns_output(lowsn_ipaddr_t *src, lowsn_ipaddr_t *dest, lowsn_ipaddr_t *tgt){
+    698          
+    699          	lowsn_ext_len = 0;
+    700          	LOWSN_IP_BUF->vtc = 0x60;
+    701          	LOWSN_IP_BUF->tcflow = 0;
+    702          	LOWSN_IP_BUF->flow = 0;
+    703          	LOWSN_IP_BUF->proto = LOWSN_PROTO_ICMP6;
+    704          	LOWSN_IP_BUF->ttl = LOWSN_ND6_HOP_LIMIT;
+    705          	/*add the destination IPv6 address for NS message*/
+    706          	if(dest == NULL) {
+    707          		/*for address resolution and duplicate address detctation*/
+    708          		lowsn_create_solicited_node(tgt, &LOWSN_IP_BUF->destipaddr);
+    709          	}
+    710          	else {
+    711          		/*for neighbor unreachable detctation*/
+    712          		lowsn_ipaddr_copy(&LOWSN_IP_BUF->destipaddr, dest);
+    713          	}
+    714          	LOWSN_ICMP_BUF->type = ICMP6_NS;
+    715          	LOWSN_ICMP_BUF->icode = 0;
+    716          	LOWSN_ND6_NS_BUF->reserved = 0;
+    717          	lowsn_ipaddr_copy((lowsn_ipaddr_t *) &LOWSN_ND6_NS_BUF->tgtipaddr, tgt);
+    718          	LOWSN_IP_BUF->len[0] = 0;       /* length will not be more than 255 */
+    719            /*
+    720             * check if we add a SLLAO option: for DAD, MUST NOT, for NUD, MAY
+    721             * (here yes), for Address resolution , MUST
+    722             */
+    723          	if(!(lowsn_ds6_is_my_uaddr(tgt))) {
+    724          		if(src != NULL) {
+    725          		lowsn_ipaddr_copy(&LOWSN_IP_BUF->srcipaddr, src);
+    726          	}
+    727          	else {
+    728          		ds6FindSrcIP(&LOWSN_IP_BUF->srcipaddr, &LOWSN_IP_BUF->destipaddr);
+    729          	}
+    730          	if (lowsn_is_addr_unspecified(&LOWSN_IP_BUF->srcipaddr)) {
+    731          		DEBUG_STRING(DBG_INFO, "Dropping NS due to no suitable source address\r\n");
+    732          		lowsn_len = 0;
+    733          		return;
+    734          	}
+    735          		LOWSN_IP_BUF->len[1] =
+    736          		LOWSN_ICMPH_LEN + LOWSN_ND6_NS_LEN + LOWSN_ND6_OPT_LLAO_LEN;
+    737          
+    738          		create_llao(&lowsn_buf[lowsn_l2_l3_icmp_hdr_len + LOWSN_ND6_NS_LEN], LOWSN_ND6_OPT_SLLAO);
+    739          
+    740          		lowsn_len = LOWSN_IPH_LEN + LOWSN_ICMPH_LEN + LOWSN_ND6_NS_LEN + LOWSN_ND6_OPT_LLAO_LEN;
+    741          	}
+    742          	else {
+    743          		lowsn_create_unspecified(&LOWSN_IP_BUF->srcipaddr);
+    744          		LOWSN_IP_BUF->len[1] = LOWSN_ICMPH_LEN + LOWSN_ND6_NS_LEN;
+    745          		lowsn_len = LOWSN_IPH_LEN + LOWSN_ICMPH_LEN + LOWSN_ND6_NS_LEN;
+    746          	}
+    747          
+    748          	LOWSN_ICMP_BUF->icmpchksum = 0;
+    749          	LOWSN_ICMP_BUF->icmpchksum = ~ lowsn_icmp6chksum();
+    750          	DEBUG_STRING(DBG_INFO, "Sending NS to");
+    751          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    752          	DEBUG_STRING(DBG_INFO, "from");
+    753          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    754          	DEBUG_STRING(DBG_INFO, "with target address");
+    755          	PRINT6ADDR(tgt);
+    756          	DEBUG_STRING(DBG_INFO, "\r\n");
+    757          	return;
+    758          
+    759          }
+    760          /*---------------------------------------------------------------------------*/
+    761          /**
+    762           * \brief Process a Neighbor Advertisement
+    763           *
+    764           * we might have to send a pkt that had been buffered while address
+    765           * resolution was performed (if we support buffering, see LOWSN_CONF_QUEUE_PKT)
+    766           *
+    767           * As per RFC 4861, on link layer that have addresses, TLLAO options MUST be
+    768           * included when responding to multicast solicitations, SHOULD be included in
+    769           * response to unicast (here we assume it is for now)
+    770           *
+    771           * NA can be received after sending NS for DAD, Address resolution or NUD. Can
+    772           * be unsolicited as well.
+    773           * It can trigger update of the state of the neighbor in the neighbor cache,
+    774           * router in the router list.
+    775           * If the NS was for DAD, it means DAD failed
+    776           *
+    777           */
+    778          void
+    779          lowsn_nd_na_input(void){
+    780          	uint8_t is_llchange;	//link layer address change
+    781          	uint8_t is_router;		
+    782          	uint8_t is_solicited;
+    783          	uint8_t is_override;
+    784          
+    785          	DEBUG_STRING(DBG_INFO, "Received NA from");
+    786          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    787          	DEBUG_STRING(DBG_INFO, "to");
+    788          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    789          	DEBUG_STRING(DBG_INFO, "with target address");
+    790          	PRINT6ADDR((lowsn_ipaddr_t *) (&LOWSN_ND6_NA_BUF->tgtipaddr));
+    791          	DEBUG_STRING(DBG_INFO, "\r\n");
+    792          
+    793          	/*
+    794          	* booleans. the three last one are not 0 or 1 but 0 or 0x80, 0x40, 0x20
+    795          	* but it works. Be careful though, do not use tests such as is_router == 1
+    796          	*/
+    797          	is_llchange = 0;
+    798          	is_router = ((LOWSN_ND6_NA_BUF->flagsreserved & LOWSN_ND6_NA_FLAG_ROUTER));
+    799          	is_solicited = ((LOWSN_ND6_NA_BUF->flagsreserved & LOWSN_ND6_NA_FLAG_SOLICITED));
+    800          	is_override = ((LOWSN_ND6_NA_BUF->flagsreserved & LOWSN_ND6_NA_FLAG_OVERRIDE));
+    801          
+    802          #if LOWSN_CONF_IPV6_CHECKS
+    803          	if((LOWSN_IP_BUF->ttl != LOWSN_ND6_HOP_LIMIT) ||
+    804          			(LOWSN_ICMP_BUF->icode != 0) ||
+    805          			(lowsn_is_addr_mcast(&LOWSN_ND6_NA_BUF->tgtipaddr)) ||
+    806          			(is_solicited && lowsn_is_addr_mcast(&LOWSN_IP_BUF->destipaddr))) {
+    807          		DEBUG_STRING(DBG_INFO, "NA received is bad\r\n");
+    808          		goto discard;
+    809          	}
+    810          #endif /*LOWSN_CONF_IPV6_CHECKS */
+    811          
+    812          	/* Options processing: we handle TLLAO, and must ignore others */
+    813          	nd6_opt_offset = LOWSN_ND6_NA_LEN;
+    814          	nd6_opt_llao = NULL;
+    815          	while(lowsn_l3_icmp_hdr_len + nd6_opt_offset < lowsn_len) {
+    816          #if LOWSN_CONF_IPV6_CHECKS
+    817          		if(LOWSN_ND6_OPT_HDR_BUF->len == 0) {
+    818          			DEBUG_STRING(DBG_INFO, "NA received is bad\r\n");
+    819          			goto discard;
+    820          		}
+    821          #endif /*LOWSN_CONF_IPV6_CHECKS */
+    822          		switch (LOWSN_ND6_OPT_HDR_BUF->type) {
+    823          			case LOWSN_ND6_OPT_TLLAO:
+    824          				nd6_opt_llao = (uint8_t *)LOWSN_ND6_OPT_HDR_BUF;
+    825          				break;
+    826          			default:
+    827          				DEBUG_STRING(DBG_INFO, "ND option not supported in NA\r\n");
+    828          			break;
+    829          		}
+    830          		nd6_opt_offset += (LOWSN_ND6_OPT_HDR_BUF->len << 3);
+    831          	}
+    832          	
+    833          	addr = lowsn_ds6_uaddr_lookup(&LOWSN_ND6_NA_BUF->tgtipaddr);
+    834          	/* Message processing, including TLLAO if any */
+    835          	if(addr != NULL) {
+    836          #if LOWSN_ND6_DEF_MAXDADNS > 0
+    837          		if(addr->state == ADDR_TENTATIVE) {
+    838          			lowsn_ds6_dad_failed(addr);
+    839          		}
+    840          #endif /*LOWSN_ND6_DEF_MAXDADNS > 0 */
+    841          		DEBUG_STRING(DBG_INFO, "NA received is bad\r\n");
+    842          		goto discard;
+    843          	}
+    844          	else {
+    845          		nbr = lowsn_ds6_nbr_lookup(&LOWSN_ND6_NA_BUF->tgtipaddr);
+    846          		if(nbr == NULL) {
+    847          			goto discard;
+    848          		}
+    849          		if(nd6_opt_llao != 0) {
+    850          			is_llchange = memcmp(&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET], (void *)(&nbr->lladdr), LOWSN_LLADDR_LEN);
+    851          		}
+    852          		
+    853          		if(nbr->state == NBR_INCOMPLETE) {
+    854          			if(nd6_opt_llao == NULL) {
+    855          				goto discard;
+    856          			}
+    857          			memcpy(&nbr->lladdr, &nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET], LOWSN_LLADDR_LEN);
+    858          			if(is_solicited) {
+    859          				/*cancel the send ns schedule*/
+    860          				nbr->state = NBR_REACHABLE;
+    861          				nbr->sendns = 0;
+    862          				nbr->nscount = 0;
+    863          
+    864          				/* update reachable time is stored in ms */
+    865          				mstimer_set(&(nbr->reachable), lowsn_ds6_if.reachable_tminterval);
+    866          
+    867          			}
+    868          			else {
+    869          				nbr->state = NBR_STALE;
+    870          			}
+    871          			nbr->isrouter = is_router;
+    872          		}
+    873          		else {
+    874          			if(!is_override && is_llchange) {
+    875          				if(nbr->state == NBR_REACHABLE) {
+    876          					nbr->state = NBR_STALE;
+    877          				}
+    878          				goto discard;
+    879          			}
+    880          			else {
+    881          				if(is_override || (!is_override && nd6_opt_llao != 0 && !is_llchange) || nd6_opt_llao == 0) {
+    882          					if(nd6_opt_llao != 0) {
+    883          						memcpy(&nbr->lladdr, &nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET], LOWSN_LLADDR_LEN);
+    884          					}
+    885          		  	    	if(is_solicited) {
+    886          						DEBUG_STRING(DBG_INFO, "End NURD Success\r\n");
+    887          						nbr->state = NBR_REACHABLE;
+    888          						nbr->sendns = 0;
+    889          						nbr->nscount = 0;
+    890          			
+    891          						/* reachable time is stored in ms */
+    892          						mstimer_set(&(nbr->reachable), lowsn_ds6_if.reachable_tminterval);
+    893          					}
+    894          					else {
+    895          						if(nd6_opt_llao != 0 && is_llchange) {
+    896          							nbr->state = NBR_STALE;
+    897          						}
+    898          					}
+    899          		  		}
+    900          	    	}
+    901          			
+    902          			if(nbr->isrouter && !is_router) {
+    903          				defrt = lowsn_ds6_defrt_lookup(&LOWSN_IP_BUF->srcipaddr);
+    904          				if(defrt != NULL) {
+    905          					lowsn_ds6_defrt_rm(defrt);
+    906          				}
+    907          			}
+    908          			nbr->isrouter = is_router;
+    909          		}
+    910            	}
+    911          #if LOWSN_CONF_IPV6_QUEUE_PKT
+    912          	/**
+    913          	*The nbr is now reachable, check if we had queuing pakcet in it's queuing buffer.
+    914          	*--if YES		send the queuing packet out
+    915          	*--if NO		do nothing
+    916          	**/
+    917          	if(nbr->queue_buflen != 0) {
+    918          		DEBUG_STRING(DBG_INFO, "Sendint the queuing paket out\r\n");
+    919          		lowsn_len = nbr->queue_buflen;
+    920          		memcpy(LOWSN_IP_BUF, nbr->queue_buf, lowsn_len);
+    921          		nbr->queue_buflen = 0;
+    922          		nwk_pib.flags.bits.nwkpending = 1;
+    923          		return;
+    924              }
+    925          #endif /*LOWSN_CONF_IPV6_QUEUE_PKT */
+    926          	/**
+    927          	  * here the processing of the valid NA message has been finished.
+    928          	  * Cancel the Send NS message schedule event(Address ressolution, neighbor unreachable detectation,
+    929          	  * and duplicate address detectaion), by cleaning the variable of "lowsn_ds6_if.sendrs".
+    930          	**/
+    931          //	nbr->sendns = 0;
+    932          //	nbr->nscount = 0;
+    933          
+    934          discard:
+    935            lowsn_len = 0;
+    936            return;
+    937          
+    938          
+    939          
+    940          
+    941          
+    942          
+    943          }
+    944          
+    945          /*---------------------------------------------------------------------------*/
+    946          /**
+    947           * \brief Construct an Router Solicitation message
+    948           *
+    949           * src is chosen through the uip_netif_select_src function. If src is
+    950           * unspecified  (i.e. we do not have a preferred address yet), then we do not
+    951           * put a SLLAO option (MUST NOT in RFC 4861). Otherwise we do.
+    952           *
+    953           * RS message format,
+    954           * possible option is SLLAO, MUST NOT be included if source = unspecified
+    955           * SHOULD be included otherwise
+    956           */
+    957          void lowsn_nd_rs_output(void){
+    958          	/*construct the ipv6 header (without any extention option header) and icmpv6 header*/
+    959          	LOWSN_IP_BUF->vtc = 0x60;
+    960          	LOWSN_IP_BUF->tcflow = 0;
+    961          	LOWSN_IP_BUF->flow = 0;
+    962          	LOWSN_IP_BUF->proto = LOWSN_PROTO_ICMP6;
+    963          	LOWSN_IP_BUF->ttl = LOWSN_ND6_HOP_LIMIT;
+    964          	lowsn_create_linklocal_allrouters_mcast(&LOWSN_IP_BUF->destipaddr);
+    965          	/*select the source ipv6 address*/
+    966          	ds6FindSrcIP(&LOWSN_IP_BUF->srcipaddr, &LOWSN_IP_BUF->destipaddr);
+    967          	LOWSN_ICMP_BUF->type = ICMP6_RS;
+    968          	LOWSN_ICMP_BUF->icode = 0;
+    969          	LOWSN_ND6_RS_BUF->reserved = 0;
+    970          	LOWSN_IP_BUF->len[0] = 0;       /* length will not be more than 255 */
+    971          	
+    972          	if(lowsn_is_addr_unspecified(&LOWSN_IP_BUF->srcipaddr)) {
+    973          		LOWSN_IP_BUF->len[1] = LOWSN_ICMPH_LEN + LOWSN_ND6_RS_LEN;
+    974          		lowsn_len = lowsn_l3_icmp_hdr_len + LOWSN_ND6_RS_LEN;
+    975          	}
+    976          	else {
+    977          		lowsn_len = lowsn_l3_icmp_hdr_len + LOWSN_ND6_RS_LEN + LOWSN_ND6_OPT_LLAO_LEN;
+    978          		LOWSN_IP_BUF->len[1] = LOWSN_ICMPH_LEN + LOWSN_ND6_RS_LEN + LOWSN_ND6_OPT_LLAO_LEN;
+    979          		/*creat the Source link-layer address option*/
+    980          		create_llao(&lowsn_buf[lowsn_l2_l3_icmp_hdr_len + LOWSN_ND6_RS_LEN], LOWSN_ND6_OPT_SLLAO);
+    981          	}
+    982          	/*calculate the checksum*/
+    983          	LOWSN_ICMP_BUF->icmpchksum = 0;
+    984          	LOWSN_ICMP_BUF->icmpchksum = ~ lowsn_icmp6chksum();
+    985          
+    986          	DEBUG_STRING(DBG_INFO, "Sending RS to");
+    987          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    988          	DEBUG_STRING(DBG_INFO, "from");
+    989          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    990          	DEBUG_STRING(DBG_INFO, "\r\n");
+    991          	return;
+    992          
+    993          }
+    994          
+    995          
+    996          
+    997          
+    998          
+    999          
+   1000          
+   1001          
+   1002          
+   1003          
+   1004          
+   1005          /*---------------------------------------------------------------------------*/
+   1006          /**
+   1007           *
+   1008           * \brief process a Router Advertisement
+   1009           *
+   1010           * - Possible actions when receiving a RA: add router to router list,
+   1011           *   recalculate reachable time, update link hop limit, update retrans timer.
+   1012           * - If MTU option: update MTU.
+   1013           * - If SLLAO option: update entry in neighbor cache
+   1014           * - If prefix option: start autoconf, add prefix to prefix list
+   1015           */
+   1016          void
+   1017          lowsn_nd_ra_input(void){
+   1018          
+   1019          	uint16_t tmplen = 0;
+   1020          	uint8_t* tmpp = NULL;
+   1021          	
+   1022          	DEBUG_STRING(DBG_INFO, "Received RA from");
+   1023          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+   1024          	DEBUG_STRING(DBG_INFO, "to");
+   1025          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+   1026          	DEBUG_STRING(DBG_INFO, "\r\n");
+   1027          
+   1028          #if LOWSN_CONF_IPV6_CHECKS
+   1029          	if(LOWSN_IP_BUF->ttl != LOWSN_ND6_HOP_LIMIT){
+   1030          		DEBUG_STRING(DBG_INFO, "Discard RA for TTL\r\n");
+   1031          		goto discard;
+   1032          	}
+   1033          	if(!lowsn_is_addr_link_local(&LOWSN_IP_BUF->srcipaddr)){
+   1034          		DEBUG_STRING(DBG_INFO, "Discard RA for srcipaddr\r\n");
+   1035          		goto discard;
+   1036          	}
+   1037          	if(LOWSN_ICMP_BUF->icode != 0){
+   1038          		DEBUG_STRING(DBG_INFO, "Discard RA for ICMP Code\r\n");
+   1039          		goto discard;
+   1040          	}
+   1041          	if(lowsn_len-40 < 16){
+   1042          		DEBUG_STRING(DBG_INFO, "Discard RA for ICMP len\r\n");
+   1043          		goto discard;
+   1044          	}
+   1045          	
+   1046          	//check all the option len in the RA, MUST be greater than 0
+   1047          	tmplen = LOWSN_IPH_LEN + lowsn_ext_len + LOWSN_ICMPH_LEN + LOWSN_ND6_RA_LEN;
+   1048          	//tmpp = &lowsn_buf[LOWSN_LLH_LEN + LOWSN_IPH_LEN + lowsn_ext_len + LOWSN_ICMPH_LEN + LOWSN_ND6_RA_LEN];
+   1049          	tmpp = &lowsn_buf[LOWSN_LLH_LEN + tmplen];
+   1050          	while(tmplen < lowsn_len){
+   1051          		if(*(tmpp+1) == 0){
+   1052          			DEBUG_STRING(DBG_INFO, "Discard RA for Option len=0\r\n");
+   1053          			goto discard;
+   1054          		}
+   1055          		else{
+   1056          			tmplen = tmplen + (*(tmpp+1)<<3);
+   1057          			tmpp = tmpp + (*(tmpp+1)<<3);
+   1058          		}
+   1059          	}
+   1060          #endif /*LOWSN_CONF_IPV6_CHECKS */
+   1061          
+   1062          	/*process the current hop limit feild of the RA message*/
+   1063          	if(LOWSN_ND6_RA_BUF->cur_ttl != 0) {
+   1064          		lowsn_ds6_if.cur_hop_limit = LOWSN_ND6_RA_BUF->cur_ttl;
+   1065          		DEBUG_STRING(DBG_INFO, "lowsn_ds6_if.cur_hop_limit %u\r\n", lowsn_ds6_if.cur_hop_limit);
+   1066          	}
+   1067          	/*process the current Reachable Time feild of the RA message*/
+   1068          	if(LOWSN_ND6_RA_BUF->reachable_time != 0) {
+   1069          		if(lowsn_ds6_if.base_reachable_time !=lowsn_ntohl(LOWSN_ND6_RA_BUF->reachable_time)) {
+   1070          			lowsn_ds6_if.base_reachable_time = lowsn_ntohl(LOWSN_ND6_RA_BUF->reachable_time);
+   1071          			lowsn_ds6_if.reachable_tminterval = lowsn_ds6_compute_reachable_time();
+   1072          		}
+   1073          	}
+   1074          	/*process the Retrans Timer feild of the RA message*/
+   1075          	if(LOWSN_ND6_RA_BUF->retrans_timer != 0) {
+   1076          		lowsn_ds6_if.retrans_tminterval= lowsn_ntohl(LOWSN_ND6_RA_BUF->retrans_timer);
+   1077          	}
+   1078          
+   1079          	/* Options processing */
+   1080          	nd6_opt_offset = LOWSN_ND6_RA_LEN;
+   1081          	while(lowsn_l3_icmp_hdr_len + nd6_opt_offset < lowsn_len) {
+   1082          //		if(LOWSN_ND6_OPT_HDR_BUF->len == 0) {
+   1083          //			DEBUG_STRING(DBG_INFO, "RA received is bad2\r\n");
+   1084          //			goto discard;
+   1085          //		}
+   1086          		switch (LOWSN_ND6_OPT_HDR_BUF->type) {
+   1087          			/*process the Source link-layer address option*/
+   1088          			case LOWSN_ND6_OPT_SLLAO:
+   1089          				DEBUG_STRING(DBG_INFO, "Processing SLLAO option in RA\r\n");
+   1090          				nd6_opt_llao = (uint8_t *) LOWSN_ND6_OPT_HDR_BUF;
+   1091          				nbr = lowsn_ds6_nbr_lookup(&LOWSN_IP_BUF->srcipaddr);
+   1092          				if(nbr == NULL) {
+   1093          					nbr = lowsn_ds6_nbr_add(&LOWSN_IP_BUF->srcipaddr,
+   1094          						(lowsn_lladdr_t *)&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET],
+   1095          						1, NBR_STALE);
+   1096          				}
+   1097          				else {
+   1098          					if(nbr->state == NBR_INCOMPLETE) {
+   1099          						memcpy(&nbr->lladdr, &nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET], LOWSN_LLADDR_LEN);
+   1100          						nbr->state = NBR_STALE;
+   1101          #if LOWSN_CONF_IPV6_QUEUE_PKT
+   1102          						/**
+   1103          						*The nbr has lladdr, check if we had queuing pakcet in it's queuing buffer.
+   1104          						*--if YES		send the queuing packet out
+   1105          						*--if NO		do nothing
+   1106          						**/
+   1107          						if(nbr->queue_buflen != 0) {
+   1108          							DEBUG_STRING(DBG_INFO, "Sendint the queuing paket out\r\n");
+   1109          							lowsn_len = nbr->queue_buflen;
+   1110          							memcpy(LOWSN_IP_BUF, nbr->queue_buf, lowsn_len);
+   1111          							nbr->queue_buflen = 0;
+   1112          							nwk_pib.flags.bits.nwkpending = 1;
+   1113          							return;
+   1114          					    }
+   1115          #endif /*LOWSN_CONF_IPV6_QUEUE_PKT */		
+   1116          					}
+   1117          					if(memcmp(&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET], &nbr->lladdr, LOWSN_LLADDR_LEN) != 0) {
+   1118          						memcpy(&nbr->lladdr, &nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET], LOWSN_LLADDR_LEN);
+   1119          						nbr->state = NBR_STALE;
+   1120          					}
+   1121          					nbr->isrouter = 1;
+   1122          				}
+   1123          			break;
+   1124          
+   1125          			/*process the MTU option*/
+   1126          			case LOWSN_ND6_OPT_MTU:
+   1127          				DEBUG_STRING(DBG_INFO, "Processing MTU option in RA\r\n");
+   1128          				lowsn_ds6_if.link_mtu = lowsn_ntohl(((lowsn_nd6_opt_mtu_t *) LOWSN_ND6_OPT_HDR_BUF)->mtu);
+   1129          				if(lowsn_ds6_if.link_mtu < pmtu.size){
+   1130          					pmtu.size = lowsn_ds6_if.link_mtu;
+   1131          					stimer_set(&pmtu.age, PMTU_UPDATE_INTERVAL);
+   1132          				}
+   1133          			break;
+   1134          
+   1135          			/*process the Prefix Information option*/
+   1136          			case LOWSN_ND6_OPT_PREFIX_INFO:
+   1137          				DEBUG_STRING(DBG_INFO, "Processing PREFIX option:");
+   1138          				PRINT6ADDR(&((lowsn_nd6_opt_prefix_info_t *)LOWSN_ND6_OPT_HDR_BUF)->prefix);
+   1139          				DEBUG_STRING(DBG_INFO, "\r\n");
+   1140          				nd6_opt_prefix_info = (lowsn_nd6_opt_prefix_info_t *)LOWSN_ND6_OPT_HDR_BUF;
+   1141          				if((lowsn_ntohl(nd6_opt_prefix_info->validlt) >= lowsn_ntohl(nd6_opt_prefix_info->preferredlt))
+   1142          					    && (!lowsn_is_addr_link_local(&nd6_opt_prefix_info->prefix))) {
+   1143          					/* on-link flag related processing */
+   1144          					if(nd6_opt_prefix_info->flagsreserved1 & LOWSN_ND6_RA_FLAG_ONLINK) {
+   1145          						prefix = lowsn_ds6_prefix_lookup(&nd6_opt_prefix_info->prefix, nd6_opt_prefix_info->preflen);
+   1146          						if(prefix == NULL) {
+   1147          							if(nd6_opt_prefix_info->validlt != 0) {
+   1148          								if(nd6_opt_prefix_info->validlt != LOWSN_ND6_INFINITE_LIFETIME) {
+   1149          									prefix = lowsn_ds6_prefix_add(&nd6_opt_prefix_info->prefix,
+   1150          													nd6_opt_prefix_info->preflen, lowsn_ntohl(nd6_opt_prefix_info->validlt));
+   1151          								}
+   1152          								else {
+   1153          									prefix = lowsn_ds6_prefix_add(&nd6_opt_prefix_info->prefix,
+   1154          													nd6_opt_prefix_info->preflen, 0);
+   1155          								}
+   1156          							}
+   1157          						}
+   1158          						else {
+   1159          							switch (nd6_opt_prefix_info->validlt) {
+   1160          								case 0:
+   1161          									lowsn_ds6_prefix_rm(prefix);
+   1162          								break;
+   1163          								
+   1164          								case LOWSN_ND6_INFINITE_LIFETIME:
+   1165          									prefix->isinfinite = 1;
+   1166          								break;
+   1167          								
+   1168          								default:
+   1169          									DEBUG_STRING(DBG_INFO, "Updating timer of prefix");
+   1170          									PRINT6ADDR(&prefix->ipaddr);
+   1171          									DEBUG_STRING(DBG_INFO, "new value %lu\r\n", lowsn_ntohl(nd6_opt_prefix_info->validlt));
+   1172          									/*change the invalidtime and update the schedule timer and event*/
+   1173          									stimer_set(&prefix->invalidtime, lowsn_ntohl(nd6_opt_prefix_info->validlt));
+   1174          									prefix->isinfinite = 0;
+   1175          								break;
+   1176          							}
+   1177          						}
+   1178          					} /* End of on-link flag related processing */
+   1179          					
+   1180          					/* autonomous flag related processing */
+   1181          					if((nd6_opt_prefix_info->flagsreserved1 & LOWSN_ND6_RA_FLAG_AUTONOMOUS)
+   1182          							&& (nd6_opt_prefix_info->validlt != 0)
+   1183          							&& (nd6_opt_prefix_info->preflen == LOWSN_DEFAULT_PREFIX_LEN)) {
+   1184          	
+   1185          						lowsn_ipaddr_copy(&ipaddr, &nd6_opt_prefix_info->prefix);		//copy the ipv6 address prefix
+   1186          						lowsn_ds6_set_addr_iid(&ipaddr, &lowsn_lladdr);		//addr ipv6 address interface ID
+   1187          						addr = lowsn_ds6_uaddr_lookup(&ipaddr);
+   1188          						if((addr != NULL) && (addr->type == ADDR_AUTOCONF)) {
+   1189          							if(nd6_opt_prefix_info->validlt != LOWSN_ND6_INFINITE_LIFETIME) {
+   1190                        				/* The processing below is defined in RFC4862 section 5.5.3 e */
+   1191                        					if((lowsn_ntohl(nd6_opt_prefix_info->validlt) > 2 * 60 * 60) ||
+   1192                        					        (lowsn_ntohl(nd6_opt_prefix_info->validlt) > stimer_remaining(&addr->invalidtime))) {
+   1193                        					    DEBUG_STRING(DBG_INFO, "Updating timer of address");
+   1194                        					    PRINT6ADDR(&addr->ipaddr);
+   1195                        					    DEBUG_STRING(DBG_INFO, "new value %lu\r\n",
+   1196                        					    lowsn_ntohl(nd6_opt_prefix_info->validlt));
+   1197                        					    stimer_set(&addr->invalidtime, lowsn_ntohl(nd6_opt_prefix_info->validlt));
+   1198                        					}
+   1199          								else {
+   1200                        					    stimer_set(&addr->invalidtime, 2 * 60 * 60);
+   1201                        					    DEBUG_STRING(DBG_INFO, "Updating timer of address ");
+   1202                        					    PRINT6ADDR(&addr->ipaddr);
+   1203                        					    DEBUG_STRING(DBG_INFO, "new value %lu\r\n", (unsigned long)(2 * 60 * 60));
+   1204                        					}
+   1205                        					addr->isinfinite = 0;
+   1206          							}
+   1207          							else {
+   1208          								addr->isinfinite = 1;
+   1209          							}
+   1210          						}
+   1211          						else {
+   1212          							if(lowsn_ntohl(nd6_opt_prefix_info->validlt) == LOWSN_ND6_INFINITE_LIFETIME) {
+   1213          								lowsn_ds6_uaddr_add(&ipaddr, 0, ADDR_AUTOCONF);
+   1214          							}
+   1215          							else {
+   1216          								lowsn_ds6_uaddr_add(&ipaddr, lowsn_ntohl(nd6_opt_prefix_info->validlt),  ADDR_AUTOCONF);
+   1217          								//lowsn_ds6_uaddr_add(&ipaddr, lowsn_ntohl(nd6_opt_prefix_info->preferredlt),  ADDR_AUTOCONF);
+   1218          							}
+   1219          						}
+   1220          					} /* End of autonomous flag related processing */		
+   1221          					
+   1222          					/*delete the unicast address autouconfiged from the prefix*/
+   1223          					if((nd6_opt_prefix_info->flagsreserved1 & LOWSN_ND6_RA_FLAG_AUTONOMOUS)
+   1224          							&& (nd6_opt_prefix_info->preferredlt== 0)){
+   1225          						lowsn_ipaddr_copy(&ipaddr, &nd6_opt_prefix_info->prefix);		//copy the ipv6 address prefix
+   1226          						lowsn_ds6_set_addr_iid(&ipaddr, &lowsn_lladdr);		//addr ipv6 address interface ID
+   1227          						addr = lowsn_ds6_uaddr_lookup(&ipaddr);
+   1228          						if(addr!=NULL){
+   1229          							lowsn_ds6_uaddr_rm(addr);
+   1230          						}	
+   1231          					}
+   1232          				}
+   1233          			break;
+   1234          			
+   1235          			default:
+   1236          				DEBUG_STRING(DBG_INFO, "ND option not supported in RA");
+   1237          			break;
+   1238          		}
+   1239          		nd6_opt_offset += (LOWSN_ND6_OPT_HDR_BUF->len << 3);
+   1240          	}
+   1241          	/*update the router lifetime*/
+   1242          	defrt = lowsn_ds6_defrt_lookup(&LOWSN_IP_BUF->srcipaddr);
+   1243          	if(LOWSN_ND6_RA_BUF->router_lifetime != 0) {
+   1244          		if(nbr != NULL) {
+   1245          			nbr->isrouter = 1;
+   1246          		}
+   1247          		if(defrt == NULL) {
+   1248          			lowsn_ds6_defrt_add(&LOWSN_IP_BUF->srcipaddr, (unsigned long)(lowsn_ntohs(LOWSN_ND6_RA_BUF->router_lifetime)));
+   1249          	    }
+   1250          		else {
+   1251          			stimer_set(&(defrt->invalidtime),  (unsigned long)(lowsn_ntohs(LOWSN_ND6_RA_BUF->router_lifetime)));
+   1252          	    }
+   1253          	}
+   1254          	else {		//the route lifetime = 0
+   1255          		if(defrt != NULL) {
+   1256          //			int j;
+   1257          			/*update the destination cache table*/	
+   1258          			lowsn_ds6_dest_update(&defrt->ipaddr);
+   1259          //			for(j=0; j<LOWSN_DS6_DEST_NB; j++){
+   1260          //				if(lowsn_ds6_dest_cache[j].isused &&
+   1261          //							(lowsn_ds6_ipcmp(&lowsn_ds6_dest_cache[j].nexthop, &defrt->ipaddr))){
+   1262          //					lowsn_ds6_dest_rm(&lowsn_ds6_dest_cache[j]);
+   1263          //				}
+   1264          //			}			
+   1265          			/*discard the default router*/
+   1266          			lowsn_ds6_defrt_rm(defrt);
+   1267          		}
+   1268          	}
+   1269          	
+   1270          	/**
+   1271          	  * here the processing of the valid RA message has been finished.
+   1272          	  * Cancel the Send RS message schedule event by cleaning the variable of "lowsn_ds6_if.sendrs".
+   1273          	**/
+   1274          	//lowsn_ds6_if.sendrs = 0;	
+   1275          	//lowsn_da6_schedule_clean();
+   1276          	//DEBUG_STRING(DBG_INFO, "Stop send RS\r\n");
+   1277          	lowsn_ds6_if.sendrs = 0;
+   1278          	lowsn_ds6_if.rscount = 0;
+   1279          
+   1280          #if LOWSN_CONF_IPV6_QUEUE_PKT
+   1281          	  /* If the nbr just became reachable (e.g. it was in NBR_INCOMPLETE state
+   1282          	   * and we got a SLLAO), check if we had buffered a pkt for it */
+   1283          	  /*  if((nbr != NULL) && (nbr->queue_buf_len != 0)) {
+   1284          	    uip_len = nbr->queue_buf_len;
+   1285          	    memcpy(LOWSN_IP_BUF, nbr->queue_buf, uip_len);
+   1286          	    nbr->queue_buf_len = 0;
+   1287          	    return;
+   1288          	    }*/
+   1289          
+   1290          
+   1291          #endif /*LOWSN_CONF_IPV6_QUEUE_PKT */
+   1292          
+   1293          discard:
+   1294            lowsn_len = 0;
+   1295            return;
+   1296          
+   1297          }
+   1298          
+   1299          
+   1300          
+   1301          
+   1302          /*---------------------------------------------------------------------------*/
+   1303          /**
+   1304           * \brief Process a router solicitaion and send a router advertisment
+   1305           *
+   1306           */
+   1307          void
+   1308          lowsn_nd_rs_input(void){
+   1309          
+   1310          
+   1311          
+   1312          }
+   1313          
+   1314          
+   1315          
+   1316          /*----------------------------------------------------------------------------*/
+   1317          /**
+   1318            * process the redirect message and update the destination cache table
+   1319          **/
+   1320          void lowsn_nd_red_input(void){
+   1321          	uint16_t tmplen = 0;
+   1322          	uint8_t* tmpp = NULL;
+   1323          	lowsn_ds6_dest_t* tmpdest=NULL;
+   1324          	uint8_t tgteqdest=0;
+   1325          	
+   1326          	DEBUG_STRING(DBG_INFO, "Received RED from");
+   1327          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+   1328          	DEBUG_STRING(DBG_INFO, "to");
+   1329          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+   1330          	DEBUG_STRING(DBG_INFO, "\r\n");
+   1331          
+   1332          #if LOWSN_CONF_IPV6_CHECKS
+   1333          	if(LOWSN_IP_BUF->ttl != LOWSN_ND6_HOP_LIMIT){
+   1334          		DEBUG_STRING(DBG_INFO, "Discard RED for TTL\r\n");
+   1335          		goto discard;
+   1336          	}
+   1337          	if(!lowsn_is_addr_link_local(&LOWSN_IP_BUF->srcipaddr)){
+   1338          		DEBUG_STRING(DBG_INFO, "Discard RED for srcipaddr\r\n");
+   1339          		goto discard;
+   1340          	}
+   1341          	if(LOWSN_ICMP_BUF->icode != 0){
+   1342          		DEBUG_STRING(DBG_INFO, "Discard RED for ICMP Code\r\n");
+   1343          		goto discard;
+   1344          	}
+   1345          	if(lowsn_len-40 < 40){
+   1346          		DEBUG_STRING(DBG_INFO, "Discard RED for ICMP len\r\n");
+   1347          		goto discard;
+   1348          	}
+   1349          	if(lowsn_is_addr_mcast(&LOWSN_ND6_RED_BUF->destipaddr)){
+   1350          		DEBUG_STRING(DBG_INFO, "Discard RED for ICMP Destination Address\r\n");
+   1351          		goto discard;
+   1352          	}
+   1353          	if(!lowsn_is_addr_link_local(&LOWSN_ND6_RED_BUF->tgtipaddr)&&
+   1354          			!lowsn_ds6_ipcmp(&LOWSN_ND6_RED_BUF->tgtipaddr, &LOWSN_ND6_RED_BUF->destipaddr)){
+   1355          		DEBUG_STRING(DBG_INFO, "Discard RED for Target Address\r\n");
+   1356          		goto discard;
+   1357          	}
+   1358          	tmpdest = lowsn_ds6_dest_lookup(&LOWSN_ND6_RED_BUF->destipaddr);
+   1359          	if((tmpdest!=NULL) && !lowsn_ds6_ipcmp(&LOWSN_IP_BUF->srcipaddr, &tmpdest->nexthop)){
+   1360          		DEBUG_STRING(DBG_INFO, "Discard RED for ip srcaddr\r\n");
+   1361          		goto discard;
+   1362          	}
+   1363          	
+   1364          	//check all the option len in the RA, MUST be greater than 0
+   1365          	tmplen = LOWSN_IPH_LEN + lowsn_ext_len + LOWSN_ICMPH_LEN + LOWSN_ND6_RED_LEN;
+   1366          	tmpp = &lowsn_buf[LOWSN_LLH_LEN + tmplen];
+   1367          	while(tmplen < lowsn_len){
+   1368          		if(*(tmpp+1) == 0){
+   1369          			DEBUG_STRING(DBG_INFO, "Discard RED for Option len=0\r\n");
+   1370          			goto discard;
+   1371          		}
+   1372          		else{
+   1373          			tmplen = tmplen + (*(tmpp+1)<<3);
+   1374          			tmpp = tmpp + (*(tmpp+1)<<3);
+   1375          		}
+   1376          	}
+   1377          #endif /*LOWSN_CONF_IPV6_CHECKS */
+   1378          	//update the destinaton cache table
+   1379          	dest = lowsn_ds6_dest_lookup(&LOWSN_ND6_RED_BUF->destipaddr);
+   1380          	if(dest == NULL){
+   1381          		lowsn_ds6_dest_add(&LOWSN_ND6_RED_BUF->destipaddr, &LOWSN_ND6_RED_BUF->tgtipaddr);
+   1382          	}
+   1383          	else{
+   1384          		lowsn_ipaddr_copy(&dest->nexthop, &LOWSN_ND6_RED_BUF->tgtipaddr);
+   1385          	}
+   1386          	
+   1387          	//Process the options include the redirect message
+   1388          	nd6_opt_offset = LOWSN_ND6_RED_LEN;
+   1389          	nd6_opt_llao = NULL;
+   1390          	while(lowsn_l3_icmp_hdr_len + nd6_opt_offset < lowsn_len){
+   1391          		switch (LOWSN_ND6_OPT_HDR_BUF->type) {
+   1392          			//process the target link-layer address
+   1393          			case LOWSN_ND6_OPT_TLLAO:
+   1394          				DEBUG_STRING(DBG_INFO, "process the target link-layer address\r\n");
+   1395          				tgteqdest = lowsn_ds6_ipcmp(&LOWSN_ND6_RED_BUF->destipaddr, &LOWSN_ND6_RED_BUF->tgtipaddr);
+   1396          				nd6_opt_llao = (uint8_t *) LOWSN_ND6_OPT_HDR_BUF;
+   1397          				nbr = lowsn_ds6_nbr_lookup(&LOWSN_ND6_RED_BUF->tgtipaddr);
+   1398          				if(nbr!=NULL){
+   1399          					if(lowsn_ds6_lladdr_cmp(&nbr->lladdr, (lowsn_lladdr_t *)&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET])){
+   1400          						if(tgteqdest != 1){
+   1401          							nbr->isrouter = 1;
+   1402          						}
+   1403          					}
+   1404          					else{
+   1405          						lowsn_lladdr_copy(&nbr->lladdr, (lowsn_lladdr_t *)&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET]);
+   1406          						nbr->state = NBR_STALE;
+   1407          						if(tgteqdest != 1){
+   1408          							nbr->isrouter = 1;
+   1409          						}					
+   1410          					}
+   1411          				}
+   1412          				else{
+   1413          					nbr = lowsn_ds6_nbr_add(&LOWSN_ND6_RED_BUF->tgtipaddr,
+   1414          								(lowsn_lladdr_t *)&nd6_opt_llao[LOWSN_ND6_OPT_DATA_OFFSET], 0, NBR_STALE);
+   1415          					if(tgteqdest != 1){
+   1416          						nbr->isrouter = 1;
+   1417          					}
+   1418          				}
+   1419          				break;
+   1420          			//process the redirect header option	
+   1421          			case LOWSN_ND6_OPT_REDIRECTED_HDR:
+   1422          				DEBUG_STRING(DBG_INFO, "process the redirect header option\r\n");
+   1423          				break;
+   1424          				
+   1425          			default:
+   1426          				DEBUG_STRING(DBG_INFO, "ND option not supported in RED\r\n");
+   1427          				break;
+   1428          
+   1429          		}
+   1430          		nd6_opt_offset += (LOWSN_ND6_OPT_HDR_BUF->len << 3);
+   1431          	}
+   1432          #if LOWSN_CONF_IPV6_QUEUE_PKT
+   1433          	/**
+   1434          	*The nbr is now reachable, check if we had queuing pakcet in it's queuing buffer.
+   1435          	*--if YES		send the queuing packet out
+   1436          	*--if NO		do nothing
+   1437          	**/
+   1438          	if(nbr->queue_buflen != 0) {
+   1439          		DEBUG_STRING(DBG_INFO, "Sendint the queuing paket out\r\n");
+   1440          		lowsn_len = nbr->queue_buflen;
+   1441          		memcpy(LOWSN_IP_BUF, nbr->queue_buf, lowsn_len);
+   1442          		nbr->queue_buflen = 0;
+   1443          		nwk_pib.flags.bits.nwkpending = 1;
+   1444          		return;
+   1445          	 }
+   1446          #endif /*LOWSN_CONF_IPV6_QUEUE_PKT */	
+   1447          discard:
+   1448          	lowsn_len = 0;
+   1449          	return;
+   1450          }
+   1451          
+   1452          
+   1453          
+   1454          #endif
+   1455          
+   1456          
+   1457          
+
+   Maximum stack usage in bytes:
+
+     Function                     ISTACK PSTACK XSTACK
+     --------                     ------ ------ ------
+     ndFmtRA                          1      0     12
+       -> conPrintROMString_func      0      0     24
+     ndFmtRS                          1      0     12
+       -> conPrintROMString_func      0      0     24
+       -> ds6FindSrcIP                0      0     24
+     ndParseRA                        0      0     20
+       -> conPrintROMString_func      0      0     32
+       -> lowsn_ds6_uaddr_add         0      0     40
+       -> conPrintROMString_func      0      0     32
+       -> lowsn_ds6_prefix_lookup     0      0     32
+       -> ds6GenInterfaceID16         0      0     36
+       -> ds6GenInterfaceID64         0      0     32
+       -> lowsn_ds6_uaddr_lookup      0      0     32
+       -> lowsn_ds6_uaddr_add         0      0     40
+       -> conPrintROMString_func      0      0     32
+
+
+   Segment part sizes:
+
+     Function/Label                  Bytes
+     --------------                  -----
+     ipaddr                            16
+     prefix                             2
+     addr                               2
+     ndFmtRS                          200
+     ?Subroutine15                      5
+     ?Subroutine16                      5
+     ?Subroutine7                      20
+     ?Subroutine6                      18
+     ?Subroutine5                      48
+     xxxxromstr                        16
+     ndFmtRA                          375
+     ?Subroutine4                       3
+     ??Subroutine17_0                   4
+     ?Subroutine3                      15
+     ?Subroutine2                       4
+     ?Subroutine9                      13
+     ?Subroutine12                     13
+     ?Subroutine14                      3
+     ??Subroutine18_0                  18
+     ?Subroutine1                       7
+     ?Subroutine10                      7
+     ?Subroutine13                     12
+     ?Subroutine0                      10
+     ?Subroutine11                      1
+     ??Subroutine19_0                   8
+     ??Subroutine20_0                   4
+     xxxxromstr                        16
+     ndParseRA                        395
+     xxxxromstr                        18
+     xxxxromstr                        21
+     xxxxromstr                        42
+     __Constant_0                       4
+     ?<Initializer for __Constant_0>    4
+     ??ndFmtRS?relay                    6
+     ??ndFmtRA?relay                    6
+     ??ndParseRA?relay                  6
+
+ 
+ 1 188 bytes in segment BANKED_CODE
+    18 bytes in segment BANK_RELAYS
+   113 bytes in segment CODE_C
+     4 bytes in segment XDATA_I
+     4 bytes in segment XDATA_ID
+    20 bytes in segment XDATA_Z
+ 
+ 1 319 bytes of CODE  memory (+ 4 bytes shared)
+    20 bytes of XDATA memory (+ 4 bytes shared)
+
+Errors: none
+Warnings: none

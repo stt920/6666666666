@@ -1,0 +1,154 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:32 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc25 #
+#                          30\hal_dma.c                                       #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc25 #
+#                          30\hal_dma.c -D LOWSN_DEBUG -D                     #
+#                          aExtendedAddress_B7=0x00 -D                        #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_SLIP_TO_HOST -lcN F:\6LoWSN\6lowsn_stack\obj #
+#                          \compiletest\iar51_cc2530\edge_coord\List\ -o      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\ -e --debug --core=plain          #
+#                          --dptr=16,1 --data_model=large                     #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\List\hal_dma.lst                      #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\hal_dma.r51                       #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc2530\hal_dma.c
+      1          /******************************************************************************
+      2          Filename:       _hal_dma.c
+      3          Revised:        $Date: 2007-03-13 14:24:09 -0700 (Tue, 13 Mar 2007) $
+      4          Revision:       $Revision: 13747 $
+      5          
+      6          Description: This file contains the interface to the DMA.
+      7          
+      8          Copyright (c) 2007 by Texas Instruments, Inc.
+      9          All Rights Reserved.  Permission to use, reproduce, copy, prepare
+     10          derivative works, modify, distribute, perform, display or sell this
+     11          software and/or its documentation for any purpose is prohibited
+     12          without the express written consent of Texas Instruments, Inc.
+     13          ******************************************************************************/
+     14          
+     15          /*********************************************************************
+     16          * INCLUDES
+     17          */
+     18          
+     19          #include "compiler.h"
+     20          #include "hal_dma.h"
+     21          #include "hal.h"
+     22          #include "halStack.h"
+     23          
+     24          
+     25          
+     26          /*********************************************************************
+     27          * MACROS
+     28          */
+     29          
+     30          /*********************************************************************
+     31          * CONSTANTS
+     32          */
+     33          
+     34          /*********************************************************************
+     35          * TYPEDEFS
+     36          */
+     37          
+     38          /*********************************************************************
+     39          * GLOBAL VARIABLES
+     40          */
+     41          
+     42          halDMADesc_t dmaCh0;
+     43          halDMADesc_t dmaCh1234[4];
+     44          
+     45          /*********************************************************************
+     46          * GLOBAL FUNCTIONS
+     47          */
+     48          
+     49          /*********************************************************************
+     50          * LOCAL VARIABLES
+     51          */
+     52          
+     53          /*********************************************************************
+     54          * LOCAL FUNCTIONS
+     55          */
+     56          
+     57          /******************************************************************************
+     58          * @fn      HalDMAInit
+     59          *
+     60          * @brief   DMA Interrupt Service Routine
+     61          *
+     62          * @param   None
+     63          *
+     64          * @return  None
+     65          *****************************************************************************/
+     66          void HalDmaInit( void )
+     67          {
+     68            HAL_DMA_SET_ADDR_DESC0( &dmaCh0 );
+     69            HAL_DMA_SET_ADDR_DESC1234( dmaCh1234 );
+     70          }
+     71          
+     72          
+     73          /******************************************************************************
+     74          ******************************************************************************/
+
+   Maximum stack usage in bytes:
+
+     Function   ISTACK PSTACK XSTACK
+     --------   ------ ------ ------
+     HalDmaInit     0      0      0
+
+
+   Segment part sizes:
+
+     Function/Label     Bytes
+     --------------     -----
+     DMA1CFGL              1
+     DMA1CFGH              1
+     DMA0CFGL              1
+     DMA0CFGH              1
+     dmaCh0                8
+     dmaCh1234            32
+     HalDmaInit           17
+     ??HalDmaInit?relay    6
+
+ 
+ 17 bytes in segment BANKED_CODE
+  6 bytes in segment BANK_RELAYS
+  4 bytes in segment SFR_AN
+ 40 bytes in segment XDATA_Z
+ 
+ 23 bytes of CODE  memory
+  0 bytes of DATA  memory (+ 4 bytes shared)
+ 40 bytes of XDATA memory
+
+Errors: none
+Warnings: none

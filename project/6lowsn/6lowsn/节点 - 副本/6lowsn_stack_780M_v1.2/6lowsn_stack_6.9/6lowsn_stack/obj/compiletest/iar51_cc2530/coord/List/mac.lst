@@ -1,0 +1,2102 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:31 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\mac.c             #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\mac.c -D          #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\mac.lst                               #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\mac.r51                                #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\mac.c
+      1          
+      2          
+      3          #include "compiler.h"
+      4          #include "6lowsn_config.h"         //user configurations
+      5          #include "6lowsn_common_types.h"   //types common acrosss most files
+      6          #include "ieee_lrwpan_defs.h"
+      7          #include "console.h"
+      8          #include "debug.h"
+      9          #include "memalloc.h"
+     10          #include "hal.h"
+     11          #include "halStack.h"
+     12          #include "phy.h"
+     13          #include "mac.h"
+     14          #include "adp.h"
+     15          #include "neighbor.h"
+     16          #ifdef LOWSN_COORDINATOR
+     17          #ifdef LOWSN_SLIP_TO_HOST
+     18          #include "slip.h"
+     19          #endif
+     20          #endif
+     21          
+     22          
+     23          typedef enum _MAC_RXSTATE_ENUM {
+     24            MAC_RXSTATE_IDLE,
+     25            MAC_RXSTATE_ADP_HANDOFF,
+     26            #ifdef LOWSN_COORDINATOR
+     27            #ifdef LOWSN_SLIP_TO_HOST
+     28            MAC_RXSTATE_FORWARD_HOST, 
+     29            #endif
+     30            #endif
+     31            MAC_RXSTATE_CMD_PENDING
+     32          } MAC_RXSTATE_ENUM;
+     33          
+     34          static MAC_RXSTATE_ENUM macRxState;
+     35          
+     36          MAC_PIB mac_pib;
+     37          MAC_SERVICE a_mac_service;
+     38          MAC_STATE_ENUM macState;
+     39          
+     40          
+     41          
+     42          //there can only be one TX in progress at a time, so
+     43          //a_mac_tx_data contains the arguments for that TX.
+     44          MAC_TX_DATA a_mac_tx_data;
+     45          
+     46          //this is used for parsing of current packet.
+     47          MAC_RX_DATA a_mac_rx_data;
+     48          
+     49          LOWSN_STATUS_ENUM macTxFSM_status;
+     50          
+     51          
+     52          //locals
+     53          static UINT32 mac_utility_timer;   //utility timer
+     54          
+     55          //local functions
+     56          static void macTxData(void);
+     57          static void macTxFSM(void);
+     58          static void macParseHdr(void);
+     59          static void macRxFSM(void);
+     60          static void macParseBeacon(void);
+     61          static void macFormatAssocRequest(void);
+     62          static BOOL macCheckDataRejection(void);
+     63          static void macFormatOrphanNotify(void);
+     64          
+     65          
+     66          #ifndef LOWSN_COORDINATOR
+     67          static void macParseOrphanResponse(void);
+     68          #endif
+     69          
+     70          
+     71          #ifdef LOWSN_FFD
+     72          static void macFormatBeacon(void);
+     73          static void macFormatAssociationResponse(void);
+     74          static void macFormatCoordRealign(SADDR orphan_saddr);
+     75          #endif
+     76          
+     77          #ifndef LOWSN_COORDINATOR
+     78          static void macParseAssocResponse(void);
+     79          #endif
+     80          
+     81          //does not turn on radio.
+     82          void macInit(void){
+     83            macState = MAC_STATE_IDLE;
+     84            macRxState = MAC_RXSTATE_IDLE;
+     85            mac_pib.macCoordShortAddress = 0;
+     86            mac_pib.flags.val = 0;
+     87            mac_pib.rxTail = 0;
+     88            mac_pib.rxHead = 0;
+     89            mac_pib.macPANID = LOWSN_DEFAULT_PANID;
+     90            mac_pib.macMaxAckRetries = aMaxFrameRetries;
+     91            ntInitAddressMap();  //init the address map
+     92          #ifdef LOWSN_COORDINATOR
+     93            mac_pib.depth = 0;
+     94          #else
+     95            mac_pib.depth = 1; //depth will be at least one
+     96          #endif
+     97            mac_pib.bcnDepth = 0xFF; //remembers depth of node that responded to beacon
+     98            //other capability information
+     99            mac_pib.macCapInfo = 0;
+    100          #ifdef LOWSN_ALT_COORDINATOR     //not supported, included for completeness
+    101            LOWSN_SET_CAPINFO_ALTPAN(mac_pib.macCapInfo);
+    102          #endif
+    103          #ifdef LOWSN_FFD
+    104            LOWSN_SET_CAPINFO_DEVTYPE(mac_pib.macCapInfo);
+    105          #endif
+    106          #ifdef LOWSN_ACMAIN_POWERED
+    107            LOWSN_SET_CAPINFO_PWRSRC(mac_pib.macCapInfo);
+    108          #endif
+    109          #ifdef LOWSN_RCVR_ON_WHEN_IDLE
+    110            LOWSN_SET_CAPINFO_RONIDLE(mac_pib.macCapInfo);
+    111          #endif
+    112          #ifdef LOWSN_SECURITY_CAPABLE
+    113            LOWSN_SET_CAPINFO_SECURITY(mac_pib.macCapInfo);
+    114          #endif
+    115            //always allocate a short address
+    116            LOWSN_SET_CAPINFO_ALLOCADDR(mac_pib.macCapInfo);
+    117          
+    118          
+    119          }
+    120          
+    121          LOWSN_STATUS_ENUM macWarmStartRadio(void){
+    122           halWarmstart();
+    123           a_phy_service.cmd = LOWSN_SVC_PHY_INIT_RADIO; //no args
+    124            a_phy_service.args.phy_init_radio_args.radio_flags.bits.listen_mode = 0;
+    125          #ifdef LOWSN_COORDINATOR
+    126            a_phy_service.args.phy_init_radio_args.radio_flags.bits.pan_coordinator = 1;
+    127          #else
+    128            a_phy_service.args.phy_init_radio_args.radio_flags.bits.pan_coordinator = 0;
+    129          #endif
+    130            phyDoService();
+    131            halSetChannel(phy_pib.phyCurrentChannel);
+    132            halSetRadioPANID(mac_pib.macPANID); //listen on this PANID
+    133            halSetRadioShortAddr(macGetShortAddr());  //non-broadcast, reserved
+    134            return(a_phy_service.status);
+    135          }
+    136          
+    137          //this assumes that phyInit, macInit has previously been called.
+    138          //turns on the radio
+    139          
+    140          LOWSN_STATUS_ENUM macInitRadio(void) {
+    141          
+    142            phy_pib.phyCurrentFrequency = LOWSN_DEFAULT_FREQUENCY;
+    143            phy_pib.phyCurrentChannel = LOWSN_DEFAULT_START_CHANNEL;
+    144            if (phy_pib.phyCurrentChannel < 11){
+    145              mac_pib.macAckWaitDuration = SYMBOLS_TO_MACTICKS(120);
+    146            }
+    147            else {
+    148              mac_pib.macAckWaitDuration = SYMBOLS_TO_MACTICKS(54);
+    149            }
+    150          
+    151            a_phy_service.cmd = LOWSN_SVC_PHY_INIT_RADIO; //no args
+    152            a_phy_service.args.phy_init_radio_args.radio_flags.bits.listen_mode = 0;
+    153          #ifdef LOWSN_COORDINATOR
+    154            a_phy_service.args.phy_init_radio_args.radio_flags.bits.pan_coordinator = 1;
+    155          #else
+    156            a_phy_service.args.phy_init_radio_args.radio_flags.bits.pan_coordinator = 0;
+    157          #endif
+    158          
+    159            phyDoService();
+    160          
+    161          //#ifdef LOWSN_USE_STATIC_PANID
+    162          //  halSetRadioPANID(LOWSN_DEFAULT_PANID); //listen on this PANID
+    163          //#else
+    164          //  halSetRadioPANID(0xFFFF);      //broadcast
+    165          //#endif
+    166           // halSetRadioShortAddr(0xFFFE);  //non-broadcast, reserved
+    167          
+    168          
+    169          #ifdef LOWSN_USE_STATIC_PANID
+    170            macSetPANID(LOWSN_DEFAULT_PANID); //listen on this PANID
+    171          #else
+    172          #ifdef LOWSN_COORDINATOR
+    173            {
+    174             //randomly generate a panid, as of yet we do not try to detect collision
+    175             //with another network
+    176             UINT16 x;
+    177             x = halGetRandomByte();
+    178             x = x << 8;
+    179             x = x + halGetRandomByte();
+    180             macSetPANID(x);
+    181             DEBUG_STRING(DBG_INFO,"MAC: Generated PANID is ");
+    182             DEBUG_UINT16(DBG_INFO,macGetPANID());
+    183             DEBUG_STRING(DBG_INFO,"\n");
+    184            }
+    185          #else
+    186            macSetPANID(0xFFFF);      //broadcast
+    187          #endif
+    188          #endif
+    189            //halSetRadioShortAddr(0xFFFE);  //non-broadcast, reserved
+    190            halSetRadioShortAddr(0xFFFF); 
+    191          
+    192            return(a_phy_service.status);
+    193          }
+    194          
+    195          void macSetPANID(UINT16 panid){
+    196            mac_pib.macPANID = panid;
+    197            halSetRadioPANID(mac_pib.macPANID);
+    198          }
+    199          
+    200          UINT16 macGetPANID(void){
+    201            return(mac_pib.macPANID);
+    202          }
+    203          
+    204          
+    205          void macSetChannel(BYTE channel){
+    206            phy_pib.phyCurrentChannel = channel;
+    207            halSetChannel(channel);
+    208          }
+    209          
+    210          void macSetShortAddr(UINT16 saddr) {
+    211          #ifdef LOWSN_RFD
+    212          	//when changing the short address for an RFD, always clear the map first
+    213          	//since the short address may have changed.
+    214          	//for RFDs, there is only one entry
+    215          	ntInitAddressMap();
+    216          #endif
+    217            ntAddOurselvesToAddressTable(saddr);
+    218            halSetRadioShortAddr(saddr);
+    219          }
+    220          
+    221          
+    222          
+    223          void macFSM(void) {
+    224          
+    225            BYTE cmd;
+    226          #ifdef LOWSN_FFD
+    227            NAYBORENTRY *nt_ptr;
+    228          #endif
+    229          
+    230          
+    231          #ifdef LOWSN_DEBUG
+    232            //assume 2.4 GHZ
+    233            if (debug_level == 0) {
+    234              mac_pib.macAckWaitDuration = SYMBOLS_TO_MACTICKS(54);
+    235            } else {
+    236              mac_pib.macAckWaitDuration = SYMBOLS_TO_MACTICKS(270);  //give longer due to debug output
+    237            }
+    238          #endif
+    239          
+    240            phyFSM();
+    241            //if TxFSM is busy we need to call it
+    242            if (macTXBusy()) macTxFSM();
+    243          
+    244            macRxFSM();
+    245          
+    246          #ifdef LOWSN_FFD
+    247          macFSM_start:
+    248          #endif
+    249          
+    250            //check background tasks here
+    251          
+    252            switch (macState) {
+    253          	 case MAC_STATE_IDLE:
+    254                     if (mac_pib.flags.bits.macPending ) {
+    255                       //there is a MAC CMD packet pending in the RX buffer. Handle it.
+    256                       cmd = *(a_mac_rx_data.orgpkt->data + a_mac_rx_data.pload_offset);
+    257                       switch (cmd) {
+    258                       case LOWSN_MACCMD_BCN_REQ:
+    259                         //Beacon Request
+    260          #ifdef LOWSN_RFD
+    261                         //as an RFD, I do not handle this. Release this.
+    262                         mac_pib.flags.bits.macPending = 0;
+    263          #else
+    264                         //as a Coordinator or Router, I will only respond
+    265                         //only respond if association permitted
+    266                         //as this is the stack's only use of beacons
+    267                         DEBUG_STRING(DBG_INFO,"MAC: Proceed the beacon request frame. \n");
+    268                         if (mac_pib.flags.bits.macAssociationPermit) {
+    269                           //will keep spinning through here until TX buffer unlocked
+    270                           if (phyTxUnLocked()) {
+    271                             phyGrabTxLock(); //grab the lock
+    272                             macState = MAC_STATE_SEND_BEACON_RESPONSE;
+    273                             mac_pib.flags.bits.macPending = 0; //release packet
+    274                             goto macFSM_start;
+    275                           }
+    276                         }else {
+    277                           //release packet.
+    278                           mac_pib.flags.bits.macPending = 0;
+    279                         }
+    280          
+    281          
+    282          #endif
+    283                         break;
+    284          
+    285          			 case LOWSN_MACCMD_ORPHAN:
+    286                         //Orphan Notify
+    287          #ifdef LOWSN_RFD
+    288                         //as an RFD, I do not handle this. Release this.
+    289                         mac_pib.flags.bits.macPending = 0;
+    290          #else
+    291                       //will keep spinning through here until TX buffer unlocked
+    292                         if (phyTxUnLocked()) {
+    293                             phyGrabTxLock(); //grab the lock
+    294                             macState = MAC_STATE_HANDLE_ORPHAN_NOTIFY;
+    295                             mac_pib.flags.bits.macPending = 0; //release packet
+    296                             goto macFSM_start;
+    297                          }
+    298          #endif
+    299                       case LOWSN_MACCMD_ASSOC_REQ:
+    300          
+    301                         //Association Request
+    302          #ifdef LOWSN_RFD
+    303                         //as an RFD, I do not handle this. Release this.
+    304                         mac_pib.flags.bits.macPending = 0;
+    305          #else
+    306                         //as a Coordinator or Router, I can respond
+    307                         //only respond if association permitted
+    308                         if (mac_pib.flags.bits.macAssociationPermit) {
+    309                           //will keep spinning through here until TX buffer unlocked
+    310                           if (phyTxUnLocked()) {
+    311                             phyGrabTxLock(); //grab the lock
+    312                             macState = MAC_STATE_SEND_ASSOC_RESPONSE;
+    313          
+    314          		    // 这里存在一个潜在的bug，释放过早了，因为一释放MAC接收状态机就有可能
+    315          		    // 过早的free接收包，而发送关联响应帧时还需要再次解析接收包
+    316          		
+    317                             mac_pib.flags.bits.macPending = 0; //release packet
+    318                             goto macFSM_start;
+    319                           }
+    320                         }else {
+    321                           //release packet.
+    322                           mac_pib.flags.bits.macPending = 0;
+    323                         }
+    324          #endif
+    325          
+    326                         break;
+    327          
+    328          
+    329                       default:
+    330                         DEBUG_STRING(1,"MAC: Received MAC CMD that is not currently implemented, discarding.\n");
+    331                         mac_pib.flags.bits.macPending = 0;
+    332          
+    333                       }
+    334          
+    335          
+    336          
+    337                     }//end if(mac_pib.flags.bits.macPending )
+    338          
+    339                     break;
+    340          	 case MAC_STATE_COMMAND_START:
+    341                     switch(a_mac_service.cmd) {
+    342          	        case LOWSN_SVC_MAC_ERROR:
+    343          				//dummy service, just return the status that was passed in
+    344          				a_mac_service.status = a_mac_service.args.error.status;
+    345          				macState = MAC_STATE_IDLE;
+    346          				break;
+    347          
+    348                     case LOWSN_SVC_MAC_GENERIC_TX:
+    349                       //send a generic packet with arguments specified by upper level
+    350                       macTxData();
+    351                       macState = MAC_STATE_GENERIC_TX_WAIT;
+    352                       break;
+    353                     case LOWSN_SVC_MAC_RETRANSMIT:
+    354                       //retransmit the last packet
+    355                       //used for frames that are only transmitted once because of no ACK request
+    356                       //assumes the TX lock is grabbed, and the TX buffer formatted.
+    357                       macSetTxBusy();
+    358                       macTxFSM_status = LOWSN_STATUS_MAC_INPROGRESS;
+    359                       a_phy_service.cmd = LOWSN_SVC_PHY_TX_DATA;
+    360                       phyDoService();
+    361                       macState = MAC_STATE_GENERIC_TX_WAIT;
+    362                       break;
+    363          			
+    364          		  case LOWSN_SVC_MAC_ORPHAN_NOTIFY:
+    365                        if (phyTxLocked()) break;
+    366                        phyGrabTxLock();  //Grab the lock
+    367                        //no ack, long SRC, short DST, broadcast PAN
+    368          			  a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_MAC;
+    369                        a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    370          			  a_mac_tx_data.DestAddr.saddr = LOWSN_BCAST_PANID;
+    371          			  a_mac_tx_data.DestPANID = LOWSN_BCAST_PANID;
+    372          			  a_mac_tx_data.SrcPANID = LOWSN_BCAST_PANID;
+    373          			  macFormatOrphanNotify();
+    374          			  mac_pib.flags.bits.GotOrphanResponse = 0;
+    375          			  mac_pib.flags.bits.WaitingForOrphanResponse = 1;
+    376                        macTxData();
+    377          			  macState = MAC_STATE_ORPHAN_WAIT1;
+    378          		      break;
+    379          
+    380                     case LOWSN_SVC_MAC_BEACON_REQ:
+    381                       //clear Beacon Response Flag
+    382                       mac_pib.flags.bits.GotBeaconResponse =0;        //will be set when get response
+    383                       //wait for TX lock to send the beacon request
+    384                       if (phyTxLocked()) break;
+    385                       phyGrabTxLock();  //Grab the lock
+    386                       mac_pib.flags.bits.WaitingForBeaconResponse = 1;  //will be cleared when get response
+    387                       //set the channel
+    388                       halSetChannel(a_mac_service.args.beacon_req.LogicalChannel);
+    389                       //stuff the MAC BEACON REQ command into the TX buffer
+    390                       phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+    391                       *phy_pib.currentTxFrm = LOWSN_MACCMD_BCN_REQ;
+    392                       phy_pib.currentTxFlen = 1;
+    393          
+    394                       //no MAC ack requested
+    395                       a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_MAC|LOWSN_FCF_INTRAPAN_MASK;
+    396                       //using no src address, dst address and PAN are both broadcast address
+    397                       a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_NOADDR;
+    398                       a_mac_tx_data.DestAddr.saddr = LOWSN_BCAST_SADDR;
+    399          #ifdef LOWSN_USE_STATIC_PANID
+    400                       //we only want to talk to nodes who use this PANID
+    401                       //this is not compliant with 802.15.4
+    402                       //we do this to reduce the number of responses, only want routers/coord
+    403                       //to respond who use this panid
+    404                       a_mac_tx_data.DestPANID = LOWSN_DEFAULT_PANID;
+    405          #else
+    406                       //talk to any nodes willing to send us a beacon
+    407                       a_mac_tx_data.DestPANID = LOWSN_BCAST_PANID;
+    408          #endif
+    409                       macTxData();
+    410                       macState = MAC_STATE_GENERIC_TX_WAIT_AND_UNLOCK;
+    411                       break;
+    412          
+    413                     case LOWSN_SVC_MAC_ASSOC_REQ:
+    414                       //break if the TXBUFFER is locked
+    415                       if (phyTxLocked()) break;
+    416                       phyGrabTxLock();  //Grab the lock
+    417                       //may want to put this in a function
+    418                       halSetChannel(a_mac_service.args.assoc_req.LogicalChannel);
+    419                       mac_pib.flags.bits.macIsAssociated = 0;  //clear to zero
+    420          
+    421                       macFormatAssocRequest();
+    422          
+    423                       a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_MAC|LOWSN_FCF_ACKREQ_MASK;
+    424          #ifdef LOWSN_FORCE_ASSOCIATION_TARGET
+    425                       //forced association occurs on DEFAULT PANID
+    426                       a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_LADDR|LOWSN_FCF_SRCMODE_LADDR;
+    427                       a_mac_tx_data.DestPANID = LOWSN_DEFAULT_PANID;
+    428                       a_mac_tx_data.DestAddr.laddr.bytes[0] = parent_addr_B0;
+    429                       a_mac_tx_data.DestAddr.laddr.bytes[1] = parent_addr_B1;
+    430                       a_mac_tx_data.DestAddr.laddr.bytes[2] = parent_addr_B2;
+    431                       a_mac_tx_data.DestAddr.laddr.bytes[3] = parent_addr_B3;
+    432                       a_mac_tx_data.DestAddr.laddr.bytes[4] = parent_addr_B4;
+    433                       a_mac_tx_data.DestAddr.laddr.bytes[5] = parent_addr_B5;
+    434                       a_mac_tx_data.DestAddr.laddr.bytes[6] = parent_addr_B6;
+    435                       a_mac_tx_data.DestAddr.laddr.bytes[7] = parent_addr_B7;
+    436          #else
+    437                       //using short address for DST
+    438                       a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    439                       //use addressing discovered by beacon request
+    440                       a_mac_tx_data.DestAddr.saddr = mac_pib.bcnSADDR;
+    441                       a_mac_tx_data.DestPANID = mac_pib.bcnPANID;
+    442          #endif
+    443          
+    444                       mac_pib.flags.bits.WaitingForAssocResponse = 1;
+    445                       //send to coordinator with Short address = 0;
+    446                       a_mac_tx_data.SrcPANID = 0xFFFF;
+    447          
+    448                       //Transmit it
+    449                       macTxData();
+    450                       macState = MAC_STATE_ASSOC_REQ_WAIT1;
+    451                       break;		
+    452                     default: break;
+    453                     }//end switch cmd
+    454                     break;
+    455          
+    456          
+    457          	 case MAC_STATE_ASSOC_REQ_WAIT1:
+    458                     if (!macTXIdle()) break;
+    459                     //TX is finished
+    460                     phyReleaseTxLock();		
+    461                     if (macTxFSM_status != LOWSN_STATUS_SUCCESS) {
+    462                       //no sense waiting any longer, nobody responded to MAC-level ACK
+    463                       a_mac_service.status = macTxFSM_status;
+    464                       mac_pib.flags.bits.WaitingForAssocResponse = 0;
+    465                       macState = MAC_STATE_IDLE;			
+    466                       break;
+    467                     }
+    468          
+    469                     //now need to wait for association response
+    470                     //start a timer
+    471                     mac_utility_timer = halGetMACTimer();
+    472                     macState = MAC_STATE_ASSOC_REQ_WAIT2;
+    473                     break;
+    474          
+    475          	 case MAC_STATE_ASSOC_REQ_WAIT2:
+    476                     if (mac_pib.flags.bits.macIsAssociated) {
+    477                       //association successful, hooray!
+    478                       a_mac_service.status = LOWSN_STATUS_SUCCESS;
+    479                       mac_pib.flags.bits.WaitingForAssocResponse = 0;
+    480                       macState = MAC_STATE_IDLE;	
+    481                     }else if ((halMACTimerNowDelta(mac_utility_timer))>MAC_ASSOC_WAIT_TIME  ){
+    482                       //timeout on association, give it up
+    483                       a_mac_service.status = LOWSN_STATUS_MAC_ASSOCIATION_TIMEOUT;
+    484                       DEBUG_STRING(DBG_INFO,"MAC: Association timeout\n");
+    485                       mac_pib.flags.bits.WaitingForAssocResponse = 0;
+    486                       macState = MAC_STATE_IDLE;	
+    487                     }
+    488          
+    489                     break;
+    490          
+    491          		
+    492          
+    493          		 case MAC_STATE_ORPHAN_WAIT1:
+    494          		      if (!macTXIdle()) break;
+    495          			  //TX is finished
+    496                        phyReleaseTxLock();		
+    497          			  if (macTxFSM_status != LOWSN_STATUS_SUCCESS){
+    498          				  //don't wait, TX failed
+    499          				  DEBUG_STRING(DBG_INFO,"Orphan Notify TX failed\n");
+    500          				  mac_pib.flags.bits.WaitingForOrphanResponse = 0;
+    501          				  a_mac_service.status = macTxFSM_status;
+    502          				  macState = MAC_STATE_IDLE;
+    503          				  break;
+    504          			  }
+    505                       //now need to wait for association response
+    506                       //start a timer
+    507                       mac_utility_timer = halGetMACTimer();
+    508                       macState = MAC_STATE_ORPHAN_WAIT2;
+    509                       break;
+    510          
+    511          		 case MAC_STATE_ORPHAN_WAIT2:
+    512          			 if (mac_pib.flags.bits.GotOrphanResponse) {
+    513                          //rejoin successfull
+    514                          a_mac_service.status = LOWSN_STATUS_SUCCESS;
+    515                          mac_pib.flags.bits.WaitingForOrphanResponse = 0;
+    516                          mac_pib.flags.bits.GotOrphanResponse = 0;
+    517                          macState = MAC_STATE_IDLE;					
+    518          			 } else if ((halMACTimerNowDelta(mac_utility_timer))>MAC_ORPHAN_WAIT_TIME ){
+    519                             //timeout on rejoin, give it up
+    520                            a_mac_service.status = LOWSN_STATUS_MAC_ORPHAN_TIMEOUT;
+    521                            DEBUG_STRING(DBG_INFO,"MAC: Orphan timeout\n");
+    522                            mac_pib.flags.bits.WaitingForOrphanResponse = 0;
+    523                            macState = MAC_STATE_IDLE;	
+    524                      }
+    525          			break;
+    526          
+    527          	 case MAC_STATE_GENERIC_TX_WAIT:
+    528                     if (!macTXIdle()) break;
+    529                     //TX is finished, copy status
+    530                     a_mac_service.status = macTxFSM_status;
+    531                     macState = MAC_STATE_IDLE;	
+    532                     break;
+    533                     //this is used by MAC CMDs in general which send a packet with no ACK.
+    534          	 case MAC_STATE_GENERIC_TX_WAIT_AND_UNLOCK:
+    535                     if (!macTXIdle()) break;
+    536                     //TX is finished, copy status
+    537                     a_mac_service.status = macTxFSM_status;
+    538                     macState = MAC_STATE_IDLE;	
+    539                     //also unlock TX buffer
+    540                     phyReleaseTxLock();
+    541                     break;
+    542          #ifdef LOWSN_FFD
+    543          	 case MAC_STATE_HANDLE_ORPHAN_NOTIFY:
+    544          		   //first, check to see if this node is in my neighbor table
+    545          		   nt_ptr = ntFindByLADDR(&a_mac_rx_data.SrcAddr.laddr);
+    546          		   if (!nt_ptr) {
+    547          			   //not my orphan, ignoring
+    548          			   DEBUG_STRING(DBG_INFO,"MAC: Received orphan notify, but not my orphan, ignoring.\n");
+    549                         macState = MAC_STATE_IDLE;	
+    550                         //also unlock TX buffer
+    551                         phyReleaseTxLock();
+    552          			   break;
+    553          		   }
+    554          		   DEBUG_STRING(DBG_INFO,"Sending Coord Realign (Orphan response)\n");
+    555          		   //at this point, we have an orphan. Send a response.
+    556          		   macFormatCoordRealign(mac_addr_tbl[nt_ptr->map_index].saddr);
+    557                     goto mac_state_send_assoc_response1;  //shared code
+    558          		
+    559          
+    560          	 case MAC_STATE_SEND_BEACON_RESPONSE:
+    561                     //got a Beacon Request, send the response
+    562                     DEBUG_STRING(DBG_INFO,"Sending BCN Response, PANID: ");
+    563                     DEBUG_UINT16(DBG_INFO,mac_pib.macPANID);
+    564                     DEBUG_STRING(DBG_INFO,"\n");
+    565          	   
+    566                     macFormatBeacon();
+    567                     a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_BEACON;
+    568                     a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_NOADDR|LOWSN_FCF_SRCMODE_SADDR;
+    569                     a_mac_tx_data.SrcAddr = macGetShortAddr();
+    570                     a_mac_tx_data.SrcPANID = mac_pib.macPANID;
+    571                     macTxData();
+    572                     macState = MAC_STATE_GENERIC_TX_WAIT_AND_UNLOCK;
+    573                     break;
+    574          
+    575          	 case MAC_STATE_SEND_ASSOC_RESPONSE:
+    576          		   DEBUG_STRING(DBG_INFO,"Sending Association Response\n");
+    577                     macFormatAssociationResponse();
+    578          mac_state_send_assoc_response1:
+    579          
+    580                     a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_MAC|LOWSN_FCF_ACKREQ_MASK;
+    581                     a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_LADDR|LOWSN_FCF_SRCMODE_LADDR;
+    582                     a_mac_tx_data.DestAddr.laddr.bytes[0] = a_mac_rx_data.SrcAddr.laddr.bytes[0];
+    583                     a_mac_tx_data.DestAddr.laddr.bytes[1] = a_mac_rx_data.SrcAddr.laddr.bytes[1];
+    584                     a_mac_tx_data.DestAddr.laddr.bytes[2] = a_mac_rx_data.SrcAddr.laddr.bytes[2];
+    585                     a_mac_tx_data.DestAddr.laddr.bytes[3] = a_mac_rx_data.SrcAddr.laddr.bytes[3];
+    586                     a_mac_tx_data.DestAddr.laddr.bytes[4] = a_mac_rx_data.SrcAddr.laddr.bytes[4];
+    587                     a_mac_tx_data.DestAddr.laddr.bytes[5] = a_mac_rx_data.SrcAddr.laddr.bytes[5];
+    588                     a_mac_tx_data.DestAddr.laddr.bytes[6] = a_mac_rx_data.SrcAddr.laddr.bytes[6];
+    589                     a_mac_tx_data.DestAddr.laddr.bytes[7] = a_mac_rx_data.SrcAddr.laddr.bytes[7];
+    590                     a_mac_tx_data.DestPANID = mac_pib.macPANID;
+    591                     macTxData();
+    592                     macState = MAC_STATE_GENERIC_TX_WAIT_AND_UNLOCK;
+    593                     break;
+    594          
+    595          
+    596          #endif
+    597          
+    598          
+    599          	 default: break;
+    600            }
+    601          }
+    602          
+    603          
+    604          //called by HAL when TX for current packet is finished
+    605          void macTxCallback(void) {
+    606            if (LOWSN_GET_ACK_REQUEST(*(phy_pib.currentTxFrm))) {
+    607              mac_pib.flags.bits.ackPending = 1;  //we are requesting an ack for this packet
+    608              //record the time of this packet
+    609              mac_pib.tx_start_time = halISRGetMACTimer();
+    610            }
+    611          }
+    612          
+    613          //we pass in the pointer to the packet
+    614          //first byte is packet length
+    615          void macRxCallback(BYTE *ptr, BYTE rssi) {
+    616          
+    617            //if this is an ACK, update the current timeout, else indicate
+    618            // that an ACK is pending
+    619            //   check length                      check frame control field
+    620            if ((*ptr == LOWSN_ACKFRAME_LENGTH ) && LOWSN_IS_ACK(*(ptr+1))) {
+    621              //do not save ACK frames
+    622              //this is an ACK, see if it is our ACK, check DSN
+    623              if (*(ptr+3) == mac_pib.macDSN) {
+    624                //DSN matches, assume this is our ack, clear the ackPending flag
+    625                mac_pib.flags.bits.ackPending = 0;
+    626                DEBUG_CHAR( DBG_ITRACE,DBG_CHAR_OURACK  );
+    627              }
+    628            } else {
+    629              //save the packet, we assume the Physical/Hal layer has already checked
+    630              //if the MAC buffer has room
+    631              mac_pib.rxHead++;
+    632              if (mac_pib.rxHead == MAC_RXBUFF_SIZE) mac_pib.rxHead = 0;
+    633              //save it.
+    634              mac_pib.rxBuff[mac_pib.rxHead].data = ptr;     //save pointer
+    635              mac_pib.rxBuff[mac_pib.rxHead].rssi = rssi;    //save RSSI value
+    636            }
+    637          }
+    638          
+    639          BOOL macRxBuffFull(void){
+    640            BYTE tmp;
+    641            //if next write would go to where Tail is, then buffer is full
+    642            tmp = mac_pib.rxHead+1;
+    643            if (tmp == MAC_RXBUFF_SIZE) tmp = 0;
+    644            return(tmp == mac_pib.rxTail);
+    645          }
+    646          
+    647          BOOL macRxBuffEmpty(void){
+    648            return(mac_pib.rxTail == mac_pib.rxHead);
+    649          }
+    650          
+    651          //this does NOT remove the packet from the buffer
+    652          MACPKT *macGetRxPacket(void) {
+    653            BYTE tmp;	
+    654            if (mac_pib.rxTail == mac_pib.rxHead) return(NULL);
+    655            tmp = mac_pib.rxTail+1;
+    656            if (tmp == MAC_RXBUFF_SIZE) tmp = 0;
+    657            return(&mac_pib.rxBuff[tmp]);
+    658          }
+    659          
+    660          //frees the first packet in the buffer.
+    661          void macFreeRxPacket(BOOL freemem) {
+    662            mac_pib.rxTail++;
+    663            if (mac_pib.rxTail == MAC_RXBUFF_SIZE) mac_pib.rxTail = 0;
+    664            if (freemem) MemFree(mac_pib.rxBuff[mac_pib.rxTail].data);
+    665          }
+    666          
+    667          
+    668          
+    669          
+    670          /************
+    671          The TxInProgress bit is set when the macTxData function
+    672          is called the first time to actually format the header and
+    673          send the packet. After that, each loop through the macTxFSM
+    674          checks to see if the TX started and finished correctly, and
+    675          if an ACK was received if one was requested.  The FSM becomes
+    676          idle if:
+    677          a. the PHY TX returns an error
+    678          b. the PHY TX returned success and either no ACK was
+    679          requested or we received the correct ACK
+    680          c. the PHY TX returned success and we exhausted retries.
+    681          
+    682          **************/
+    683          
+    684          static void macTxFSM(void) {
+    685            if(!macTXIdle()) {
+    686              //we are not idle
+    687              if (phyIdle()) {
+    688                //cannot check anything until PHY is idle
+    689                if (a_phy_service.status != LOWSN_STATUS_SUCCESS) {
+    690                  //don't bother waiting for ACK, TX did not start correctly
+    691                 if (mac_pib.currentAckRetries) mac_pib.currentAckRetries--;
+    692                 if (mac_pib.currentAckRetries) {
+    693                     //TX did not start correctly, but still try again even if PHY failed
+    694                     mac_pib.flags.bits.ackPending = 0;
+    695                     macTxData();  //reuse the last packet.
+    696                 } else {
+    697                    mac_pib.flags.bits.ackPending = 0;
+    698                    macSetTxIdle();  //mark TX as idle
+    699                    macTxFSM_status = a_phy_service.status; //return status
+    700                  }	
+    701                } else if (!mac_pib.flags.bits.ackPending) {
+    702                  //either no ACK requested or ACK has been received
+    703                  macSetTxIdle();  //finished successfully, mark as idle
+    704                  macTxFSM_status = LOWSN_STATUS_SUCCESS;
+    705                }
+    706                //check timeout
+    707                else if (halMACTimerNowDelta(mac_pib.tx_start_time)> mac_pib.macAckWaitDuration)
+    708                {
+    709                  // ACK timeout
+    710                  conPrintROMString("ACK Timeout! \n");
+    711                  if (mac_pib.currentAckRetries) mac_pib.currentAckRetries--;
+    712                  if (!mac_pib.currentAckRetries) {
+    713                    //retries are zero. We have failed.
+    714                    macTxFSM_status = LOWSN_STATUS_MAC_MAX_RETRIES_EXCEEDED;
+    715                    macSetTxIdle();
+    716                    DEBUG_STRING(1,"MAC TX Retry exceeded\n");
+    717                  } else {
+    718                    //retry...
+    719                    conPrintROMString("MAC Retry!! \n");
+    720                    macTxData();  //reuse the last packet.
+    721                  }
+    722                }	
+    723          
+    724              }
+    725          
+    726            }
+    727          
+    728          }
+    729          
+    730          //format the packet and send it
+    731          //this is NOT used for either beacon or ack frames, only for data and MAC frames
+    732          //a side effect of this function is that if the source address mode is SHORT
+    733          //and our MAC short address is 0xFFFE, then the source address mode is forced to
+    734          //long as per the IEEE SPEC.
+    735          
+    736          //this builds the header in reverse order since we adding header bytes to
+    737          //headers already added by APS, ADP layers.
+    738          
+    739          //Add the MAC header, then send it to PHY
+    740          static void macTxData(void) {
+    741            BYTE c;
+    742            BYTE dstmode, srcmode;
+    743          
+    744            if (macTXIdle()) {
+    745              //first time we are sending this packet, format the header
+    746              //used static space for header. If need to store, will copy it later
+    747              //format the header
+    748          				
+    749              dstmode = LOWSN_GET_DST_ADDR(a_mac_tx_data.fcfmsb);
+    750              srcmode = LOWSN_GET_SRC_ADDR(a_mac_tx_data.fcfmsb);
+    751          
+    752              if (mac_pib.macPANID == 0xFFFE && srcmode == LOWSN_ADDRMODE_SADDR) {
+    753                //our short address is 0xFFFE, force srcmode to long address
+    754                srcmode = LOWSN_ADDRMODE_LADDR;
+    755                //clear src mode
+    756                a_mac_tx_data.fcfmsb = a_mac_tx_data.fcfmsb & ~LOWSN_FCF_SRCMODE_MASK;
+    757                //set to long address
+    758                LOWSN_SET_SRC_ADDR(a_mac_tx_data.fcfmsb,LOWSN_ADDRMODE_LADDR);
+    759              }
+    760          
+    761              //format src Address
+    762              switch(srcmode){
+    763              case LOWSN_ADDRMODE_NOADDR:
+    764          				  break;
+    765              case LOWSN_ADDRMODE_SADDR:
+    766          				  phy_pib.currentTxFrm--;
+    767                                            *phy_pib.currentTxFrm = (BYTE)(a_mac_tx_data.SrcAddr >> 8);
+    768                                            phy_pib.currentTxFrm--;
+    769                                            *phy_pib.currentTxFrm = (BYTE)a_mac_tx_data.SrcAddr;				
+    770                                            phy_pib.currentTxFlen=phy_pib.currentTxFlen+2;
+    771                                            break;
+    772              case LOWSN_ADDRMODE_LADDR:
+    773          				  //this has to be our own long address, get it
+    774          				  //halGetProcessorIEEEAddress(phy_pib.currentTxFrm-8);
+    775          				  	halGetProcessorIEEEAddress_MAC(phy_pib.currentTxFrm-8);
+    776                                            phy_pib.currentTxFlen=phy_pib.currentTxFlen+8;
+    777                                            phy_pib.currentTxFrm = phy_pib.currentTxFrm-8;
+    778                                            break;
+    779              default:
+    780          				  break;
+    781              }
+    782          
+    783              //format src PANID
+    784              if ( !LOWSN_GET_INTRAPAN(a_mac_tx_data.fcflsb) &&
+    785                  srcmode != LOWSN_ADDRMODE_NOADDR
+    786                    ) {
+    787                      phy_pib.currentTxFrm--;
+    788                      *phy_pib.currentTxFrm = (BYTE) (a_mac_tx_data.SrcPANID >> 8);
+    789                      phy_pib.currentTxFrm--;
+    790                      *phy_pib.currentTxFrm = (BYTE)a_mac_tx_data.SrcPANID;
+    791                      phy_pib.currentTxFlen=phy_pib.currentTxFlen+2;
+    792                    }
+    793          
+    794              //format dst Address
+    795              switch(dstmode){
+    796              case LOWSN_ADDRMODE_NOADDR:
+    797                break;
+    798          		  case LOWSN_ADDRMODE_SADDR:
+    799                              phy_pib.currentTxFrm--;
+    800                              *phy_pib.currentTxFrm = (BYTE)(a_mac_tx_data.DestAddr.saddr >> 8);
+    801                              phy_pib.currentTxFrm--;
+    802                              *phy_pib.currentTxFrm = (BYTE)a_mac_tx_data.DestAddr.saddr;
+    803                              phy_pib.currentTxFlen=phy_pib.currentTxFlen+2;
+    804                              break;
+    805          		  case LOWSN_ADDRMODE_LADDR:
+    806                              for(c=0;c<8;c++) {
+    807                                phy_pib.currentTxFrm--;
+    808                                *phy_pib.currentTxFrm = a_mac_tx_data.DestAddr.laddr.bytes[7-c];
+    809                                //*phy_pib.currentTxFrm = a_mac_tx_data.DestAddr.laddr.bytes[c];
+    810                              }
+    811                              phy_pib.currentTxFlen=phy_pib.currentTxFlen+8;
+    812                              break;
+    813          		  default:
+    814                              break;
+    815              }
+    816          
+    817              //format dst PANID, will be present if both dst is nonzero
+    818              if (dstmode != LOWSN_ADDRMODE_NOADDR){
+    819                phy_pib.currentTxFrm--;
+    820                *phy_pib.currentTxFrm = (BYTE) (a_mac_tx_data.DestPANID >> 8);
+    821                phy_pib.currentTxFrm--;
+    822                *phy_pib.currentTxFrm = (BYTE)a_mac_tx_data.DestPANID;					
+    823                phy_pib.currentTxFlen=phy_pib.currentTxFlen+2;
+    824              }
+    825          
+    826              //format dsn
+    827              mac_pib.macDSN = halGetRandomByte();
+    828              phy_pib.currentTxFrm--;
+    829              *phy_pib.currentTxFrm = mac_pib.macDSN; //set DSN		
+    830          
+    831              //format MSB Fcontrol
+    832              phy_pib.currentTxFrm--;
+    833              *phy_pib.currentTxFrm = a_mac_tx_data.fcfmsb;
+    834          
+    835              //format LSB Fcontrol
+    836              phy_pib.currentTxFrm--;
+    837              *phy_pib.currentTxFrm = a_mac_tx_data.fcflsb;		
+    838          
+    839              phy_pib.currentTxFlen = phy_pib.currentTxFlen + 3; //DSN, FCFLSB, FCFMSB
+    840          
+    841          
+    842              // at this point, we will attempt a TX
+    843              mac_pib.flags.bits.ackPending = 0;
+    844          
+    845          
+    846              //now send the data, ignore the GTS and INDIRECT bits for now
+    847              DEBUG_STRING(DBG_TX,"TX DSN: ");
+    848              DEBUG_UINT8(DBG_TX,mac_pib.macDSN);
+    849              DEBUG_STRING(DBG_TX,"\n");
+    850          
+    851              macSetTxBusy();
+    852              mac_pib.currentAckRetries = mac_pib.macMaxAckRetries;
+    853              macTxFSM_status = LOWSN_STATUS_MAC_INPROGRESS;
+    854            }
+    855          
+    856            a_phy_service.cmd = LOWSN_SVC_PHY_TX_DATA;
+    857          
+    858            phyDoService();
+    859          }
+    860          
+    861          
+    862          //might be able to simplify this later.
+    863          
+    864          static void macRxFSM(void){
+    865            MACPKT *pkt;
+    866            BYTE cmd;
+    867            BYTE *pt;
+    868            UINT16 i;
+    869          
+    870          macRxFSM_start:
+    871          
+    872            switch(macRxState)  {
+    873            case MAC_RXSTATE_IDLE:
+    874              if (macRxBuffEmpty()) break;   //no data, break
+    875              //buffer not empty, start decode
+    876              pkt = macGetRxPacket();
+    877          
+    878              #ifdef LOWSN_COORDINATOR
+    879              #ifdef LOWSN_SLIP_TO_HOST
+    880              if (slip_pib.forward_kind == SLIP_FORWARD_MAC_PACKET)  {
+    881          		
+    882                  macRxState = MAC_RXSTATE_FORWARD_HOST;
+    883                  goto macRxFSM_start;
+    884              }		
+    885              #endif
+    886              #endif
+    887          	
+    888              //dbgPrintPacket(pkt->data+1, *(pkt->data));
+    889              //must be either a DATA, BCN, or MAC packet
+    890              //at this point, we throw away BCN packets if are not waiting
+    891              //for a beacon response
+    892              if ((LOWSN_IS_BCN(*(pkt->data+1))) &&
+    893                  !mac_pib.flags.bits.WaitingForBeaconResponse) {
+    894                    DEBUG_STRING(DBG_INFO,"MAC: Received BCN pkt, discarding.\n");
+    895                    macFreeRxPacket(TRUE);
+    896                    break;
+    897                  }
+    898              if (LOWSN_IS_ACK(*(pkt->data+1))) {
+    899                //This should not happen. ACK packets should be parsed
+    900                //in the HAL layer that copies ACK packets to temp storage.
+    901                //will keep this for completeness.
+    902                DEBUG_STRING(DBG_INFO,"MAC: Received ACK pkt in macStartRxDecode, discarding, check ack packet parsing..\n");
+    903                macFreeRxPacket(TRUE);
+    904                break;
+    905              }
+    906              //at this point, we have a DATA, MAC CMD, or BCN packet.. do something with it.
+    907              //need to parse the header information get to the payload.
+    908              a_mac_rx_data.orgpkt = pkt;
+    909              macParseHdr();
+    910              if ((LOWSN_IS_BCN(*(pkt->data+1)))){
+    911                DEBUG_STRING(DBG_INFO,"MAC: Parsing BCN pkt.\n");
+    912                //now finished with it.
+    913                macParseBeacon();
+    914                macFreeRxPacket(TRUE);
+    915                break;
+    916              }
+    917          
+    918              if (LOWSN_IS_DATA(*(pkt->data+1))){
+    919          
+    920          	#ifndef LOWSN_NO_CHECK_PHYMAC
+    921          		//this is a data packet, check if we should reject it
+    922                  if (!macCheckDataRejection()) {
+    923                      //we need to reject this packet.
+    924                      DEBUG_STRING(DBG_INFO,"MAC: Rejecting Data packet from unassociated node, rejecting.\n");
+    925                      macFreeRxPacket(TRUE);
+    926                      break;
+    927                  }
+    928          	#endif
+    929          	
+    930                 mac_pib.last_data_rx_time = halGetMACTimer();  //time of last data or mac command
+    931                //at this point, will accept packet, indicate this to network layer
+    932                //set a flag, and pass the adpStart offset to the ADP layer
+    933                //RX buffer.
+    934                
+    935          	// 打印收到的数据包
+    936          	// 最后一位是CRC结果，倒数第二位是RSSI值，不打印
+    937          	DEBUG_STRING(DBG_INFO, " \n***** RX BUF *********\n");
+    938          	pt=a_mac_rx_data.orgpkt->data;
+    939                  for (i=0; i<(*(a_mac_rx_data.orgpkt->data) -1); i++) {
+    940          		DEBUG_UINT8(DBG_INFO, *pt);
+    941          		DEBUG_STRING(DBG_INFO, "   ");
+    942          		pt++;
+    943          		
+    944              	}	
+    945          	DEBUG_STRING(DBG_INFO, " \n***** RX BUF *********\n");
+    946          
+    947          
+    948                macRxState = MAC_RXSTATE_ADP_HANDOFF;
+    949                goto macRxFSM_start;
+    950              }
+    951          
+    952              //at this point, we have a MAC command packet, lets do something with it.
+    953              DEBUG_STRING(DBG_INFO,"MAC: Received MAC cmd packet, proceeding.\n");
+    954          
+    955              //there are some MAC CMDs that we can handle right here.
+    956              //If it is a response, we handle it here. If it is a request,
+    957              //that has to be handled in the main FSM.
+    958              cmd = *(a_mac_rx_data.orgpkt->data + a_mac_rx_data.pload_offset);
+    959              switch(cmd) {
+    960              case LOWSN_MACCMD_ASSOC_RSP:
+    961          #ifndef LOWSN_COORDINATOR
+    962                if (mac_pib.flags.bits.WaitingForAssocResponse){
+    963                  macParseAssocResponse();
+    964                }					
+    965          #endif				
+    966                //free this packet, we are finished with it.
+    967                macFreeRxPacket(TRUE);
+    968                break;
+    969          
+    970          	case LOWSN_MACCMD_COORD_REALIGN:
+    971          #ifndef LOWSN_COORDINATOR
+    972                if (mac_pib.flags.bits.WaitingForOrphanResponse){
+    973                  macParseOrphanResponse();
+    974                }					
+    975          #endif				
+    976                //free this packet, we are finished with it.
+    977                macFreeRxPacket(TRUE);
+    978                break;
+    979          
+    980          
+    981          
+    982          #ifdef LOWSN_FFD
+    983                //only FFDs handle this
+    984              case LOWSN_MACCMD_BCN_REQ:
+    985              case LOWSN_MACCMD_ASSOC_REQ:
+    986          	case LOWSN_MACCMD_ORPHAN:
+    987                //requests must be handled in the main FSM. We need to signal that a MAC
+    988                //CMD packet is packet is pending, and freeze the RX FSM until the
+    989                //main FSM has taken care of it.
+    990                mac_pib.flags.bits.macPending = 1;
+    991                macRxState = MAC_RXSTATE_CMD_PENDING;
+    992                break;
+    993          #endif
+    994          
+    995              default:
+    996                //unhandled MAC packets
+    997                DEBUG_STRING(DBG_INFO,"MAC: Received MAC CMD that is not implemented or not handled by this node, discarding.\n");
+    998                DEBUG_STRING(DBG_INFO,"Cmd is: ");
+    999                DEBUG_UINT8(DBG_INFO,cmd);
+   1000                DEBUG_STRING(DBG_INFO,"\n");
+   1001                macFreeRxPacket(TRUE);
+   1002                break;
+   1003          
+   1004              }			
+   1005          
+   1006              break;
+   1007            case MAC_RXSTATE_ADP_HANDOFF:
+   1008          		  if (adpRxBusy()) break;    //adpRX is still busy
+   1009                            //handoff the current packet
+   1010                            adpRxHandoff();
+   1011                            //we are finished with this packet.
+   1012                            //free the MAC resource, but not the memory. The ADP layer
+   1013                            // or above has to free the memory
+   1014                            macFreeRxPacket(FALSE);
+   1015                            macRxState = MAC_RXSTATE_IDLE;
+   1016                            break;
+   1017            case MAC_RXSTATE_CMD_PENDING:
+   1018              if (mac_pib.flags.bits.macPending ) break;
+   1019          			 //when macPending is cleared, this means main FSM is finished with packet.
+   1020          			 //So free the packet, and start parsing new packets again
+   1021          			 macFreeRxPacket(TRUE);
+   1022                                macRxState = MAC_RXSTATE_IDLE;
+   1023                                break;
+   1024          					  
+   1025            #ifdef LOWSN_COORDINATOR
+   1026            #ifdef LOWSN_SLIP_TO_HOST
+   1027            case MAC_RXSTATE_FORWARD_HOST:
+   1028            	if (slipTxLocked())  break;
+   1029          
+   1030          	DEBUG_STRING(DBG_INFO,"MAC: Forward MAC packet to the host.\n");
+   1031          	slipGrabTxLock();
+   1032          	slipSendMacFlags();
+   1033          	slipSend(pkt->data, *(pkt->data), 1);
+   1034          	slipReleaseTxLock();
+   1035          
+   1036          	macFreeRxPacket(TRUE);
+   1037          	macRxState = MAC_RXSTATE_IDLE;
+   1038          
+   1039          	break;
+   1040            #endif
+   1041            #endif
+   1042          	
+   1043            default: break;
+   1044          
+   1045            }
+   1046          
+   1047          }
+   1048          
+   1049          //parse the header currently in a_mac_rx_data
+   1050          //return the offset to the network header.
+   1051          
+   1052          static void macParseHdr() {
+   1053            BYTE *ptr;
+   1054            BYTE len,i;
+   1055            BYTE srcmode, dstmode;
+   1056          
+   1057            ptr = a_mac_rx_data.orgpkt->data;
+   1058          
+   1059            //skip first byte since the first byte in the a_mac_rx_data.orgpkt is the
+   1060            //packet length
+   1061            len = 1;ptr++;
+   1062          
+   1063          
+   1064            a_mac_rx_data.fcflsb = *ptr; ptr++;
+   1065            a_mac_rx_data.fcfmsb = *ptr; ptr++;
+   1066            dstmode = LOWSN_GET_DST_ADDR(a_mac_rx_data.fcfmsb);
+   1067            srcmode = LOWSN_GET_SRC_ADDR(a_mac_rx_data.fcfmsb);
+   1068          
+   1069            //skip DSN
+   1070            ptr++;
+   1071            len = len +3;
+   1072          
+   1073            if (dstmode != LOWSN_ADDRMODE_NOADDR){
+   1074              //get the DEST PANDID
+   1075              a_mac_rx_data.DestPANID = *ptr;
+   1076              ptr++;
+   1077              a_mac_rx_data.DestPANID += (((UINT16)*ptr) << 8);
+   1078              ptr++;
+   1079              len = len + 2;
+   1080            }
+   1081            //DST address
+   1082            if (dstmode == LOWSN_ADDRMODE_SADDR) {
+   1083              a_mac_rx_data.DestAddr.saddr = *ptr;
+   1084              ptr++;
+   1085              a_mac_rx_data.DestAddr.saddr += (((UINT16)*ptr) << 8);
+   1086              ptr++;
+   1087              len = len + 2;
+   1088          
+   1089            }else if (dstmode == LOWSN_ADDRMODE_LADDR) {
+   1090              for (i=0;i<8;i++) {
+   1091                a_mac_rx_data.DestAddr.laddr.bytes[i] = *ptr;
+   1092                ptr++;
+   1093              }
+   1094              len = len + 8;
+   1095            }
+   1096          
+   1097          
+   1098            if ( !LOWSN_GET_INTRAPAN(a_mac_rx_data.fcflsb) &&
+   1099                srcmode != LOWSN_ADDRMODE_NOADDR
+   1100                  ) {
+   1101                    //PANID present if INTRAPAN is zero, and src is nonzero
+   1102                    a_mac_rx_data.SrcPANID = *ptr;
+   1103                    ptr++;
+   1104                    a_mac_rx_data.SrcPANID += (((UINT16)*ptr) << 8);
+   1105                    ptr++;
+   1106                    len = len + 2;
+   1107                  }
+   1108            //SRC address
+   1109            if (srcmode == LOWSN_ADDRMODE_SADDR) {
+   1110              a_mac_rx_data.SrcAddr.saddr = *ptr;
+   1111              ptr++;
+   1112              a_mac_rx_data.SrcAddr.saddr += (((UINT16)*ptr) << 8);
+   1113              ptr++;
+   1114              len = len + 2;
+   1115          
+   1116            }else if (srcmode == LOWSN_ADDRMODE_LADDR) {
+   1117              for (i=0;i<8;i++) {
+   1118                a_mac_rx_data.SrcAddr.laddr.bytes[i] = *ptr;
+   1119                ptr++;
+   1120              }
+   1121              len = len + 8;
+   1122            }
+   1123            //save offset.
+   1124            a_mac_rx_data.pload_offset = len;
+   1125          }
+   1126          
+   1127          #ifdef LOWSN_FFD
+   1128          //Beacon payload format
+   1129          // adp magic number ( 4 bytes) | mac depth
+   1130          static void macFormatBeacon(void){
+   1131            BYTE i;
+   1132          
+   1133            //fill in the beacon payload, we have the TX buffer lock
+   1134            phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+   1135          #ifndef LOWSN_ZIGBEE_BEACON_COMPLY
+   1136            //fill in the magic number
+   1137            --phy_pib.currentTxFrm;
+   1138            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B3;
+   1139            --phy_pib.currentTxFrm;
+   1140            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B2;
+   1141            --phy_pib.currentTxFrm;
+   1142            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B1;
+   1143            --phy_pib.currentTxFrm;
+   1144            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B0;
+   1145          #endif
+   1146          
+   1147            //next three bytes are zero for timestep difference
+   1148            //for multi-hop beaconing networks. This is currently filled in
+   1149            //as zero
+   1150            --phy_pib.currentTxFrm;
+   1151            *phy_pib.currentTxFrm =0;
+   1152            --phy_pib.currentTxFrm;
+   1153            *phy_pib.currentTxFrm =0;
+   1154            --phy_pib.currentTxFrm;
+   1155            *phy_pib.currentTxFrm =0;
+   1156          
+   1157            //see if I have space for an END device
+   1158            --phy_pib.currentTxFrm;
+   1159            if (mac_pib.ChildRFDs == LOWSN_MAX_NON_ROUTER_CHILDREN) {
+   1160          	  *phy_pib.currentTxFrm =0; //no room
+   1161            } else {
+   1162                *phy_pib.currentTxFrm =1;  //have space.
+   1163            }
+   1164          
+   1165            //fill in my depth
+   1166            --phy_pib.currentTxFrm;
+   1167            *phy_pib.currentTxFrm = mac_pib.depth;
+   1168          
+   1169            //see if I have space for a ROUTER device
+   1170            --phy_pib.currentTxFrm;
+   1171            if (mac_pib.ChildRouters == LOWSN_MAX_ROUTERS_PER_PARENT) {
+   1172          	  *phy_pib.currentTxFrm =0; //no room
+   1173            } else {
+   1174                *phy_pib.currentTxFrm =1;  //have space.
+   1175            }
+   1176          
+   1177             //network protocol version
+   1178            --phy_pib.currentTxFrm;
+   1179            *phy_pib.currentTxFrm =LOWSN_ZIGBEE_PROTOCOL_VER;
+   1180          
+   1181             //stack protocol
+   1182             --phy_pib.currentTxFrm;
+   1183             *phy_pib.currentTxFrm =LOWSN_STACK_PROFILE;
+   1184          
+   1185             //Zigbee protocol ID
+   1186             --phy_pib.currentTxFrm;
+   1187             *phy_pib.currentTxFrm =LOWSN_ZIGBEE_PROTOCOL_ID;
+   1188          
+   1189            //pending address field
+   1190            --phy_pib.currentTxFrm;
+   1191            *phy_pib.currentTxFrm = 0;  //makes this a NOP
+   1192          
+   1193            //GTS directions field
+   1194            --phy_pib.currentTxFrm;
+   1195            *phy_pib.currentTxFrm = 0;  //makes this a NOP
+   1196          
+   1197            //2 bytes of superframe
+   1198          #ifdef LOWSN_COORDINATOR
+   1199            i = LOWSN_BEACON_SF_PAN_COORD_MASK;
+   1200          #else
+   1201            i = 0;
+   1202          #endif
+   1203            if (mac_pib.flags.bits.macAssociationPermit) {
+   1204              i = i | LOWSN_BEACON_SF_ASSOC_PERMIT_MASK;
+   1205            }
+   1206            --phy_pib.currentTxFrm;
+   1207            *phy_pib.currentTxFrm = i;  //MSB of superframe
+   1208          
+   1209            --phy_pib.currentTxFrm;
+   1210            *phy_pib.currentTxFrm = 0xFF; //LSB of superframe
+   1211          
+   1212            phy_pib.currentTxFlen = LOWSN_ADP_BEACON_SIZE;
+   1213          
+   1214          }
+   1215          
+   1216          #endif
+   1217          
+   1218          //parse the beacon
+   1219          static void macParseBeacon(void){
+   1220            BYTE *ptr;
+   1221            BYTE depth;
+   1222          
+   1223            if ( (*(a_mac_rx_data.orgpkt->data)-a_mac_rx_data.pload_offset-PACKET_FOOTER_SIZE +1)
+   1224                != LOWSN_ADP_BEACON_SIZE  ) {
+   1225                  return; //wrong length
+   1226                }
+   1227          
+   1228            ptr = a_mac_rx_data.orgpkt->data + a_mac_rx_data.pload_offset;
+   1229            //check association bit in MSB of superframe
+   1230            if (!LOWSN_GET_BEACON_SF_ASSOC_PERMIT(*(ptr+1))) {
+   1231              //cannot associate with this node. reject
+   1232              return;
+   1233            }
+   1234            // point at payload (skip four bytes of header)
+   1235            ptr = ptr + 4;
+   1236            //skip if any mismatches on protocol ID/Ver, stack profile, etc.
+   1237            //check protocol ID
+   1238            if (*ptr != LOWSN_ZIGBEE_PROTOCOL_ID) return;
+   1239            ptr++;
+   1240            //check stack profile
+   1241            if (*ptr != LOWSN_STACK_PROFILE) return;
+   1242            ptr++;
+   1243            //check protocol version
+   1244            if (*ptr != LOWSN_ZIGBEE_PROTOCOL_VER) return;
+   1245            ptr++;
+   1246          
+   1247            //check router capacity
+   1248            //for right now, if I am a router, I have to join as a router.
+   1249            //no option as of now for a router joining as an end-device
+   1250          #ifdef LOWSN_FFD
+   1251            //only routers have to check this
+   1252            if (*ptr == 0) return;  //no room to join as router
+   1253          #endif
+   1254          
+   1255            ptr++;
+   1256          
+   1257            //get the depth
+   1258            depth = *ptr;
+   1259            ptr++;
+   1260          
+   1261            //check end device capacity
+   1262          #ifdef LOWSN_RFD
+   1263            //only end devices have to check this.
+   1264            if (*ptr == 0) return;  //no room to join as end device
+   1265          #endif
+   1266            ptr++;
+   1267          
+   1268            //skip the next three bytes, only for beaconing.
+   1269            ptr = ptr + 3;
+   1270          
+   1271          #ifndef LOWSN_ZIGBEE_BEACON_COMPLY
+   1272            //check the magic number
+   1273            if (*ptr != LOWSN_ADP_MAGICNUM_B0) return;
+   1274            ptr++;
+   1275            if (*ptr != LOWSN_ADP_MAGICNUM_B1) return;
+   1276            ptr++;
+   1277            if (*ptr != LOWSN_ADP_MAGICNUM_B2) return;
+   1278            ptr++;
+   1279            if (*ptr != LOWSN_ADP_MAGICNUM_B3) return;
+   1280            ptr++;
+   1281          #endif
+   1282          
+   1283            //at this point, we could accept this node as a parent
+   1284            if ((mac_pib.bcnDepth == 0xFF) ||
+   1285                (a_mac_rx_data.orgpkt->rssi > mac_pib.bcnRSSI)) {
+   1286                  //either our first response, or from a closer node
+   1287                  //save this information.
+   1288                  //use value with higher RSSI.
+   1289                  //the RSSI byte is assumed to be formatted as HIGHER IS BETTER
+   1290                  //the HAL layer converts any native signed RSSI to an unsigned value
+   1291          
+   1292                  mac_pib.bcnDepth = depth;  //get depth
+   1293                  mac_pib.bcnRSSI = a_mac_rx_data.orgpkt->rssi;
+   1294                  mac_pib.bcnSADDR = a_mac_rx_data.SrcAddr.saddr;
+   1295                  mac_pib.bcnPANID = a_mac_rx_data.SrcPANID;
+   1296                  DEBUG_STRING(DBG_INFO,"MAC: Bcn rsp is Panid: ");
+   1297                  DEBUG_UINT16(DBG_INFO, mac_pib.bcnPANID);
+   1298                   DEBUG_STRING(DBG_INFO,", Saddr: ");
+   1299                 DEBUG_UINT16(DBG_INFO, mac_pib.bcnSADDR);
+   1300                  DEBUG_STRING(DBG_INFO,", LQI: ");
+   1301                 DEBUG_UINT8(DBG_INFO, mac_pib.bcnRSSI);
+   1302                    DEBUG_STRING(DBG_INFO,", Dpth: ");
+   1303                 DEBUG_UINT8(DBG_INFO, mac_pib.bcnDepth);
+   1304                 DEBUG_STRING(DBG_INFO,"\n");
+   1305                }
+   1306            mac_pib.flags.bits.GotBeaconResponse = 1;
+   1307          }
+   1308          
+   1309          
+   1310          static void macFormatAssocRequest(void){
+   1311            //fill in payload of request
+   1312            phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+   1313          
+   1314          #ifndef IEEE_802_COMPLY
+   1315            //put the magic number in the association request
+   1316            phy_pib.currentTxFrm--;
+   1317            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B3;
+   1318          
+   1319            phy_pib.currentTxFrm--;
+   1320            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B2;
+   1321          
+   1322            phy_pib.currentTxFrm--;
+   1323            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B1;
+   1324          
+   1325            phy_pib.currentTxFrm--;
+   1326            *phy_pib.currentTxFrm = LOWSN_ADP_MAGICNUM_B0;
+   1327          #endif
+   1328          
+   1329            phy_pib.currentTxFrm--;
+   1330            *phy_pib.currentTxFrm = mac_pib.macCapInfo;
+   1331          
+   1332            phy_pib.currentTxFrm--;
+   1333            *phy_pib.currentTxFrm = LOWSN_MACCMD_ASSOC_REQ;
+   1334          
+   1335            phy_pib.currentTxFlen = LOWSN_MACCMD_ASSOC_REQ_PAYLOAD_LEN;
+   1336          
+   1337          }
+   1338          
+   1339          #ifndef LOWSN_COORDINATOR
+   1340          //parse the association response
+   1341          static void macParseAssocResponse(void){
+   1342            BYTE *ptr;
+   1343            SADDR saddr;
+   1344          
+   1345            //first, ensure that the payload length is correct
+   1346            //the +1 is because the offset takes into account the lenght byte at the start of the packet
+   1347            if ( (*(a_mac_rx_data.orgpkt->data)-a_mac_rx_data.pload_offset-PACKET_FOOTER_SIZE +1)
+   1348                != LOWSN_MACCMD_ASSOC_RSP_PAYLOAD_LEN ) {
+   1349                  DEBUG_STRING( DBG_INFO, "MAC: Failed to join, illegal assoc response\n");
+   1350                  return; //wrong length
+   1351                }
+   1352            ptr = a_mac_rx_data.orgpkt->data + a_mac_rx_data.pload_offset;
+   1353            //check the status first which is last byte of the payload
+   1354            if (LOWSN_GET_ASSOC_STATUS(*(ptr+LOWSN_MACCMD_ASSOC_RSP_PAYLOAD_LEN-1)) != LOWSN_ASSOC_STATUS_SUCCESS) {
+   1355              //failed to join
+   1356              DEBUG_STRING( DBG_INFO, "MAC: Failed to join, remote node rejected us.\n");
+   1357              return;
+   1358            }
+   1359            ptr++; //skip command byte
+   1360          
+   1361            //successful join, get my short SADDR
+   1362            saddr = (BYTE) *ptr;
+   1363            ptr++;
+   1364            saddr += (((UINT16) *ptr) << 8);
+   1365            macSetShortAddr(saddr);
+   1366            ptr++;
+   1367          
+   1368            //our PANID is our parent's panid.
+   1369            mac_pib.macPANID = a_mac_rx_data.SrcPANID;
+   1370            halSetRadioPANID(a_mac_rx_data.SrcPANID);
+   1371          
+   1372          #ifndef IEEE_802_COMPLY
+   1373            //the short address of the parent are extra bytes in this payload
+   1374            mac_pib.macCoordShortAddress = (BYTE) *ptr;
+   1375            ptr++;
+   1376            mac_pib.macCoordShortAddress += (((UINT16) *ptr) << 8);
+   1377            ptr++;
+   1378            //get the depth of parent, our depth is 1+ that of our parent
+   1379            mac_pib.depth = *ptr + 1;
+   1380          #else
+   1381          
+   1382          #ifndef LOWSN_FORCE_ASSOCIATION_TARGET
+   1383            //if we are not using forced association, then the beacon response
+   1384            //we got had the short address that we used for the association request,
+   1385            //so the short address of the beacon responder is our parent
+   1386            mac_pib.macCoordShortAddress = mac_pib.bcnSADDR;
+   1387            //beacon response also has the depth of our parent, so our depth is 1+ this
+   1388            mac_pib.depth = mac_pib.bcnDepth+1;
+   1389          #endif
+   1390          
+   1391          
+   1392          #endif
+   1393          
+   1394            //copy the SRC long address as my coordinator long address
+   1395            mac_pib.macCoordExtendedAddress.bytes[0] = a_mac_rx_data.SrcAddr.laddr.bytes[0];
+   1396            mac_pib.macCoordExtendedAddress.bytes[1] = a_mac_rx_data.SrcAddr.laddr.bytes[1];
+   1397            mac_pib.macCoordExtendedAddress.bytes[2] = a_mac_rx_data.SrcAddr.laddr.bytes[2];
+   1398            mac_pib.macCoordExtendedAddress.bytes[3] = a_mac_rx_data.SrcAddr.laddr.bytes[3];
+   1399            mac_pib.macCoordExtendedAddress.bytes[4] = a_mac_rx_data.SrcAddr.laddr.bytes[4];
+   1400            mac_pib.macCoordExtendedAddress.bytes[5] = a_mac_rx_data.SrcAddr.laddr.bytes[5];
+   1401            mac_pib.macCoordExtendedAddress.bytes[6] = a_mac_rx_data.SrcAddr.laddr.bytes[6];
+   1402            mac_pib.macCoordExtendedAddress.bytes[7] = a_mac_rx_data.SrcAddr.laddr.bytes[7];
+   1403          
+   1404          
+   1405          
+   1406            //indicate that the association was successful
+   1407            mac_pib.flags.bits.macIsAssociated = 1;
+   1408            mac_pib.flags.bits.ackPending = 0;  //only one outstanding association req, clear the ack bit
+   1409            DEBUG_STRING(DBG_INFO,"MAC:Received good association response!\n");
+   1410          
+   1411          }
+   1412          #endif
+   1413          
+   1414          
+   1415          #ifndef  LOWSN_COORDINATOR
+   1416          //Parse the coordinator realignment (Orphan response)
+   1417          static void macParseOrphanResponse(void){
+   1418            BYTE *ptr;
+   1419            UINT16 tmp;
+   1420          
+   1421          
+   1422            //first, ensure that the payload length is correct
+   1423            //the +1 is because the offset takes into account the lenght byte at the start of the packet
+   1424            if ( (*(a_mac_rx_data.orgpkt->data)-a_mac_rx_data.pload_offset-PACKET_FOOTER_SIZE +1)
+   1425                != LOWSN_MACCMD_COORD_REALIGN_PAYLOAD_LEN ) {
+   1426                  DEBUG_STRING( DBG_INFO, "MAC: illegal Coord Alignment packet\n");
+   1427                  return; //wrong length
+   1428                }
+   1429            ptr = a_mac_rx_data.orgpkt->data + a_mac_rx_data.pload_offset;
+   1430          
+   1431            DEBUG_STRING(DBG_INFO, "Received Coord Realign (Orphan response)\n");
+   1432            mac_pib.flags.bits.GotOrphanResponse = 1;
+   1433            mac_pib.flags.bits.macIsAssociated = 1;  //we are associated with somebody!
+   1434             mac_pib.flags.bits.ackPending = 0;
+   1435          
+   1436            ptr++; //skip command byte
+   1437          
+   1438            //get the PANID
+   1439            tmp = (BYTE) *ptr;
+   1440            ptr++;
+   1441            tmp += (((UINT16) *ptr) << 8);
+   1442            ptr++;
+   1443            macSetPANID(tmp);
+   1444          
+   1445            //get the coordinator short address
+   1446            mac_pib.macCoordShortAddress = (BYTE) *ptr;
+   1447            ptr++;
+   1448            mac_pib.macCoordShortAddress += (((UINT16) *ptr) << 8);
+   1449            ptr++;
+   1450          
+   1451            tmp =(BYTE) *ptr; //get the channel
+   1452            ptr++;
+   1453          
+   1454            macSetChannel(tmp);  //set the channel
+   1455          
+   1456          #ifndef LOWSN_COORDINATOR
+   1457          
+   1458            //copy the SRC long address as my coordinator long address
+   1459            mac_pib.macCoordExtendedAddress.bytes[0] = a_mac_rx_data.SrcAddr.laddr.bytes[0];
+   1460            mac_pib.macCoordExtendedAddress.bytes[1] = a_mac_rx_data.SrcAddr.laddr.bytes[1];
+   1461            mac_pib.macCoordExtendedAddress.bytes[2] = a_mac_rx_data.SrcAddr.laddr.bytes[2];
+   1462            mac_pib.macCoordExtendedAddress.bytes[3] = a_mac_rx_data.SrcAddr.laddr.bytes[3];
+   1463            mac_pib.macCoordExtendedAddress.bytes[4] = a_mac_rx_data.SrcAddr.laddr.bytes[4];
+   1464            mac_pib.macCoordExtendedAddress.bytes[5] = a_mac_rx_data.SrcAddr.laddr.bytes[5];
+   1465            mac_pib.macCoordExtendedAddress.bytes[6] = a_mac_rx_data.SrcAddr.laddr.bytes[6];
+   1466            mac_pib.macCoordExtendedAddress.bytes[7] = a_mac_rx_data.SrcAddr.laddr.bytes[7];
+   1467          
+   1468          
+   1469          #endif
+   1470          
+   1471          #ifdef LOWSN_RFD
+   1472            //get our short address
+   1473            tmp = (BYTE) *ptr;
+   1474            ptr++;
+   1475            tmp += (((UINT16) *ptr) << 8);
+   1476            ptr++;
+   1477            macSetShortAddr(tmp);
+   1478          #else
+   1479            //this is a router
+   1480             //get our short ADDR
+   1481          
+   1482             tmp = (BYTE) *ptr;
+   1483             ptr++;
+   1484             tmp += (((UINT16) *ptr) << 8);
+   1485             ptr++;
+   1486          
+   1487             if (tmp != macGetShortAddr()) {
+   1488          	   //our short address has changed!
+   1489          	   //everything may have changed,
+   1490          	   //clear neighbor table, and address map
+   1491          	   ntInitAddressMap();
+   1492          	   ntInitTable();
+   1493            }
+   1494            macSetShortAddr(tmp);
+   1495          #endif
+   1496          
+   1497          }
+   1498          
+   1499          #endif
+   1500          
+   1501          
+   1502          
+   1503          static void macFormatOrphanNotify(void){
+   1504          phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+   1505            *phy_pib.currentTxFrm = LOWSN_MACCMD_ORPHAN;
+   1506             phy_pib.currentTxFlen = 1;
+   1507          }
+   1508          
+   1509          
+   1510          
+   1511          #ifdef LOWSN_FFD
+   1512          
+   1513          static void macFormatCoordRealign(SADDR orphan_saddr){
+   1514            //format and send the realignment packet
+   1515            //first is the orphans short address
+   1516            phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+   1517            *phy_pib.currentTxFrm = (BYTE) (orphan_saddr >>8);
+   1518          
+   1519            --phy_pib.currentTxFrm;
+   1520            *phy_pib.currentTxFrm = (BYTE) (orphan_saddr);
+   1521          
+   1522            //logical channel
+   1523            --phy_pib.currentTxFrm;
+   1524            *phy_pib.currentTxFrm = phy_pib.phyCurrentChannel;
+   1525          
+   1526             //our short addresss
+   1527           --phy_pib.currentTxFrm;
+   1528            *phy_pib.currentTxFrm = (BYTE) (macGetShortAddr()>>8);
+   1529          
+   1530            --phy_pib.currentTxFrm;
+   1531            *phy_pib.currentTxFrm = (BYTE) (macGetShortAddr());
+   1532          
+   1533            //our PANID
+   1534          
+   1535          --phy_pib.currentTxFrm;
+   1536            *phy_pib.currentTxFrm = (BYTE) (mac_pib.macPANID>>8);
+   1537          
+   1538            --phy_pib.currentTxFrm;
+   1539            *phy_pib.currentTxFrm = (BYTE) (mac_pib.macPANID);
+   1540          
+   1541          
+   1542            --phy_pib.currentTxFrm;
+   1543            *phy_pib.currentTxFrm = LOWSN_MACCMD_COORD_REALIGN;
+   1544          
+   1545          
+   1546            phy_pib.currentTxFlen = LOWSN_MACCMD_COORD_REALIGN_PAYLOAD_LEN;
+   1547          }
+   1548          
+   1549          
+   1550          
+   1551          
+   1552          static void macFormatAssociationResponse(void){
+   1553            NAYBORENTRY *ntptr;
+   1554            UINT16 new_saddr;
+   1555            BYTE tmp, capinfo;
+   1556          
+   1557          
+   1558            new_saddr = 0xFFFF;
+   1559            tmp = LOWSN_ASSOC_STATUS_DENIED;  //default status
+   1560          
+   1561            //check reasons to reject first
+   1562            //check payload length
+   1563            if ( (*(a_mac_rx_data.orgpkt->data)-a_mac_rx_data.pload_offset-PACKET_FOOTER_SIZE+1 )
+   1564                != LOWSN_MACCMD_ASSOC_REQ_PAYLOAD_LEN) {
+   1565                  //invalid payload length
+   1566                  DEBUG_STRING(DBG_INFO,"MAC:Invalid association request, rejecting node!\n");
+   1567                  goto macFormatAssociationResponse_dopkt;
+   1568                }
+   1569          
+   1570          #ifndef IEEE_802_COMPLY
+   1571            {
+   1572              BYTE *ptr;
+   1573              //Check Magic Number
+   1574              ptr = a_mac_rx_data.orgpkt->data + a_mac_rx_data.pload_offset;
+   1575              if (*(ptr+2) != LOWSN_ADP_MAGICNUM_B0){
+   1576                goto macFormatAssociationResponse_dopkt;
+   1577              }
+   1578              if (*(ptr+3) != LOWSN_ADP_MAGICNUM_B1){
+   1579                goto macFormatAssociationResponse_dopkt;
+   1580              }
+   1581              if (*(ptr+4) != LOWSN_ADP_MAGICNUM_B2){
+   1582                goto macFormatAssociationResponse_dopkt;
+   1583              }
+   1584              if (*(ptr+5) != LOWSN_ADP_MAGICNUM_B3){
+   1585                goto macFormatAssociationResponse_dopkt;
+   1586              }
+   1587            }
+   1588          #endif
+   1589          
+   1590            //now, see if this node is in the table
+   1591            ntptr = ntFindByLADDR(&a_mac_rx_data.SrcAddr.laddr);
+   1592            if (ntptr) {
+   1593          	   new_saddr = mac_addr_tbl[ntptr->map_index].saddr;
+   1594                     tmp = LOWSN_ASSOC_STATUS_SUCCESS;
+   1595                     goto macFormatAssociationResponse_dopkt;
+   1596            }
+   1597            //node is not in table. Look at capability info byte and see if we
+   1598            //have room for this node type
+   1599            capinfo = *(a_mac_rx_data.orgpkt->data + a_mac_rx_data.pload_offset + 1);
+   1600          
+   1601            //node is not in table. Do final check with user
+   1602            if (!usrJoinVerifyCallback(&a_mac_rx_data.SrcAddr.laddr, capinfo)) {
+   1603              tmp = LOWSN_ASSOC_STATUS_DENIED;
+   1604              goto macFormatAssociationResponse_dopkt;
+   1605            }
+   1606          
+   1607          
+   1608            if ( ((LOWSN_GET_CAPINFO_DEVTYPE(capinfo)) && (mac_pib.ChildRouters == LOWSN_MAX_ROUTERS_PER_PARENT))
+   1609                ||
+   1610                  (!(LOWSN_GET_CAPINFO_DEVTYPE(capinfo)) && (mac_pib.ChildRFDs == LOWSN_MAX_NON_ROUTER_CHILDREN)))
+   1611              //no room left
+   1612            {
+   1613              //no room
+   1614              tmp = LOWSN_ASSOC_STATUS_NOROOM;
+   1615              goto macFormatAssociationResponse_dopkt;
+   1616          
+   1617            }
+   1618          
+   1619            //not in table, Add this node
+   1620            new_saddr = ntAddNeighbor(&a_mac_rx_data.SrcAddr.laddr.bytes[0],capinfo);
+   1621            if (new_saddr == LOWSN_BCAST_SADDR) {
+   1622          	  //this is an error indication, adding neighbor failed
+   1623                tmp = LOWSN_ASSOC_STATUS_NOROOM;
+   1624          	  goto macFormatAssociationResponse_dopkt;
+   1625            }
+   1626            DEBUG_STRING(DBG_INFO,"MAC:Sending good association response!\n");
+   1627            tmp = LOWSN_ASSOC_STATUS_SUCCESS;
+   1628            usrJoinNotifyCallback(&a_mac_rx_data.SrcAddr.laddr);
+   1629          
+   1630          macFormatAssociationResponse_dopkt:
+   1631          
+   1632             if (tmp ==  LOWSN_ASSOC_STATUS_SUCCESS) {
+   1633                  DEBUG_STRING(DBG_INFO,"MAC:Sending good association response!\n");
+   1634             } else {
+   1635               DEBUG_STRING(DBG_INFO,"MAC:Rejecting assoc request: ");
+   1636               DEBUG_UINT8(DBG_INFO,tmp);
+   1637               DEBUG_STRING(DBG_INFO,"\n");
+   1638              }
+   1639          
+   1640            //format and send the packet
+   1641            //status byte
+   1642            phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+   1643            *phy_pib.currentTxFrm = tmp;
+   1644          
+   1645          #ifndef IEEE_802_COMPLY
+   1646             //put our depth, short address so that the RFD will know both
+   1647            //the radius, short and long addresses even if Beacon request has not been done
+   1648             --phy_pib.currentTxFrm;
+   1649            *phy_pib.currentTxFrm = mac_pib.depth;
+   1650          
+   1651            --phy_pib.currentTxFrm;
+   1652            *phy_pib.currentTxFrm = (BYTE) (macGetShortAddr()>>8);
+   1653          
+   1654            --phy_pib.currentTxFrm;
+   1655            *phy_pib.currentTxFrm = (BYTE) (macGetShortAddr());
+   1656          #endif
+   1657            //new short address for the RFD
+   1658            --phy_pib.currentTxFrm;
+   1659            *phy_pib.currentTxFrm = (BYTE) (new_saddr>>8);
+   1660          
+   1661            --phy_pib.currentTxFrm;
+   1662            *phy_pib.currentTxFrm = (BYTE) (new_saddr);
+   1663          
+   1664            //CMD
+   1665          
+   1666            --phy_pib.currentTxFrm;
+   1667            *phy_pib.currentTxFrm = LOWSN_MACCMD_ASSOC_RSP;
+   1668          
+   1669            phy_pib.currentTxFlen = LOWSN_MACCMD_ASSOC_RSP_PAYLOAD_LEN;
+   1670          
+   1671          }
+   1672          
+   1673          #endif
+   1674          
+   1675          
+   1676          //check for DATA packets
+   1677          //For RFD, just check if this packet came from parent
+   1678          //For Routers, if this uses SHORT addressing, then check
+   1679          //to see if this is associated with us
+   1680          
+   1681          static BOOL macCheckDataRejection(void){
+   1682          
+   1683          	BYTE AddrMode,i;
+   1684          	
+   1685          	//if not associated, reject
+   1686          #ifndef LOWSN_COORDINATOR
+   1687          	if (!mac_pib.flags.bits.macIsAssociated) {
+   1688          		DEBUG_STRING(DBG_INFO, "MAC: Rejecting data pkt as we are not associated\n");
+   1689          		return(FALSE);
+   1690          	}
+   1691          #endif
+   1692              AddrMode = LOWSN_GET_DST_ADDR(a_mac_rx_data.fcfmsb);
+   1693          
+   1694          	if (AddrMode == LOWSN_ADDRMODE_LADDR) {
+   1695          		//this packet send directly to our long address. accept it.
+   1696          		return(TRUE);
+   1697          	}
+   1698          
+   1699          	//check the parent
+   1700          	AddrMode = LOWSN_GET_SRC_ADDR(a_mac_rx_data.fcfmsb);
+   1701          	if (AddrMode == LOWSN_ADDRMODE_SADDR) {
+   1702          		//check parent short address
+   1703          		if (a_mac_rx_data.SrcAddr.saddr == mac_pib.macCoordShortAddress)  		
+   1704          			return(TRUE);
+   1705          
+   1706          	} else if (AddrMode == LOWSN_ADDRMODE_LADDR){
+   1707          		//check parent long address.
+   1708          		for (i=0;i<8;i++) {
+   1709          			if (a_mac_rx_data.SrcAddr.laddr.bytes[i] !=
+   1710          				mac_pib.macCoordExtendedAddress.bytes[i])
+   1711          				break;
+   1712          		}
+   1713          		if (i==8) return(TRUE); //have a match
+   1714          	}
+   1715          #ifdef LOWSN_RFD
+   1716          	DEBUG_STRING(DBG_INFO, "MAC: Rejecting data pkt from unassociated node\n");
+   1717          	return(FALSE);
+   1718          #else
+   1719          	//ok, for FFDs, check the neighbor table
+   1720          	if (AddrMode == LOWSN_ADDRMODE_SADDR){
+   1721          		if (ntFindBySADDR (a_mac_rx_data.SrcAddr.saddr) !=(NAYBORENTRY *) NULL)
+   1722          			return(TRUE);
+   1723          	}else if (AddrMode == LOWSN_ADDRMODE_LADDR){
+   1724                  if (ntFindByLADDR (&a_mac_rx_data.SrcAddr.laddr))
+   1725          			return(TRUE);
+   1726          	}
+   1727              DEBUG_STRING(DBG_INFO, "MAC: Rejecting data pkt from unassociated node\n");
+   1728          	return(FALSE);
+   1729          #endif
+   1730          }
+
+   Maximum stack usage in bytes:
+
+     Function                       ISTACK PSTACK XSTACK
+     --------                       ------ ------ ------
+     macCheckDataRejection              0      0     22
+       -> ntFindBySADDR                 0      0     20
+       -> ntFindByLADDR                 0      0     20
+       -> conPrintROMString_func        0      0     20
+     macFSM                             1      0     16
+       -> phyFSM                        0      0     32
+       -> macTxFSM                      0      0     32
+       -> macRxFSM                      0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> conPrintUINT16                0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> macFormatBeacon               0      0     32
+       -> macTxData                     0      0     32
+       -> ntFindByLADDR                 0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> macFormatAssociationResponse
+                                        0      0     32
+       -> macTxData                     0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> macTxData                     0      0     32
+       -> phyFSM                        0      0     32
+       -> macTxData                     0      0     32
+       -> halSetChannel                 0      0     32
+       -> macTxData                     0      0     32
+       -> halSetChannel                 0      0     32
+       -> macTxData                     0      0     32
+       -> halGetMACTimer                0      0     32
+       -> halGetMACTimer                0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> halGetMACTimer                0      0     32
+       -> halGetMACTimer                0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> conPrintROMString_func        0      0     32
+       -> macFormatCoordRealign         0      0     32
+     macFormatAssociationResponse       1      0     28
+       -> conPrintROMString_func        0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintUINT8                 0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> ntFindByLADDR                 0      0     24
+       -> usrJoinVerifyCallback         0      0     24
+       -> ntAddNeighbor                 0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> usrJoinNotifyCallback         0      0     24
+       -> conPrintROMString_func        0      0     24
+     macFormatBeacon                    3      0     16
+     macFormatCoordRealign              3      0     16
+     macFreeRxPacket                    2      0     12
+       -> MemFree                       4      0      0
+     macGetPANID                        2      0      0
+     macGetRxPacket                     2      0     12
+     macInit                            0      0     12
+       -> ntInitAddressMap              0      0     24
+     macInitRadio                       0      0     12
+       -> phyFSM                        0      0     24
+       -> macSetPANID                   0      0     24
+       -> halSetRadioShortAddr          0      0     24
+     macParseBeacon                     3      0     12
+       -> conPrintROMString_func        4      0      0
+       -> conPrintUINT16                4      0      0
+       -> conPrintROMString_func        4      0      0
+       -> conPrintUINT16                4      0      0
+       -> conPrintROMString_func        4      0      0
+       -> conPrintUINT8                 4      0      0
+       -> conPrintROMString_func        4      0      0
+       -> conPrintUINT8                 4      0      0
+       -> conPrintROMString_func        4      0      0
+     macParseHdr                        1      0     22
+     macRxBuffEmpty                     2      0     12
+     macRxBuffFull                      2      0      0
+     macRxCallback                      1      0      9
+       -> halPutch                      0      0     18
+     macRxFSM                           0      0     28
+       -> macRxBuffEmpty                0      0     24
+       -> macGetRxPacket                0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> macFreeRxPacket               0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> macParseHdr                   0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> macParseBeacon                0      0     24
+       -> macCheckDataRejection         0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> halGetMACTimer                0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintUINT8                 0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> adpRxBusy                     0      0     24
+       -> adpRxHandoff                  0      0     24
+       -> macFreeRxPacket               0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintUINT8                 0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> macFreeRxPacket               0      0     24
+     macSetChannel                      2      0      0
+       -> halSetChannel                 4      0      0
+     macSetPANID                        2      0     12
+       -> halSetRadioPANID              4      0      0
+     macSetShortAddr                    0      0      9
+       -> ntAddOurselvesToAddressTable
+                                        0      0     18
+       -> halSetRadioShortAddr          0      0     18
+     macTxCallback                      0      0     12
+       -> halGetMACTimer                0      0     24
+     macTxData                          1      0     25
+       -> halGetProcessorIEEEAddress_MAC
+                                        0      0     18
+       -> halGetRandomByte              0      0     18
+       -> conPrintROMString_func        0      0     18
+       -> conPrintUINT8                 0      0     18
+       -> conPrintROMString_func        0      0     18
+       -> phyFSM                        0      0     18
+     macTxFSM                           2      0     28
+       -> macTxData                     0      0     24
+       -> halGetMACTimer                0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> conPrintROMString_func        0      0     24
+       -> macTxData                     0      0     24
+     macWarmStartRadio                  2      0      0
+       -> halWarmstart                  4      0      0
+       -> phyFSM                        4      0      0
+       -> halSetChannel                 4      0      0
+       -> halSetRadioPANID              4      0      0
+       -> halSetRadioShortAddr          4      0      0
+
+
+   Segment part sizes:
+
+     Function/Label                       Bytes
+     --------------                       -----
+     macRxState                              1
+     mac_pib                                64
+     a_mac_service                           4
+     macState                                1
+     a_mac_tx_data                          18
+     a_mac_rx_data                          25
+     macTxFSM_status                         1
+     mac_utility_timer                       4
+     macInit                                84
+     ?Subroutine56                           5
+     macWarmStartRadio                      36
+     ?Subroutine40                           9
+     ?Subroutine1                           32
+     ??Subroutine62_0                        7
+     ?Subroutine46                          14
+     ?Subroutine34                           3
+     ??Subroutine69_0                        6
+     macInitRadio                           53
+     macSetPANID                            17
+     macGetPANID                             9
+     macSetChannel                          14
+     macSetShortAddr                        19
+     ?Subroutine60                           5
+     macFSM                               1068
+     ?Subroutine42                           9
+     ?Subroutine37                           9
+     ?Subroutine22                           7
+     ?Subroutine59                           5
+     ?Subroutine20                          15
+     ?Subroutine18                          10
+     ?Subroutine12                          16
+     ?Subroutine3                           15
+     ?Subroutine52                          12
+     ?Subroutine21                           3
+     ??Subroutine63_0                        5
+     ?Subroutine7                           10
+     ?Subroutine58                           6
+     ?Subroutine32                           8
+     ?Subroutine38                           6
+     ?Subroutine31                           9
+     ?Subroutine24                           6
+     ?Subroutine11                           1
+     ??Subroutine68_0                       11
+     ?Subroutine28                          17
+     xxxxromstr                             41
+     xxxxromstr                             70
+     xxxxromstr                             26
+     xxxxromstr                             25
+     xxxxromstr                             21
+     xxxxromstr                             59
+     xxxxromstr                             41
+     xxxxromstr                             30
+     xxxxromstr                              2
+     xxxxromstr                             30
+     macTxCallback                          30
+     ?Subroutine43                           9
+     ??Subroutine65_0                        4
+     ?Subroutine51                           1
+     ??Subroutine66_0                        9
+     macRxCallback                          95
+     ?Subroutine30                          16
+     ?Subroutine19                          16
+     macRxBuffFull                          33
+     macRxBuffEmpty                         25
+     macGetRxPacket                         46
+     macFreeRxPacket                        31
+     macTxFSM                              176
+     xxxxromstr                             15
+     xxxxromstr                             23
+     xxxxromstr                             14
+     macTxData                             351
+     ?Subroutine33                           4
+     ?Subroutine49                           6
+     ?Subroutine55                          11
+     ?Subroutine23                           5
+     ?Subroutine0                            5
+     ??Subroutine64_0                        6
+     ?Subroutine36                           6
+     ?Subroutine10                           9
+     ?Subroutine50                          13
+     ?Subroutine45                           5
+     ?Subroutine39                           9
+     xxxxromstr                              9
+     xxxxromstr                              2
+     macRxFSM                              421
+     ?Subroutine29                          16
+     ?Subroutine27                           3
+     ?Subroutine53                           9
+     ?Subroutine26                          11
+     ?Subroutine25                          28
+     xxxxromstr                             36
+     xxxxromstr                             83
+     xxxxromstr                             23
+     xxxxromstr                             63
+     xxxxromstr                             26
+     xxxxromstr                              4
+     xxxxromstr                             26
+     xxxxromstr                             43
+     xxxxromstr                             88
+     xxxxromstr                              9
+     xxxxromstr                              2
+     macParseHdr                           235
+     ?Subroutine61                           5
+     ?Subroutine17                           5
+     ?Subroutine9                            9
+     ?Subroutine48                           7
+     ?Subroutine54                           7
+     ?Subroutine8                            9
+     ?Subroutine47                           8
+     ?Subroutine6                            4
+     ??Subroutine67_0                        9
+     ?Subroutine41                           4
+     ?Subroutine44                          10
+     ?Subroutine57                           4
+     macFormatBeacon                       173
+     ?Subroutine16                          17
+     ?Subroutine15                          17
+     ?Subroutine14                          18
+     ?Subroutine13                          17
+     ?Subroutine5                           17
+     ?Subroutine4                           17
+     ?Subroutine2                           14
+     macParseBeacon                        282
+     ?Subroutine35                          15
+     xxxxromstr                             24
+     xxxxromstr                             10
+     xxxxromstr                              8
+     xxxxromstr                              9
+     xxxxromstr                              2
+     macFormatCoordRealign                  61
+     macFormatAssociationResponse          264
+     xxxxromstr                             50
+     xxxxromstr                             40
+     xxxxromstr                             40
+     xxxxromstr                             30
+     xxxxromstr                              2
+     macCheckDataRejection                 133
+     xxxxromstr                             48
+     __Constant_0                            4
+     ?<Initializer for __Constant_0>         4
+     __Constant_36                           4
+     ?<Initializer for __Constant_36>        4
+     __Constant_10e                          4
+     ?<Initializer for __Constant_10e>       4
+     __Constant_ffffff                       4
+     ?<Initializer for __Constant_ffffff>    4
+     __Constant_3071                         4
+     ?<Initializer for __Constant_3071>      4
+     ??macInit?relay                         6
+     ??macWarmStartRadio?relay               6
+     ??macInitRadio?relay                    6
+     ??macSetPANID?relay                     6
+     ??macGetPANID?relay                     6
+     ??macSetChannel?relay                   6
+     ??macSetShortAddr?relay                 6
+     ??macFSM?relay                          6
+     ??macTxCallback?relay                   6
+     ??macRxCallback?relay                   6
+     ??macRxBuffFull?relay                   6
+     ??macRxBuffEmpty?relay                  6
+     ??macGetRxPacket?relay                  6
+     ??macFreeRxPacket?relay                 6
+     ??macTxFSM?relay                        6
+     ??macTxData?relay                       6
+     ??macRxFSM?relay                        6
+     ??macParseHdr?relay                     6
+     ??macFormatBeacon?relay                 6
+     ??macParseBeacon?relay                  6
+     ??macFormatCoordRealign?relay           6
+     ??macFormatAssociationResponse?relay    6
+     ??macCheckDataRejection?relay           6
+
+ 
+ 4 331 bytes in segment BANKED_CODE
+   138 bytes in segment BANK_RELAYS
+ 1 074 bytes in segment CODE_C
+    20 bytes in segment XDATA_I
+    20 bytes in segment XDATA_ID
+   118 bytes in segment XDATA_Z
+ 
+ 5 543 bytes of CODE  memory (+ 20 bytes shared)
+   118 bytes of XDATA memory (+ 20 bytes shared)
+
+Errors: none
+Warnings: none

@@ -1,0 +1,455 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:32 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\neighbor.c        #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\neighbor.c -D     #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\neighbor.lst                          #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\neighbor.r51                           #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\neighbor.c
+      1          
+      2          
+      3          #include "compiler.h"
+      4          #include "6lowsn_config.h"         //user configurations
+      5          #include "6lowsn_common_types.h"   //types common acrosss most files
+      6          #include "ieee_lrwpan_defs.h"
+      7          #include "console.h"
+      8          #include "debug.h"
+      9          #include "memalloc.h"
+     10          #include "hal.h"
+     11          #include "halStack.h"
+     12          #include "phy.h"
+     13          #include "mac.h"
+     14          
+     15          
+     16          #include "neighbor.h"
+     17          
+     18          //holds pairs of long/short addresses
+     19          
+     20          
+     21          #ifdef LOWSN_FFD
+     22          NAYBORENTRY mac_nbr_tbl[NTENTRIES];
+     23          #endif
+     24          
+     25          
+     26          //initializes the Address map
+     27          //called in halInit()
+     28          //also called anytime the Coord forms a network
+     29          //or a router joins a network.
+     30          //the first entry in the address map is always our own
+     31          //that maps long address to short address
+     32          void ntInitAddressMap(void){
+     33            BYTE j;
+     34            for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+     35          		mac_addr_tbl[j].saddr = LOWSN_BCAST_SADDR;
+     36          	}
+     37          }
+     38          	
+     39          
+     40          //address map functions
+     41          //finds a match in the address map table using a LADDR
+     42          BOOL ntFindAddressByLADDR(LADDR *ptr, BYTE *index){
+     43             BYTE j,i;
+     44             BYTE *src,*dst;
+     45          
+     46             for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+     47          		if (mac_addr_tbl[j].saddr == LOWSN_BCAST_SADDR) continue;
+     48          		src = &ptr->bytes[0];
+     49          		dst = &mac_addr_tbl[j].laddr[0];
+     50          		for (i=0;i<8;i++, src++, dst++) {
+     51          			if (*src != *dst) break;
+     52          		}
+     53          		if (i== 8) {
+     54          			//have a match
+     55          		    *index = j;
+     56          		    break;
+     57          		}		
+     58             }
+     59          
+     60             if (j != LOWSN_MAX_ADDRESS_MAP_ENTRIES) return(TRUE);
+     61          	else return(FALSE);	
+     62          
+     63          }
+     64          
+     65          void ntAddOurselvesToAddressTable(SADDR saddr){
+     66          	BYTE laddr[8];
+     67          
+     68          	halGetProcessorIEEEAddress(&laddr[0]);
+     69          	ntNewAddressMapEntry(&laddr[0], saddr);
+     70          }
+     71          
+     72          
+     73          //finds a match in the address map table using a SADDR
+     74          BOOL ntFindAddressBySADDR(SADDR saddr, BYTE *index)
+     75          {
+     76             BYTE j;
+     77          
+     78             for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+     79          		if (mac_addr_tbl[j].saddr == LOWSN_BCAST_SADDR) continue;
+     80          		if (mac_addr_tbl[j].saddr != saddr) continue;
+     81          		*index = j;
+     82          		break;
+     83          		
+     84          	}
+     85          
+     86             if (j != LOWSN_MAX_ADDRESS_MAP_ENTRIES) return(TRUE);
+     87          	else return(FALSE);
+     88          
+     89          }
+     90          
+     91          //checks if  laddr, saddr is already in the address map table
+     92          //if it is, return map index in 'index'
+     93          BOOL ntCheckAddressMapEntry(BYTE *laddr, SADDR saddr, BYTE *index) {
+     94             BYTE j,i;
+     95             BYTE *src,*dst;
+     96          
+     97             for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+     98          		if (mac_addr_tbl[j].saddr == LOWSN_BCAST_SADDR) continue;
+     99          		if (mac_addr_tbl[j].saddr != saddr) continue;
+    100          		src = laddr;
+    101          		dst = &mac_addr_tbl[j].laddr[0];
+    102          		for (i=0;i<8;i++) {
+    103          			if (*src != *dst) break;
+    104          			src++; dst++;
+    105          		}
+    106          		if (i == 8) {
+    107          			// we have a match
+    108          			*index = j;
+    109          			return(TRUE);
+    110          		}
+    111          	}
+    112          
+    113          	return(FALSE);
+    114          }
+    115          
+    116          //enters new laddr, saddr into address map entry
+    117          SADDR ntNewAddressMapEntry(BYTE *laddr, SADDR saddr) {
+    118              BYTE j;
+    119          
+    120          	if (ntCheckAddressMapEntry(laddr, saddr, &j)) {
+    121          		//entry is already in the table.
+    122          		return(mac_addr_tbl[j].saddr);
+    123          	}
+    124          	//now find free entry in address map table
+    125          	for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+    126          		if (mac_addr_tbl[j].saddr == LOWSN_BCAST_SADDR) break;
+    127          	}
+    128          	if (j== LOWSN_MAX_ADDRESS_MAP_ENTRIES) return(LOWSN_BCAST_SADDR);//error, no room
+    129              halUtilMemCopy(&mac_addr_tbl[j].laddr[0], laddr, 8);
+    130          	mac_addr_tbl[j].saddr = saddr;
+    131          	return(0);
+    132          }
+    133          
+    134          
+    135          
+    136          
+    137          
+    138          UINT16 ntGetCskip(BYTE depth) {
+    139          	switch(depth){
+    140          		case 1: return(LOWSN_CSKIP_1);
+    141          		case 2: return(LOWSN_CSKIP_2);
+    142          		case 3: return(LOWSN_CSKIP_3);
+    143          		case 4: return(LOWSN_CSKIP_4);
+    144          		case 5: return(LOWSN_CSKIP_5);
+    145          		case 6: return(LOWSN_CSKIP_6);
+    146          		case 7: return(LOWSN_CSKIP_7);
+    147          		case 8: return(LOWSN_CSKIP_8);
+    148          		case 9: return(LOWSN_CSKIP_9);
+    149          		case 10: return(LOWSN_CSKIP_10);
+    150          	}
+    151          return(0);
+    152          }
+    153          
+    154          SADDR ntGetMaxSADDR(SADDR router_saddr,BYTE depth){
+    155          	//compute the maximum SADDR given the router_saddr and depth
+    156          
+    157             return(router_saddr + (ntGetCskip(depth)*(LOWSN_MAX_ROUTERS_PER_PARENT))
+    158          	      + LOWSN_MAX_NON_ROUTER_CHILDREN);
+    159          }
+    160          
+    161          
+    162          //rest of this are neighbor table functions, only needed by FFDs
+    163          
+    164          #ifdef LOWSN_FFD
+    165          
+    166          
+    167          NAYBORENTRY *ntFindBySADDR (UINT16 saddr){
+    168          
+    169          	NAYBORENTRY *nt_ptr;
+    170          	BYTE j;
+    171          
+    172          	nt_ptr = &mac_nbr_tbl[0];
+    173          	for (j=0;j<NTENTRIES;j++,nt_ptr++) {
+    174          		if ( nt_ptr->flags.bits.used &&
+    175          			mac_addr_tbl[nt_ptr->map_index].saddr == saddr) return(nt_ptr);
+    176          		//nt_ptr++;
+    177              }
+    178          	return(NULL);
+    179          }
+    180          
+    181          NAYBORENTRY *ntFindByLADDR (LADDR *ptr){
+    182          	NAYBORENTRY *nt_ptr;
+    183          	BYTE j,i;
+    184          
+    185              nt_ptr = &mac_nbr_tbl[0];
+    186          	for (j=0;j<NTENTRIES;j++,nt_ptr++) {
+    187          		if (!nt_ptr->flags.bits.used) continue;
+    188          		for (i=0;i<8;i++) {
+    189          			if (mac_addr_tbl[nt_ptr->map_index].laddr[i] != ptr->bytes[i]) break;
+    190          		}
+    191          		if (i == 8)	return(nt_ptr);
+    192          	}
+    193          	return(NULL);
+    194          }
+    195          
+    196          
+    197          
+    198          //Init neighbor table. Called when Network is formed by
+    199          //coordinator or when a Router successfully joins a network.
+    200          //this also initializes the address table map
+    201          void ntInitTable(void) {
+    202          	NAYBORENTRY *nt_ptr;
+    203          	BYTE j;
+    204          	
+    205          	nt_ptr = &mac_nbr_tbl[0];
+    206          	for (j=0;j<NTENTRIES;j++,nt_ptr++) {
+    207          		nt_ptr->flags.val = 0;
+    208          	}
+    209          	ntInitAddressMap();	
+    210          }
+    211          
+    212          void ntInitAddressAssignment(void){
+    213              //also initialize ADDRESS assignment
+    214          	mac_pib.ChildRFDs = 0;
+    215          	mac_pib.ChildRouters = 0;
+    216          	mac_pib.nextChildRFD = macGetShortAddr() + 1+ ntGetCskip(mac_pib.depth+1)*(LOWSN_MAX_ROUTERS_PER_PARENT);
+    217          	mac_pib.nextChildRouter = macGetShortAddr() + 1;
+    218          }
+    219          
+    220          
+    221          
+    222          //adds a neighbor, and assigns a new SADDR
+    223          SADDR ntAddNeighbor(BYTE *ptr, BYTE capinfo) {
+    224          	NAYBORENTRY *nt_ptr;
+    225          	BYTE j;
+    226          	BYTE *tmpptr;
+    227          
+    228          	//First, find free entry in neighbor table
+    229              nt_ptr = &mac_nbr_tbl[0];
+    230          	for (j=0;j<NTENTRIES;j++,nt_ptr++) {
+    231          		if (!nt_ptr->flags.bits.used) break;
+    232          	}
+    233          	if (j== NTENTRIES) return(LOWSN_BCAST_SADDR);//error, no room
+    234          
+    235          	//now find free entry in address map table
+    236          	for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+    237          		if (mac_addr_tbl[j].saddr == LOWSN_BCAST_SADDR) break;
+    238          	}
+    239          	if (j== LOWSN_MAX_ADDRESS_MAP_ENTRIES) return(LOWSN_BCAST_SADDR);//error, no room
+    240              nt_ptr->map_index = j;
+    241          	nt_ptr->flags.bits.used = 1;
+    242          	nt_ptr->flags.bits.lqi = 0;
+    243          	nt_ptr->capinfo = capinfo;
+    244          
+    245          	//now new saddr
+    246          	if (LOWSN_GET_CAPINFO_DEVTYPE(capinfo)) {
+    247          		mac_addr_tbl[nt_ptr->map_index].saddr = mac_pib.nextChildRouter;
+    248          		mac_pib.nextChildRouter += ntGetCskip(mac_pib.depth+1);
+    249          		mac_pib.ChildRouters++;
+    250          	}else {
+    251          		mac_addr_tbl[nt_ptr->map_index].saddr = mac_pib.nextChildRFD;
+    252                  mac_pib.nextChildRFD++;
+    253          		mac_pib.ChildRFDs++;
+    254          	}
+    255          	//now copy long addr
+    256          	tmpptr = &mac_addr_tbl[nt_ptr->map_index].laddr[0];
+    257          	for(j=0;j<8;j++) {
+    258          		*tmpptr = *ptr;
+    259          		tmpptr++; ptr++;
+    260          	}
+    261          	return(mac_addr_tbl[nt_ptr->map_index].saddr);
+    262          }
+    263          
+    264          
+    265          
+    266          
+    267          //determine where this packet is going based on its short address
+    268          SADDR ntFindNewDst(SADDR dstSADDR){
+    269          	SADDR tmpSADDR;
+    270          	NAYBORENTRY *nt_ptr;
+    271          	BYTE j;
+    272          
+    273            if (dstSADDR == macGetShortAddr()) {
+    274          	  //trying to send to myself, this is an error
+    275          	  return(0xFFFF);
+    276          	}
+    277            //if destination is coordinator, has to go to our parent
+    278            if (dstSADDR == 0) return(mac_pib.macCoordShortAddress);
+    279            // See if this destination is within my routing range
+    280            // if not, then have to send it to my parent
+    281          #ifndef LOWSN_COORDINATOR
+    282            //do not check this for coordinator, as all nodes in range of coordinator.
+    283            tmpSADDR = ntGetMaxSADDR(macGetShortAddr(),mac_pib.depth+1);
+    284            if (!((dstSADDR > macGetShortAddr()) &&
+    285          	  (dstSADDR <= tmpSADDR))) {
+    286          		  //not in my range, must go to parent.
+    287          		  return(mac_pib.macCoordShortAddress);
+    288          	  }
+    289          #endif
+    290          
+    291            //goes to one of my children, check out each one.	  	
+    292            nt_ptr = &mac_nbr_tbl[0];
+    293          
+    294            for (j=0;j<NTENTRIES;j++,nt_ptr++) {
+    295          		if (!nt_ptr->flags.bits.used) continue;
+    296          		if (LOWSN_GET_CAPINFO_DEVTYPE(nt_ptr->capinfo)) {
+    297          			//router. check its range, the range is mac_pib.depth+2 because we need
+    298          			//the depth of the my child's child (grandchild).
+    299          			tmpSADDR = ntGetMaxSADDR(mac_addr_tbl[nt_ptr->map_index].saddr,mac_pib.depth+2);
+    300          			if ((dstSADDR >= mac_addr_tbl[nt_ptr->map_index].saddr) && (dstSADDR <= tmpSADDR)) {
+    301          				//either for my child router or one of its children.
+    302          				return(mac_addr_tbl[nt_ptr->map_index].saddr);
+    303          			}
+    304          		}else {
+    305          			//if for a non-router child, return
+    306          			if (dstSADDR == mac_addr_tbl[nt_ptr->map_index].saddr) return(mac_addr_tbl[nt_ptr->map_index].saddr);
+    307          		}
+    308            }
+    309            //if get here, then packet is undeliverable
+    310            return(0xFFFF);
+    311          }
+    312          
+    313          
+    314          #endif
+
+   Maximum stack usage in bytes:
+
+     Function                       ISTACK PSTACK XSTACK
+     --------                       ------ ------ ------
+     ntAddNeighbor                      1      0     12
+       -> ntGetCskip                    0      0     24
+     ntAddOurselvesToAddressTable       0      0     17
+       -> halGetProcessorIEEEAddress
+                                        0      0     34
+       -> ntNewAddressMapEntry          0      0     34
+     ntCheckAddressMapEntry             1      0     29
+     ntFindAddressByLADDR               1      0     12
+     ntFindAddressBySADDR               1      0      9
+     ntFindByLADDR                      0      0     12
+     ntFindBySADDR                      0      0      9
+     ntFindNewDst                       0      0     14
+       -> ntGetMaxSADDR                 0      0     28
+     ntGetCskip                         2      0     12
+     ntGetMaxSADDR                      0      0     24
+       -> ntGetCskip                    0      0     20
+     ntInitAddressAssignment            2      0     10
+       -> ntGetCskip                    4      0     20
+     ntInitAddressMap                   2      0      0
+     ntInitTable                        3      0      0
+       -> ntInitAddressMap              4      0      0
+     ntNewAddressMapEntry               1      0     32
+       -> ntCheckAddressMapEntry        0      0     30
+       -> halUtilMemCopy                0      0     26
+
+
+   Segment part sizes:
+
+     Function/Label                       Bytes
+     --------------                       -----
+     mac_nbr_tbl                            68
+     ntInitAddressMap                       22
+     ?Subroutine13                           7
+     ??Subroutine18_0                        8
+     ?Subroutine12                          11
+     ntFindAddressByLADDR                  115
+     ?Subroutine7                           14
+     ?Subroutine0                           16
+     ?Subroutine14                           5
+     ?Subroutine11                          10
+     ntAddOurselvesToAddressTable           43
+     ?Subroutine15                           5
+     ntFindAddressBySADDR                   57
+     ?Subroutine10                           4
+     ??Subroutine20_0                        5
+     ?Subroutine1                            8
+     ntCheckAddressMapEntry                132
+     ?Subroutine16                           5
+     ntNewAddressMapEntry                  154
+     ?Subroutine4                            1
+     ??Subroutine19_0                        6
+     ?Subroutine3                            6
+     ?Subroutine2                           11
+     ntGetCskip                             47
+     ntGetMaxSADDR                          30
+     ?Subroutine17                           5
+     ?Subroutine8                           12
+     ntFindBySADDR                          64
+     ntFindByLADDR                         117
+     ntInitTable                            36
+     ntInitAddressAssignment                84
+     ntAddNeighbor                         250
+     ?Subroutine6                           15
+     ?Subroutine5                            5
+     ?Subroutine9                            4
+     ntFindNewDst                          168
+     ??ntInitAddressMap?relay                6
+     ??ntFindAddressByLADDR?relay            6
+     ??ntAddOurselvesToAddressTable?relay    6
+     ??ntFindAddressBySADDR?relay            6
+     ??ntCheckAddressMapEntry?relay          6
+     ??ntNewAddressMapEntry?relay            6
+     ??ntGetCskip?relay                      6
+     ??ntGetMaxSADDR?relay                   6
+     ??ntFindBySADDR?relay                   6
+     ??ntFindByLADDR?relay                   6
+     ??ntInitTable?relay                     6
+     ??ntInitAddressAssignment?relay         6
+     ??ntAddNeighbor?relay                   6
+     ??ntFindNewDst?relay                    6
+
+ 
+ 1 482 bytes in segment BANKED_CODE
+    84 bytes in segment BANK_RELAYS
+    68 bytes in segment XDATA_Z
+ 
+ 1 566 bytes of CODE  memory
+    68 bytes of XDATA memory
+
+Errors: none
+Warnings: none

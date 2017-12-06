@@ -1,0 +1,522 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:09 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\icmpv6.c          #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\icmpv6.c -D       #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x53 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_SENSOR_TYPE=1    #
+#                          -lcN F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\rfd\List\ -o F:\6LoWSN\6lowsn_stack\obj\com #
+#                          piletest\iar51_cc2530\rfd\Obj\ -e --no_cse         #
+#                          --no_unroll --no_inline --no_code_motion           #
+#                          --no_tbaa --debug --core=plain --dptr=16,1         #
+#                          --data_model=large --code_model=banked             #
+#                          --calling_convention=xdata_reentrant               #
+#                          --place_constants=data --nr_virtual_regs 8 -I      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\ -I                           #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ol             #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\List\icmpv6.lst                              #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\Obj\icmpv6.r51                               #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\icmpv6.c
+      1          /*********************************************************************
+      2              文件名：icmpv6.c
+      3              作  者：ji shanyang
+      4              版  本：v1.0.0
+      5              日  期：2012.12
+      6              描  述：ICMPv6 protocol
+      7          *********************************************************************/
+      8          #include <string.h>
+      9          
+     10          #include "compiler.h"
+     11          #include "6lowsn_config.h"         //user configurations
+     12          #include "6lowsn_common_types.h"   //types common acrosss most files
+     13          #include "ieee_lrwpan_defs.h"
+     14          #include "ds.h"
+     15          #include "console.h"
+     16          #include "debug.h"
+     17          #include "memalloc.h"
+     18          #include "neighbor.h"
+     19          #include "icmpv6.h"
+     20          #include "nd.h"
+     21          #include "hal.h"
+     22          #include "halStack.h"
+     23          #include "phy.h"
+     24          #include "mac.h"
+     25          #include "adp.h"
+     26          #include "nwk.h"
+     27          #include "mp.h"
+     28          #include "aps.h"
+     29          #include "evboard.h"
+     30          
+     31          
+     32          
+     33          #define LOWSN_IP_BUF                ((lowsn_ip_hdr_t *)&lowsn_buf[LOWSN_LLH_LEN])
+     34          #define LOWSN_ICMP_BUF            ((lowsn_icmp6_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+     35          #define LOWSN_ICMP6_ERROR_BUF  ((lowsn_icmp6_error_t*)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len])
+     36          #define LOWSN_EXT_BUF              ((lowsn_ext_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+     37          #define LOWSN_FIRST_EXT_BUF        ((lowsn_ext_hdr_t *)&lowsn_buf[LOWSN_LLIPH_LEN])
+     38          
+     39          /** \brief temporary IP address */
+     40          
+     41          extern lowsn_ds6_pmtu_t pmtu;
+     42          
+     43          #if 0
+     44          
+     45          /*---------------------------------------------------------------- */
+     46          /** \
+     47           * brief Process an echo request
+     48           *
+     49           * Perform a few checks, then send an Echo reply. The reply is
+     50           * built here (with full ipv6 header).
+     51            */
+     52          void
+     53          lowsn_icmp6_echo_request_input(void)
+     54          {
+     55            /*
+     56             * we send an echo reply. It is trivial if there was no extension
+     57             * headers in the request otherwise we need to remove the extension
+     58             * headers and change a few fields
+     59             */
+     60            DEBUG_STRING(DBG_INFO, "Received Echo Request from");
+     61            PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+     62            DEBUG_STRING(DBG_INFO, "to");
+     63            PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+     64            DEBUG_STRING(DBG_INFO, "\r\n");
+     65            /* IP header */
+     66            LOWSN_IP_BUF->ttl = lowsn_ds6_if.cur_hop_limit;
+     67          
+     68            if(lowsn_is_addr_mcast(&LOWSN_IP_BUF->destipaddr)){
+     69              lowsn_ipaddr_copy(&LOWSN_IP_BUF->destipaddr, &LOWSN_IP_BUF->srcipaddr);
+     70              ds6FindSrcIP(&LOWSN_IP_BUF->srcipaddr, &LOWSN_IP_BUF->destipaddr);
+     71            } else {
+     72              lowsn_ipaddr_copy(&tmp_ipaddr, &LOWSN_IP_BUF->srcipaddr);
+     73              lowsn_ipaddr_copy(&LOWSN_IP_BUF->srcipaddr, &LOWSN_IP_BUF->destipaddr);
+     74              lowsn_ipaddr_copy(&LOWSN_IP_BUF->destipaddr, &tmp_ipaddr);
+     75            }
+     76          
+     77            if(lowsn_ext_len > 0) {
+     78                /* If there were extension headers*/
+     79                LOWSN_IP_BUF->proto = LOWSN_PROTO_ICMP6;
+     80                lowsn_len -= lowsn_ext_len;
+     81                LOWSN_IP_BUF->len[0] = ((lowsn_len - LOWSN_IPH_LEN) >> 8);
+     82                LOWSN_IP_BUF->len[1] = ((lowsn_len - LOWSN_IPH_LEN) & 0xff);
+     83                /* move the echo request payload (starting after the icmp header)
+     84                 * to the new location in the reply.
+     85                 * The shift is equal to the length of the extension headers present
+     86                 * Note: LOWSN_ICMP_BUF still points to the echo request at this stage
+     87                 */
+     88                memmove((uint8_t *)LOWSN_ICMP_BUF + LOWSN_ICMPH_LEN - lowsn_ext_len,
+     89                        (uint8_t *)LOWSN_ICMP_BUF + LOWSN_ICMPH_LEN,
+     90                        (lowsn_len - LOWSN_IPH_LEN - LOWSN_ICMPH_LEN));
+     91                lowsn_ext_len = 0;
+     92            }
+     93          
+     94            /* Below is important for the correctness of LOWSN_ICMP_BUF and the
+     95             * checksum
+     96             */
+     97            /* Note: now LOWSN_ICMP_BUF points to the beginning of the echo reply */
+     98            LOWSN_ICMP_BUF->type = ICMP6_ECHO_REPLY;
+     99            LOWSN_ICMP_BUF->icode = 0;
+    100            LOWSN_ICMP_BUF->icmpchksum = 0;
+    101            LOWSN_ICMP_BUF->icmpchksum = ~ lowsn_icmp6chksum();
+    102            DEBUG_STRING(DBG_INFO, "Sending Echo Reply to");
+    103            PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    104            DEBUG_STRING(DBG_INFO, "from");
+    105            PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    106            DEBUG_STRING(DBG_INFO, "\r\n");
+    107            return;
+    108          
+    109          }
+    110          
+    111          
+    112          /*---------------------------------------------------------------- */
+    113          /**
+    114           * \brief recieve an icmpv6 packet too big error message
+    115           */
+    116          void
+    117          lowsn_icmp6_pktbigerr_input(void){
+    118          	DEBUG_STRING(DBG_INFO, "Received packet too big error message from");
+    119          	PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    120          	DEBUG_STRING(DBG_INFO, "to");
+    121          	PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    122          	DEBUG_STRING(DBG_INFO, "\r\n");
+    123          	if(pmtu.size > lowsn_ntohl(LOWSN_ICMP6_ERROR_BUF->param)){
+    124          		pmtu.size = lowsn_ntohl(LOWSN_ICMP6_ERROR_BUF->param);
+    125          		if(pmtu.size < LOWSN_IPV6_MIN_LINK_MTU){
+    126          			pmtu.size = LOWSN_IPV6_MIN_LINK_MTU;
+    127          		}
+    128          	}
+    129          	DEBUG_STRING(DBG_INFO, "PMTU:%d\r\n",pmtu.size);
+    130          	stimer_set(&pmtu.age, PMTU_UPDATE_INTERVAL);
+    131          	lowsn_len = 0;
+    132          }
+    133          
+    134          /*---------------------------------------------------------------- */
+    135          /**
+    136           * \brief construct an icmpv6 error message
+    137           * \param type type of the error message
+    138           * \param code of the error message
+    139           * \param type 32 bit parameter of the error message, semantic depends on error
+    140           */
+    141          void
+    142          lowsn_icmp6_error_output(uint8_t type, uint8_t code, uint32_t param)
+    143          {
+    144           /* check if originating packet is not an ICMP error*/
+    145            if (lowsn_ext_len) {
+    146              if((LOWSN_EXT_BUF->next == LOWSN_PROTO_ICMP6) ){
+    147          		lowsn_ext_len += (LOWSN_EXT_BUF->len << 3) + 8;
+    148          		if(LOWSN_ICMP_BUF->type < 128){
+    149          	      lowsn_len = 0;
+    150          	      return;
+    151          		}
+    152              }
+    153            } else {
+    154              if((LOWSN_IP_BUF->proto == LOWSN_PROTO_ICMP6) &&
+    155          			(lowsn_len > 44) && (LOWSN_ICMP_BUF->type < 128)){
+    156                lowsn_len = 0;
+    157                return;
+    158              }
+    159            }
+    160          
+    161            lowsn_ext_len = 0;
+    162          
+    163            /* remember data of original packet before shifting */
+    164            lowsn_ipaddr_copy(&tmp_ipaddr, &LOWSN_IP_BUF->destipaddr);
+    165          
+    166            lowsn_len += LOWSN_IPICMPH_LEN + LOWSN_ICMP6_ERROR_LEN;
+    167          
+    168            //if(lowsn_len > LOWSN_LINK_MTU)
+    169            		//lowsn_len = LOWSN_LINK_MTU;
+    170            if(lowsn_len > LOWSN_IPV6_MIN_LINK_MTU)
+    171              lowsn_len = LOWSN_IPV6_MIN_LINK_MTU;
+    172          
+    173            memmove((uint8_t *)LOWSN_ICMP6_ERROR_BUF + lowsn_ext_len + LOWSN_ICMP6_ERROR_LEN,
+    174                    (void *)LOWSN_IP_BUF, lowsn_len - LOWSN_IPICMPH_LEN - lowsn_ext_len - LOWSN_ICMP6_ERROR_LEN);
+    175          
+    176            LOWSN_IP_BUF->vtc = 0x60;
+    177            LOWSN_IP_BUF->tcflow = 0;
+    178            LOWSN_IP_BUF->flow = 0;
+    179            if (lowsn_ext_len) {
+    180              LOWSN_FIRST_EXT_BUF->next = LOWSN_PROTO_ICMP6;
+    181            } else {
+    182              LOWSN_IP_BUF->proto = LOWSN_PROTO_ICMP6;
+    183            }
+    184            LOWSN_IP_BUF->ttl = lowsn_ds6_if.cur_hop_limit;
+    185          
+    186            /* the source should not be unspecified nor multicast, the check for
+    187               multicast is done in lowsn_process */
+    188            if(lowsn_is_addr_unspecified(&LOWSN_IP_BUF->srcipaddr)){
+    189              lowsn_len = 0;
+    190              return;
+    191            }
+    192          
+    193            lowsn_ipaddr_copy(&LOWSN_IP_BUF->destipaddr, &LOWSN_IP_BUF->srcipaddr);
+    194          
+    195            if(lowsn_is_addr_mcast(&tmp_ipaddr)){
+    196              if(type == ICMP6_PARAM_PROB && code == ICMP6_PARAMPROB_OPTION){
+    197                ds6FindSrcIP(&LOWSN_IP_BUF->srcipaddr, &tmp_ipaddr);
+    198              } else {
+    199                lowsn_len = 0;
+    200                return;
+    201              }
+    202            } else {
+    203          #ifdef LOWSN_COORDINATOR
+    204              /* need to pick a source that corresponds to this node */
+    205              ds6FindSrcIP(&LOWSN_IP_BUF->srcipaddr, &tmp_ipaddr);
+    206          #else
+    207              lowsn_ipaddr_copy(&LOWSN_IP_BUF->srcipaddr, &tmp_ipaddr);
+    208          #endif
+    209            }
+    210          
+    211            LOWSN_ICMP_BUF->type = type;
+    212            LOWSN_ICMP_BUF->icode = code;
+    213            LOWSN_ICMP6_ERROR_BUF->param = lowsn_htonl(param);
+    214            LOWSN_IP_BUF->len[0] = ((lowsn_len - LOWSN_IPH_LEN) >> 8);
+    215            LOWSN_IP_BUF->len[1] = ((lowsn_len - LOWSN_IPH_LEN) & 0xff);
+    216            LOWSN_ICMP_BUF->icmpchksum = 0;
+    217            LOWSN_ICMP_BUF->icmpchksum = ~ lowsn_icmp6chksum();
+    218            DEBUG_STRING(DBG_INFO, "Sending ICMPv6 ERROR message to");
+    219            PRINT6ADDR(&LOWSN_IP_BUF->destipaddr);
+    220            DEBUG_STRING(DBG_INFO, "from");
+    221            PRINT6ADDR(&LOWSN_IP_BUF->srcipaddr);
+    222            DEBUG_STRING(DBG_INFO, "\r\n");
+    223            return;
+    224          
+    225          }
+    226          
+    227          #endif
+    228          
+    229          void icmpCommonFmt(IPADDR *dest)
+    230          {
+    231          
+    232          	a_nwk_tx_data.Version = LOWSN_IP6_VER;
+    233          	a_nwk_tx_data.TrafficClass=0x00;
+    234          	a_nwk_tx_data.FlowLabel = 0x00;
+    235          	a_nwk_tx_data.PayloadLength = phy_pib.currentTxFlen;
+    236          	a_nwk_tx_data.NextHeader = LOWSN_PROTO_ICMP6;
+    237          	a_nwk_tx_data.HopLimit = lowsn_ds6_if.cur_hop_limit;
+    238          	memcpy(&a_nwk_tx_data.DstAddress, dest, sizeof(*dest));
+    239          	ds6FindSrcIP(&a_nwk_tx_data.SrcAddress, &a_nwk_tx_data.DstAddress);
+    240          }
+    241          
+    242          
+    243          
+    244          void icmpFmtEchoRequest(UINT16 plen)
+    245          {
+    246          	UINT16 i;
+    247          	BYTE j;
+    248          	
+    249          	phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+    250          
+    251          	// ping命令负载中的每个字节依次填充0,1,2,3,...,最大填充到255，然后再返回0继续填充。
+    252          	for (i=0, j=0; i<plen; ++i, ++j) {
+    253          		phy_pib.currentTxFrm--;
+    254          		*phy_pib.currentTxFrm = j;
+    255          		if (j >= 0xFF) {
+    256          			j = 0;
+    257          		}	
+    258          	}	
+    259          		
+    260          	// Sequence Number
+    261          	phy_pib.currentTxFrm--;
+    262          	*phy_pib.currentTxFrm = 0x0;
+    263          	phy_pib.currentTxFrm--;
+    264          	*phy_pib.currentTxFrm = 0x0;
+    265          
+    266          	// Identifier
+    267          	phy_pib.currentTxFrm--;
+    268          	*phy_pib.currentTxFrm = (BYTE)halGetRandomByte();
+    269          	nwk_pib.lastPing.Identifier = (UINT16)(*phy_pib.currentTxFrm);
+    270          	phy_pib.currentTxFrm--;
+    271          	*phy_pib.currentTxFrm = 0x66;   // special MSB of 6lowsn stack
+    272          	nwk_pib.lastPing.Identifier += 0x6600;
+    273          
+    274          	//checksum is added by icmpCommonFmt, use 0 here.
+    275          	phy_pib.currentTxFrm--;
+    276          	*phy_pib.currentTxFrm = 0x0;
+    277          	phy_pib.currentTxFrm--;
+    278          	*phy_pib.currentTxFrm = 0x0;	
+    279          
+    280          	// code
+    281          	phy_pib.currentTxFrm--;
+    282          	*phy_pib.currentTxFrm = 0;
+    283          
+    284          	//type
+    285          	phy_pib.currentTxFrm--;
+    286          	*phy_pib.currentTxFrm = ICMP6_ECHO_REQUEST;
+    287          
+    288          	phy_pib.currentTxFlen = plen + 4 + LOWSN_ICMPH_LEN;
+    289          
+    290          	// 记录本次echo request的信息，以便收到reply时核对
+    291          	nwk_pib.lastPing.SequenceNumber=0x0;
+    292          	nwk_pib.lastPing.Plen= a_nwk_service.args.tx_ping6.plen;
+    293          	
+    294            	lowsn_len = LOWSN_IPH_LEN + LOWSN_ICMPH_LEN + 4 + plen;
+    295          
+    296          }
+    297          
+    298          
+    299          
+    300          void icmpParseEchoReply(void){
+    301          	
+    302          	BYTE *ptr;
+    303          	UINT16 i;
+    304          
+    305          	// 应首先检查REPLY的长度是否跟发出去的一致，但需要MAC头部长度域跨越适配层传上来，
+    306          	// 以后再添加
+    307          
+    308          	ptr = a_nwk_rx_data.orgpkt.data + a_nwk_rx_data.pload_offset;
+    309          
+    310          	// check Identifier
+    311          	ptr = ptr + 4;
+    312          	i = (((UINT16)*ptr) << 8);
+    313          	ptr++;
+    314          	i += *ptr;
+    315          	ptr++;
+    316          
+    317          	if (i != nwk_pib.lastPing.Identifier) {
+    318          		DEBUG_STRING( DBG_INFO, "ICMP: Ping Reply, not our identifier.\n");
+    319          		return;
+    320          	}	
+    321          		
+    322          	// check Sequence Number
+    323          	i = (((UINT16)*ptr) << 8);
+    324          	ptr++;
+    325          	i += *ptr;
+    326          	ptr++;
+    327          
+    328          	if (i != nwk_pib.lastPing.SequenceNumber) {
+    329          		DEBUG_STRING( DBG_INFO, "ICMP: Ping Reply, not our sequence number.\n");
+    330          		return;
+    331          	}	
+    332          
+    333          	// check typical payload
+    334          	// 检查负载时须先确定负载长度是否至少有2个字节，因为负载长度未检查，暂不检查
+    335          	//ptr = ptr + 2;
+    336          	//if (((*ptr) != 0) && ((*(ptr+1)) != 0) ) {
+    337          	//	DEBUG_STRING( DBG_INFO, "ICMP: Ping Reply, not our payload.\n");
+    338          	//	return;
+    339          	//}	
+    340          
+    341          	//indicate that the ping was successful
+    342            	nwk_pib.flags.bits.nwkIsGetEchoReply = 1;
+    343            	DEBUG_STRING(DBG_INFO,"ICMP:Received good echo reply!\n");
+    344          
+    345          }
+    346          
+    347          
+    348          
+    349          
+    350          // 对于其它节点发来的请求，reply函数首先完成对于收到ICMP包格式的审查，然后从收到的包
+    351          // 中提取有用信息，接着用这些信息构造发送的relay的内容
+    352          // 一个函数内实际上完成了接收包, 填充发送两个任务
+    353          
+    354          void icmpFmtEchoReply(void){
+    355          
+    356          	BYTE *ptr;
+    357          	UINT16 identifier, seqnum, plen, i;
+    358          
+    359          	// 假定状态机已经保证收到的帧是对的，不再检查。如果还需检查，在这里添加
+    360          
+    361          	ptr = a_nwk_rx_data.orgpkt.data + a_nwk_rx_data.pload_offset;
+    362          
+    363          	// get Identifier
+    364          	ptr = ptr + 4;
+    365          	identifier = ((UINT16)(*ptr)) << 8 | (*(ptr+1));
+    366          
+    367          	// get Sequence Number
+    368          	ptr = ptr + 2;
+    369          	seqnum = ((UINT16)(*ptr)) << 8 | (*(ptr+1));
+    370          
+    371          	// payload
+    372          	ptr = ptr + 2;
+    373          	plen = a_nwk_rx_data.PayloadLength - LOWSN_ICMPH_LEN - 4;
+    374          
+    375          	// form echo reply
+    376          	phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+    377          
+    378          	// copy payload from echo request
+    379          	for (i=0; i<plen; i++) {
+    380          		phy_pib.currentTxFrm--;
+    381          		*phy_pib.currentTxFrm = *(ptr+plen-i-1);
+    382          	}	
+    383          	
+    384          	// add Sequence Number
+    385          	phy_pib.currentTxFrm--;
+    386          	*phy_pib.currentTxFrm = (BYTE) (seqnum);
+    387          	phy_pib.currentTxFrm--;
+    388          	*phy_pib.currentTxFrm = (BYTE) (seqnum >> 8);	
+    389          
+    390          	// add Identifier
+    391          	phy_pib.currentTxFrm--;
+    392          	*phy_pib.currentTxFrm = (BYTE) (identifier);
+    393          	phy_pib.currentTxFrm--;
+    394          	*phy_pib.currentTxFrm = (BYTE) (identifier >> 8);	
+    395          
+    396          	//checksum is added by icmpCommonFmt, use 0 here.
+    397          	phy_pib.currentTxFrm--;
+    398          	*phy_pib.currentTxFrm = 0x0;
+    399          	phy_pib.currentTxFrm--;
+    400          	*phy_pib.currentTxFrm = 0x0;	
+    401          
+    402          	// add code
+    403          	phy_pib.currentTxFrm--;
+    404          	*phy_pib.currentTxFrm = 0;
+    405          
+    406          	//type
+    407          	phy_pib.currentTxFrm--;
+    408          	*phy_pib.currentTxFrm = ICMP6_ECHO_REPLY;
+    409          
+    410          	phy_pib.currentTxFlen = plen + 4 + LOWSN_ICMPH_LEN;
+    411          
+    412            	lowsn_len = LOWSN_IPH_LEN + LOWSN_ICMPH_LEN + 4 + plen;
+    413          
+    414          
+    415          }
+    416          
+    417          
+    418          
+    419          
+    420          
+    421          
+    422          
+    423          
+    424          
+    425          
+    426          
+    427          
+    428          
+    429          
+
+   Maximum stack usage in bytes:
+
+     Function                    ISTACK PSTACK XSTACK
+     --------                    ------ ------ ------
+     icmpCommonFmt                   0      0     14
+       -> memcpy                     0      0     28
+       -> ds6FindSrcIP               0      0     24
+     icmpFmtEchoReply                1      0     14
+     icmpFmtEchoRequest              1      0      9
+       -> halGetRandomByte           0      0     18
+     icmpParseEchoReply              2      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintROMString_func     4      0      0
+
+
+   Segment part sizes:
+
+     Function/Label                  Bytes
+     --------------                  -----
+     icmpCommonFmt                    103
+     icmpFmtEchoRequest               481
+     icmpParseEchoReply               197
+     xxxxromstr                        39
+     xxxxromstr                        44
+     xxxxromstr                        32
+     icmpFmtEchoReply                 565
+     __Constant_0                       4
+     ?<Initializer for __Constant_0>    4
+     ??icmpCommonFmt?relay              6
+     ??icmpFmtEchoRequest?relay         6
+     ??icmpParseEchoReply?relay         6
+     ??icmpFmtEchoReply?relay           6
+
+ 
+ 1 346 bytes in segment BANKED_CODE
+    24 bytes in segment BANK_RELAYS
+   115 bytes in segment CODE_C
+     4 bytes in segment XDATA_I
+     4 bytes in segment XDATA_ID
+ 
+ 1 485 bytes of CODE  memory (+ 4 bytes shared)
+     0 bytes of XDATA memory (+ 4 bytes shared)
+
+Errors: none
+Warnings: none

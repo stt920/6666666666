@@ -1,0 +1,1860 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:27 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\adp.c             #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\adp.c -D          #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\adp.lst                               #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\adp.r51                                #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\adp.c
+      1          
+      2          /******************************************************************************************************
+      3          *
+      4          * 文 件 名：adp.c
+      5          *
+      6          * 文件描述： 适配层
+      7          *
+      8          * 创 建 者：Wang Heng
+      9          *
+     10          * 当前版本：0.50
+     11          *
+     12          * 修 改 者：
+     13          *
+     14          * 修改历史：
+     15          
+     16          
+     17          
+     18          ********************************************************************************************************/
+     19          
+     20          #include "compiler.h"
+     21          #include "6lowsn_config.h"         //user configurations
+     22          #include "6lowsn_common_types.h"   //types common acrosss most files
+     23          #include "ieee_lrwpan_defs.h"
+     24          #include "ds.h"
+     25          #include "console.h"
+     26          #include "debug.h"
+     27          #include "memalloc.h"
+     28          #include "neighbor.h"
+     29          #include "hal.h"
+     30          #include "halStack.h"
+     31          #include "phy.h"
+     32          #include "mac.h"
+     33          #include "adp.h"
+     34          #include "nwk.h"
+     35          #include "mp.h"
+     36          
+     37          #ifdef LOWSN_COORDINATOR
+     38          #ifdef LOWSN_SLIP_TO_HOST
+     39          #include "slip.h"
+     40          #endif
+     41          #endif
+     42          
+     43          
+     44          
+     45          typedef enum _ADP_RXSTATE_ENUM {
+     46          	ADP_RXSTATE_IDLE,
+     47          	ADP_RXSTATE_START,
+     48          	ADP_RXSTATE_NWK_HANDOFF,
+     49          	ADP_RXSTATE_DOROUTE
+     50          } ADP_RXSTATE_ENUM;
+     51          
+     52          static ADP_RXSTATE_ENUM adpRxState;
+     53          static void adpParseHdr(BYTE *ptr);
+     54          
+     55          
+     56          ADP_SERVICE a_adp_service;
+     57          ADP_STATE_ENUM adpState;
+     58          ADP_RX_DATA a_adp_rx_data;
+     59          
+     60          BYTE adpDSN;
+     61          
+     62          ADP_PIB adp_pib;
+     63          
+     64          static void adpRxFSM(void);
+     65          
+     66          
+     67          //locals
+     68          #ifndef LOWSN_COORDINATOR
+     69          static UINT32 adp_utility_timer;   //utility timer
+     70          static UINT8 adp_retries;       //utility retry counter
+     71          #endif
+     72          
+     73          #ifdef LOWSN_FFD
+     74          void adpCopyFwdPkt(void);
+     75          static BOOL adpRxBuffFull(void);
+     76          static BOOL adpRxBuffEmpty(void);
+     77          static ADP_FWD_PKT *adpGetRxPacket(void);
+     78          static void adpFreeRxPacket(BOOL freemem);
+     79          #endif
+     80          
+     81          void nwkRxHandoff(void);
+     82          
+     83          
+     84          //there can only be one TX in progress at a time, so
+     85          //a_nwk_tx_data contains the arguments for that TX on the ADP layer.
+     86          ADP_TX_DATA a_adp_tx_data;
+     87          
+     88          void adpTxData(BOOL fwdFlag);
+     89          
+     90          void adpInit(void){
+     91          	adpDSN = 0;
+     92          	adp_pib.flags.val = 0;
+     93          	//adp_pib.adpHCMethod = ADP_RX_AUTO_COMPRESS;
+     94          	adp_pib.adpHCMethod = ADP_TX_ALWAYS_UNCOMPRESS;
+     95          	adpState = ADP_STATE_IDLE;
+     96          	adpRxState= ADP_RXSTATE_IDLE;
+     97          #ifdef LOWSN_FFD
+     98          	adp_pib.rxTail = 0;
+     99          	adp_pib.rxHead = 0;
+    100          #endif
+    101          }
+    102          
+    103          void adpFSM(void){
+    104          
+    105          
+    106          
+    107          	macFSM();
+    108          	adpRxFSM();
+    109          
+    110          adpFSM_start:
+    111          
+    112          	switch (adpState) {
+    113          	 case ADP_STATE_IDLE:
+    114          #ifdef LOWSN_FFD
+    115          		 //see if we have packets to forward and can grab the TX buffer
+    116          		 if (!adpRxBuffEmpty() && phyTxUnLocked()) {
+    117          
+    118          			 //grab the lock and forward the packet
+    119          			 phyGrabTxLock();
+    120          			 adpCopyFwdPkt();
+    121          			 //transmit it
+    122          			 adpTxData(TRUE); //use TRUE as this is a forwarded packet
+    123          			 adpState = ADP_STATE_FWD_WAIT;
+    124          
+    125          		 }
+    126          
+    127          #endif
+    128          		 break;
+    129          
+    130          	 case ADP_STATE_COMMAND_START:
+    131          		 switch(a_adp_service.cmd) {
+    132          	 case LOWSN_SVC_ADP_GENERIC_TX:
+    133          		 //at this point, need to check  if INDIRECT or DIRECT, take action
+    134          		 //send a generic packet with arguments specified by upper level
+    135          		 //this assumes the upper level has grabbed the TX buffer lock
+    136          		
+    137          		a_adp_tx_data.HC1Encoding = 0;
+    138          		
+    139          		 if (adp_pib.adpHCMethod != ADP_TX_ALWAYS_UNCOMPRESS)  {
+    140          		 	
+    141          			// 设置HC1 Header
+    142          			adpFmtCompHeader();
+    143          
+    144          		 }	
+    145          
+    146          		// 根据压缩情况, 重新排列IPv6头部, 并添加LOWPAN DISPATCH
+    147          		// 同时为apdTxData() 函数准备必要的参数.
+    148          		 adpTxCompData();
+    149          		
+    150          		 adpTxData(FALSE);
+    151          		 adpState = ADP_STATE_GENERIC_TX_WAIT;
+    152          		 break;
+    153          #ifdef LOWSN_COORDINATOR
+    154          	 case LOWSN_SVC_ADP_FORM_NETWORK:
+    155          		 //if forming network, restart everything
+    156          		 //if we are forming a network, then we need to restart
+    157          		 //the PHY, MAC layers from scratch
+    158          		 phyInit();
+    159          		 macInit();
+    160          
+    161          		 ntInitTable();  //init neighbor table
+    162          
+    163          		 a_adp_service.status = macInitRadio();  //turns on the radio
+    164          		 if (a_adp_service.status != LOWSN_STATUS_SUCCESS) {
+    165          			 DEBUG_STRING(DBG_ERR, "ADP Formation failed!\n");
+    166          			 adpState = ADP_STATE_IDLE;
+    167          			 break;
+    168          		 }
+    169          
+    170          		 //this is where we form a network.
+    171          		 adpState = ADP_STATE_FORM_NETWORK_START;
+    172          
+    173          		 goto adpFSM_start;
+    174          #else
+    175          
+    176          	 case LOWSN_SVC_ADP_JOIN_NETWORK:
+    177          		 // see if this is a rejoin or join
+    178          		 if (a_adp_service.args.join_network.RejoinNetwork) {
+    179          			 mac_pib.flags.bits.macIsAssociated = 0; //if doing rejoin, unsure of association, clear it.
+    180          			 adpState = ADP_STATE_REJOIN_NETWORK_START;
+    181          			 goto adpFSM_start;  //do not do any other initialization
+    182          		 }
+    183          		 else adpState = ADP_STATE_JOIN_NETWORK_START;
+    184          		 //if joining/rejoining network, restart everything
+    185          		 //if we are forming a network, then we need to restart
+    186          		 //the PHY, MAC layers from scratch
+    187          		 phyInit();
+    188          		 macInit();
+    189          #ifdef LOWSN_FFD
+    190          		 ntInitTable();  //init neighbor table
+    191          #endif
+    192          
+    193          		 a_adp_service.status = macInitRadio();  //turns on the radio
+    194          		 if (a_adp_service.status != LOWSN_STATUS_SUCCESS) {
+    195          			 DEBUG_STRING(DBG_ERR, "ADP JOIN/REJOIN failed!\n");
+    196          			 adpState = ADP_STATE_IDLE;
+    197          			 break;
+    198          		 }
+    199          
+    200          		 goto adpFSM_start;
+    201          #endif
+    202          
+    203          
+    204          
+    205          	 default: break;
+    206          
+    207          		 }//end switch(a_adp_service.cmd)
+    208          
+    209          	 case ADP_STATE_GENERIC_TX_WAIT:
+    210          		 if (macBusy()) break;
+    211          		 //mac finished, copy status.
+    212          		 a_adp_service.status = a_mac_service.status;
+    213          		 adpState = ADP_STATE_IDLE;
+    214          		 break;
+    215          
+    216          
+    217          #ifdef LOWSN_FFD
+    218          	 case ADP_STATE_FWD_WAIT:
+    219          		 if (macBusy()) break;
+    220          		 //mac finished, this is only used for fwding packets
+    221          		 //will ignore status for now since there is not much
+    222          		 //can do about it. Eventally, with more advanced routing,
+    223          		 // will record the status of this link and try an alternate
+    224          		 //route on failure.
+    225          		 phyReleaseTxLock(); //release the lock
+    226          		 adpState = ADP_STATE_IDLE;
+    227          		 break;
+    228          #endif
+    229          
+    230          	 case ADP_STATE_REJOIN_NETWORK_START:
+    231          		 if (macBusy()) break;
+    232          		 //send an orphan notification
+    233          		 a_mac_service.cmd = LOWSN_SVC_MAC_ORPHAN_NOTIFY;
+    234          		 adpState = ADP_STATE_REJOIN_WAIT;
+    235          		 macDoService();
+    236          		 break;
+    237          
+    238          	 case ADP_STATE_REJOIN_WAIT:
+    239          		 if (macBusy()) break;
+    240          		 //at this point, rejoin is finished, get status
+    241          		 a_adp_service.status = a_mac_service.status;
+    242          		 adpState = ADP_STATE_IDLE;
+    243          		 break;
+    244          
+    245          #ifdef LOWSN_COORDINATOR
+    246          	 case ADP_STATE_FORM_NETWORK_START:
+    247          
+    248          		 //here is where we would scan the channels, etc.
+    249          		 //instead, we will just set the channel, and indicate
+    250          		 //that the network is formed, and init the neighbor table.
+    251          		 //macSetPANID(a_adp_service.args.form_network.PANid);
+    252          		 macSetChannel(LOWSN_DEFAULT_START_CHANNEL);
+    253          		 macSetShortAddr(0);
+    254          		 //initialize address assignment, must be done after the
+    255          		 //short address is set
+    256          		 ntInitAddressAssignment();
+    257          
+    258          
+    259          		 //add ourselves to the
+    260          		 adp_pib.flags.bits.adpFormed = 1;
+    261          		 mac_pib.flags.bits.macIsAssociated = 1; //I am associated with myself!
+    262          		 //tell MAC to allow association
+    263          		 mac_pib.flags.bits.macAssociationPermit = 1;
+    264          		 a_adp_service.status = LOWSN_STATUS_SUCCESS;
+    265          
+    266          		// 形成IPv6 link-local短地址
+    267          		ds6LocalIPFrom16();
+    268          
+    269          		 adpState = ADP_STATE_IDLE;
+    270          		 break;
+    271          
+    272          #endif
+    273          #ifndef LOWSN_COORDINATOR
+    274          	 case ADP_STATE_JOIN_NETWORK_START:
+    275          		 //if trying to join, do not allow association
+    276          		 mac_pib.flags.bits.macAssociationPermit = 0;
+    277          
+    278          #ifdef LOWSN_FORCE_ASSOCIATION_TARGET
+    279          		 //if forcing association to particular target, skip beacon request
+    280          		 //go to state that will start forced association, selecting channels
+    281          		 adpState = ADP_STATE_JOIN_MAC_ASSOC_CHANSELECT;
+    282          #else
+    283          		 //select a channel
+    284          		 a_mac_service.args.beacon_req.LogicalChannel = LOWSN_DEFAULT_START_CHANNEL;
+    285          		 //set retries
+    286          		 //we always send out at least three BEACON req to make
+    287          		 //sure that we adequately poll everybody in the region
+    288          		 adp_retries = ADP_GENERIC_RETRIES;
+    289          		 mac_pib.bcnDepth = 0xFF;  //initialze the beacon depth response
+    290          		 //start the request
+    291          		 adpState = ADP_STATE_JOIN_SEND_BEACON_REQ;
+    292          #endif
+    293          		 goto adpFSM_start;
+    294          
+    295          	 case ADP_STATE_JOIN_SEND_BEACON_REQ:
+    296          		 //at this point, we would start scanning channels
+    297          		 //sending out beacon requests on each channel
+    298          		 // we will only send out a beacon on the default channel, instead of scanning
+    299          		 if (macBusy()) break;
+    300          		 a_mac_service.cmd = LOWSN_SVC_MAC_BEACON_REQ;
+    301          		 adpState = ADP_STATE_JOIN_ADP_WAIT1_BREQ;
+    302          		 macDoService();
+    303          		 break;
+    304          
+    305          		 //waits for BCN request TX to finish
+    306          	 case ADP_STATE_JOIN_ADP_WAIT1_BREQ:
+    307          		 if (macBusy()) break;
+    308          		 //at this point, the packet has been sent. Now have
+    309          		 //to wait for a response. Record
+    310          		 adp_utility_timer = halGetMACTimer();
+    311          	 
+    312          		 adpState =ADP_STATE_JOIN_ADP_WAIT2_BREQ;
+    313          		 break;
+    314          
+    315          	 case ADP_STATE_JOIN_ADP_WAIT2_BREQ:
+    316          
+    317          		 //wait for either a BCN response or timeout.
+    318          		 if (mac_pib.flags.bits.GotBeaconResponse) {
+    319          			 //we have received a BCN response. Try joining this node
+    320          
+    321          			 //for right now just print out debug message
+    322          			 DEBUG_STRING(DBG_INFO,"Got BCN Response\n");
+    323          			 //keep trying, want to poll everybody in range
+    324          			 //and pick the closest one
+    325          			 mac_pib.flags.bits.GotBeaconResponse = 0;
+    326          		 }else if (halMACTimerNowDelta(adp_utility_timer)> MSECS_TO_MACTICKS(LOWSN_ADP_JOIN_WAIT_DURATION) ) {
+    327          
+    328          			 if (adp_retries) adp_retries--;
+    329          			 if (adp_retries) {
+    330          				 //retry Beacon Request
+    331          				 adpState = ADP_STATE_JOIN_SEND_BEACON_REQ;
+    332          				 goto adpFSM_start;
+    333          			 }else
+    334          			 {
+    335          				 //out of retries, check bcnDepth
+    336          				 if ( mac_pib.bcnDepth != 0xFF) {
+    337          					 //we got a response, so lets try to join
+    338          					 adpState = ADP_STATE_JOIN_MAC_ASSOC;
+    339          					 //use the same channel
+    340          					 a_mac_service.args.assoc_req.LogicalChannel  = a_mac_service.args.beacon_req.LogicalChannel;
+    341          					 macSetPANID(mac_pib.bcnPANID);  //use beacon response as PANID
+    342          					 DEBUG_STRING(DBG_INFO,"ADP trying association\n");
+    343          				 }else {
+    344          					 //indicate failure
+    345          					 DEBUG_STRING(DBG_INFO,"ADP Join Timeout\n");
+    346          					 a_adp_service.status = LOWSN_STATUS_ADP_JOIN_TIMEOUT;
+    347          					 adpState = ADP_STATE_IDLE;
+    348          				 }
+    349          
+    350          				 //clear flags
+    351          				 mac_pib.flags.bits.GotBeaconResponse = 0;
+    352          				 mac_pib.flags.bits.WaitingForBeaconResponse = 0;
+    353          			 }
+    354          		 }
+    355          		 break;
+    356          
+    357          	 case ADP_STATE_JOIN_MAC_ASSOC_CHANSELECT:
+    358          		 //this will eventually scan channels, for now, just select default
+    359          		 a_mac_service.args.assoc_req.LogicalChannel = LOWSN_DEFAULT_START_CHANNEL;
+    360          		 adpState = ADP_STATE_JOIN_MAC_ASSOC;
+    361          		 goto adpFSM_start;
+    362          
+    363          	 case ADP_STATE_JOIN_MAC_ASSOC:
+    364          		 //do association to PANID discovered by beacon request
+    365          		 if (macBusy()) break;
+    366          		 a_mac_service.cmd = LOWSN_SVC_MAC_ASSOC_REQ;
+    367          		 adpState = ADP_STATE_JOIN_MAC_ASSOC_WAIT;
+    368          		 macDoService();
+    369          
+    370          		 break;
+    371          
+    372          	 case ADP_STATE_JOIN_MAC_ASSOC_WAIT:
+    373          		 if (macBusy()) break;
+    374          		 //at this point, association is finished, get status
+    375          		 a_adp_service.status = a_mac_service.status;
+    376          #ifdef LOWSN_FFD
+    377          		 if (a_adp_service.status == LOWSN_STATUS_SUCCESS) {
+    378          			 //as a router, initialize address assignment and
+    379          			 //begin allowing association
+    380          			 ntInitAddressAssignment();
+    381          			 mac_pib.flags.bits.macAssociationPermit = 1;
+    382          		 }
+    383          #endif
+    384          
+    385          		// 形成IPv6 link-local短地址,  形成发送设备信息的管理标志位
+    386          		 if (a_adp_service.status == LOWSN_STATUS_SUCCESS) {
+    387          		 	ds6LocalIPFrom16();
+    388          			
+    389          			mpSetEventType(MP_EVENT_SEND_DEVICE_INFO);
+    390          			mpSetEventFlag();
+    391          		 }
+    392          
+    393          		 adpState = ADP_STATE_IDLE;
+    394          		 break;
+    395          
+    396          #endif
+    397          
+    398          
+    399          		 //these states for FORM NETWORK
+    400          	 default:  break;
+    401          
+    402          
+    403          	}//end switch(adpState)
+    404          
+    405          
+    406          }
+    407          
+    408          
+    409          #if 0
+    410          //Add the ADP header, then send it to MAC
+    411          //if fwdFlag is true, then packet is being forwarded, so adp header
+    412          //is already in place, and assume that currentTxFrm and currentTxPLen
+    413          //are correct as well, and that the radius byte has been decremented.
+    414          void adpTxData(BOOL fwdFlag) {
+    415          
+    416          	//if we are not associated, don't bother sending ADP packet
+    417          	if (!mac_pib.flags.bits.macIsAssociated) {
+    418          		//call a dummy service that just returns an error code
+    419          		//have to do it this way since the caller is expecting a
+    420          		//mac service call
+    421          		a_mac_service.args.error.status = LOWSN_STATUS_MAC_NOT_ASSOCIATED;
+    422          		a_mac_service.cmd = LOWSN_SVC_MAC_ERROR;
+    423          		goto adpTxData_sendit;
+    424          	}
+    425          
+    426          	#if 0
+    427          	if (a_adp_tx_data.radius == 0) {
+    428          		DEBUG_STRING(DBG_ERR,"Nwk Radius is zero, discarding packet.\n");
+    429          		//can no longer forward this packet.
+    430          		a_mac_service.args.error.status =  LOWSN_STATUS_ADP_RADIUS_EXCEEDED;
+    431          		a_mac_service.cmd = LOWSN_SVC_MAC_ERROR;
+    432          		goto adpTxData_sendit;
+    433          	}
+    434          	#endif
+    435          	
+    436          
+    437          
+    438          	if (fwdFlag) goto adpTxData_addmac;
+    439          		
+    440          	//sequence number
+    441          	--phy_pib.currentTxFrm;
+    442          	*phy_pib.currentTxFrm = adpDSN;
+    443          	adpDSN++;
+    444          
+    445          	//radius, decrement before sending, receiver will
+    446          	//get a value that is one less than this node.
+    447          	--phy_pib.currentTxFrm;
+    448          	*phy_pib.currentTxFrm = (--a_adp_tx_data.radius);
+    449          
+    450          	//src address
+    451          	--phy_pib.currentTxFrm;
+    452          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.srcSADDR >> 8);
+    453          	--phy_pib.currentTxFrm;
+    454          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.srcSADDR);
+    455          
+    456          	//dst address
+    457          	--phy_pib.currentTxFrm;
+    458          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.dstSADDR >> 8);
+    459          	--phy_pib.currentTxFrm;
+    460          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.dstSADDR);
+    461          
+    462          	//frame control
+    463          	--phy_pib.currentTxFrm;
+    464          	*phy_pib.currentTxFrm = a_adp_tx_data.fcfmsb;
+    465          	--phy_pib.currentTxFrm;
+    466          	*phy_pib.currentTxFrm = a_adp_tx_data.fcflsb;
+    467          
+    468          	//network header is fixed size
+    469          	phy_pib.currentTxFlen +=  8;
+    470          
+    471          adpTxData_addmac:
+    472          	//fill in the MAC fields. For now, we don't support inter-PAN
+    473          	// so the PANID has to be our mac PANID
+    474          	a_mac_tx_data.DestPANID = mac_pib.macPANID;
+    475          	a_mac_tx_data.SrcPANID = mac_pib.macPANID;
+    476          
+    477          	if (a_adp_tx_data.dstSADDR == LOWSN_SADDR_USE_LADDR ){
+    478          		//long address is specified from above.  We assume they know where
+    479          		//they are going no routing necessary
+    480          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_LADDR|LOWSN_FCF_SRCMODE_LADDR;
+    481          		//copy in the long address
+    482          		halUtilMemCopy(&a_mac_tx_data.DestAddr.laddr.bytes[0], a_adp_tx_data.dstLADDR, 8);
+    483          	} else {
+    484          		//lets do some routing
+    485          #ifdef LOWSN_RFD
+    486          		//RFD's are easy. Always send to parent, our SRC address is always long
+    487          		//so that parent can confirm that the RFD is still in their neighbor table
+    488          		//will use the parent short address
+    489          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    490          		a_mac_tx_data.DestAddr.saddr = mac_pib.macCoordShortAddress;
+    491          #else
+    492          		{
+    493          			SADDR newDstSADDR;
+    494          			//this is router. need to determine the new dstSADDR
+    495          			newDstSADDR = a_adp_tx_data.dstSADDR; //default
+    496          			DEBUG_STRING(DBG_INFO,"Routing pkt to: ");
+    497                      		DEBUG_UINT16(DBG_INFO,newDstSADDR);
+    498          			if (a_adp_tx_data.dstSADDR != LOWSN_BCAST_SADDR) {
+    499          				//not broadcast address
+    500          				newDstSADDR = ntFindNewDst(a_adp_tx_data.dstSADDR);
+    501          				DEBUG_STRING(DBG_INFO," through: ");
+    502                          		DEBUG_UINT16(DBG_INFO,newDstSADDR);
+    503          				if (newDstSADDR == LOWSN_BCAST_SADDR) {
+    504          					DEBUG_STRING(DBG_INFO,", UNROUTABLE, error!\n ");
+    505          					//error indicator. An unroutable packet from here.
+    506          					a_mac_service.args.error.status = LOWSN_STATUS_ADP_PACKET_UNROUTABLE;
+    507          					a_mac_service.cmd = LOWSN_SVC_MAC_ERROR;
+    508          					goto adpTxData_sendit;
+    509          				}
+    510          				DEBUG_STRING(DBG_INFO,"\n");
+    511          			}
+    512          
+    513          			//fill it in.
+    514          			a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    515          			a_mac_tx_data.DestAddr.saddr = newDstSADDR;
+    516          		}
+    517          #endif
+    518          
+    519          	}
+    520          
+    521          
+    522          	//for data frames, we want a MAC level ACK, unless it is a broadcast.
+    523          	if ( ((LOWSN_GET_DST_ADDR(a_mac_tx_data.fcfmsb)) == LOWSN_ADDRMODE_SADDR) &&
+    524          		a_mac_tx_data.DestAddr.saddr == LOWSN_BCAST_SADDR) {
+    525          			//no MAC ACK
+    526          			a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_DATA|LOWSN_FCF_INTRAPAN_MASK ;
+    527          		}else {
+    528          			a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_DATA|LOWSN_FCF_INTRAPAN_MASK |LOWSN_FCF_ACKREQ_MASK;
+    529          		}
+    530          
+    531          		//send it.
+    532          		a_mac_service.cmd = LOWSN_SVC_MAC_GENERIC_TX;
+    533          
+    534          
+    535          
+    536          adpTxData_sendit:
+    537          
+    538          		macDoService();
+    539          
+    540          }
+    541          
+    542          #endif
+    543          
+    544          
+    545          
+    546          #ifdef  LOWSN_NO_MESH_HEADER
+    547          void adpTxData(BOOL fwdFlag) 
+    548          {
+    549          
+    550          	//fill in the MAC fields. For now, we don't support inter-PAN
+    551          
+    552          	// so the PANID has to be our mac PANID
+    553          	a_mac_tx_data.DestPANID = mac_pib.macPANID;
+    554          	a_mac_tx_data.SrcPANID = mac_pib.macPANID;
+    555          
+    556          
+    557          	// 目前的策略: 目标地址用长地址，源地址也用长地址; 
+    558          	// 目标地址用短地址，源地址也用短地址. 
+    559          	
+    560          	if (a_adp_tx_data.dstSADDR == LOWSN_SADDR_USE_LADDR ){
+    561          		//long address is specified from above.  We assume they know where
+    562          		//they are going no routing necessary
+    563          
+    564          		#if LOWSN_SRC_MAC_MODE == 1 
+    565          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_LADDR|LOWSN_FCF_SRCMODE_SADDR;
+    566          		#elif LOWSN_SRC_MAC_MODE == 2	
+    567          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_LADDR|LOWSN_FCF_SRCMODE_LADDR;
+    568          		#else
+    569          		  a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_LADDR|LOWSN_FCF_SRCMODE_LADDR;
+    570          		#endif
+    571          		
+    572          		//copy in the long address
+    573          		halUtilMemCopy(&a_mac_tx_data.DestAddr.laddr.bytes[0], a_adp_tx_data.dstLADDR, 8);
+    574          	} else {
+    575          
+    576          		//RFD's are easy. Always send to parent, our SRC address is always long
+    577          		//so that parent can confirm that the RFD is still in their neighbor table
+    578          		//will use the parent short address
+    579          		//a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    580          		// 源地址和目标地址都使用短地址
+    581          
+    582          		#if LOWSN_SRC_MAC_MODE == 1 
+    583          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_SADDR;
+    584          		#elif LOWSN_SRC_MAC_MODE == 2	
+    585          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    586          		#else
+    587          		 a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_SADDR;
+    588          		#endif
+    589          		
+    590          		a_mac_tx_data.DestAddr.saddr = a_adp_tx_data.dstSADDR;
+    591          
+    592          	}
+    593          
+    594          	//for data frames, we want a MAC level ACK, unless it is a broadcast.
+    595          	if ( ((LOWSN_GET_DST_ADDR(a_mac_tx_data.fcfmsb)) == LOWSN_ADDRMODE_SADDR) &&
+    596          		a_mac_tx_data.DestAddr.saddr == LOWSN_BCAST_SADDR) {
+    597          			//no MAC ACK
+    598          			a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_DATA|LOWSN_FCF_INTRAPAN_MASK ;
+    599          		}else {
+    600          			a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_DATA|LOWSN_FCF_INTRAPAN_MASK |LOWSN_FCF_ACKREQ_MASK;
+    601          		}
+    602          
+    603          		//send it.
+    604          		a_mac_service.cmd = LOWSN_SVC_MAC_GENERIC_TX;
+    605          
+    606          adpTxData_sendit:
+    607          
+    608          		macDoService();
+    609          
+    610          }
+    611          
+    612          
+    613          #else
+    614          //Add the ADP header, then send it to MAC
+    615          //if fwdFlag is true, then packet is being forwarded, so adp header
+    616          //is already in place, and assume that currentTxFrm and currentTxPLen
+    617          //are correct as well, and that the radius byte has been decremented.
+    618          /*---------------------------------------------------------------------------*
+    619          
+    620          添加MESH 头部并发送
+    621          
+    622          //if fwdFlag is true, then packet is being forwarded, so adp header
+    623          //is already in place, and assume that currentTxFrm and currentTxPLen
+    624          //are correct as well, and that the hops-left has been decremented.
+    625          
+    626          ---------------------------------------------------------------------------*/
+    627          void adpTxData(BOOL fwdFlag) {
+    628          
+    629          	//if we are not associated, don't bother sending ADP packet
+    630          	if (!mac_pib.flags.bits.macIsAssociated) {
+    631          		//call a dummy service that just returns an error code
+    632          		//have to do it this way since the caller is expecting a
+    633          		//mac service call
+    634          		a_mac_service.args.error.status = LOWSN_STATUS_MAC_NOT_ASSOCIATED;
+    635          		a_mac_service.cmd = LOWSN_SVC_MAC_ERROR;
+    636          		goto adpTxData_sendit;
+    637          	}
+    638          
+    639          
+    640                  if (ADP_GET_MESH_HOPLFT(a_adp_tx_data.MeshType) == 0) {
+    641                          DEBUG_STRING(DBG_ERR,"Mesh hop left is zero, discarding packet.\n");
+    642          		//can no longer forward this packet.
+    643          		a_mac_service.args.error.status =  LOWSN_STATUS_ADP_RADIUS_EXCEEDED;
+    644          		a_mac_service.cmd = LOWSN_SVC_MAC_ERROR;
+    645          		goto adpTxData_sendit;
+    646          	}
+    647          
+    648          	
+    649          	if (fwdFlag) goto adpTxData_addmac;
+    650          		
+    651          
+    652          	//Final Destination Address
+    653          	--phy_pib.currentTxFrm;
+    654          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.dstSADDR);
+    655          	--phy_pib.currentTxFrm;
+    656          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.dstSADDR >> 8);
+    657          
+    658          	//Originator Address
+    659          	--phy_pib.currentTxFrm;
+    660          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.srcSADDR);
+    661          	--phy_pib.currentTxFrm;
+    662          	*phy_pib.currentTxFrm = (BYTE) (a_adp_tx_data.srcSADDR >> 8);
+    663          
+    664          	//Mesh type, including Hops Left, decrement before sending, receiver will get a value that is one less than this node.
+    665          	--phy_pib.currentTxFrm;
+    666          	*phy_pib.currentTxFrm = (--a_adp_tx_data.MeshType);
+    667          
+    668          	phy_pib.currentTxFlen +=  ADP_MESH_ALLSADDR_HEADER_LEN;
+    669          
+    670          adpTxData_addmac:
+    671          	//fill in the MAC fields. For now, we don't support inter-PAN
+    672          	// so the PANID has to be our mac PANID
+    673          	a_mac_tx_data.DestPANID = mac_pib.macPANID;
+    674          	a_mac_tx_data.SrcPANID = mac_pib.macPANID;
+    675          
+    676          	if (a_adp_tx_data.dstSADDR == LOWSN_SADDR_USE_LADDR ){
+    677          		//long address is specified from above.  We assume they know where
+    678          		//they are going no routing necessary
+    679          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_LADDR|LOWSN_FCF_SRCMODE_LADDR;
+    680          		//copy in the long address
+    681          		halUtilMemCopy(&a_mac_tx_data.DestAddr.laddr.bytes[0], a_adp_tx_data.dstLADDR, 8);
+    682          	} else {
+    683          		//lets do some routing
+    684          #ifdef LOWSN_RFD
+    685          		//RFD's are easy. Always send to parent, our SRC address is always long
+    686          		//so that parent can confirm that the RFD is still in their neighbor table
+    687          		//will use the parent short address
+    688          		a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    689          		a_mac_tx_data.DestAddr.saddr = mac_pib.macCoordShortAddress;
+    690          #else
+    691          		{
+    692          			SADDR newDstSADDR;
+    693          			//this is router. need to determine the new dstSADDR
+    694          			newDstSADDR = a_adp_tx_data.dstSADDR; //default
+    695          			DEBUG_STRING(DBG_INFO,"Routing pkt to: ");
+    696                      		DEBUG_UINT16(DBG_INFO,newDstSADDR);
+    697          			if (a_adp_tx_data.dstSADDR != LOWSN_BCAST_SADDR) {
+    698          				//not broadcast address
+    699          				newDstSADDR = ntFindNewDst(a_adp_tx_data.dstSADDR);
+    700          				DEBUG_STRING(DBG_INFO," through: ");
+    701                          		DEBUG_UINT16(DBG_INFO,newDstSADDR);
+    702          				if (newDstSADDR == LOWSN_BCAST_SADDR) {
+    703          					DEBUG_STRING(DBG_INFO,", UNROUTABLE, error!\n ");
+    704          					//error indicator. An unroutable packet from here.
+    705          					a_mac_service.args.error.status = LOWSN_STATUS_ADP_PACKET_UNROUTABLE;
+    706          					a_mac_service.cmd = LOWSN_SVC_MAC_ERROR;
+    707          					goto adpTxData_sendit;
+    708          				}
+    709          				DEBUG_STRING(DBG_INFO,"\n");
+    710          			}
+    711          
+    712          			//fill it in.
+    713          			a_mac_tx_data.fcfmsb = LOWSN_FCF_DSTMODE_SADDR|LOWSN_FCF_SRCMODE_LADDR;
+    714          			a_mac_tx_data.DestAddr.saddr = newDstSADDR;
+    715          		}
+    716          #endif
+    717          
+    718          	}
+    719          
+    720          
+    721          	//for data frames, we want a MAC level ACK, unless it is a broadcast.
+    722          	if ( ((LOWSN_GET_DST_ADDR(a_mac_tx_data.fcfmsb)) == LOWSN_ADDRMODE_SADDR) &&
+    723          		a_mac_tx_data.DestAddr.saddr == LOWSN_BCAST_SADDR) {
+    724          			//no MAC ACK
+    725          			a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_DATA|LOWSN_FCF_INTRAPAN_MASK ;
+    726          		}else {
+    727          			a_mac_tx_data.fcflsb = LOWSN_FRAME_TYPE_DATA|LOWSN_FCF_INTRAPAN_MASK |LOWSN_FCF_ACKREQ_MASK;
+    728          		}
+    729          
+    730          		//send it.
+    731          		a_mac_service.cmd = LOWSN_SVC_MAC_GENERIC_TX;
+    732          
+    733          
+    734          
+    735          adpTxData_sendit:
+    736          
+    737          		macDoService();
+    738          
+    739          }
+    740          #endif
+    741          
+    742          
+    743          
+    744          static void adpRxFSM(void) {
+    745          	BYTE *ptr;
+    746          
+    747          adpRxFSM_start:
+    748          
+    749          	switch(adpRxState) {
+    750          		case ADP_RXSTATE_IDLE:
+    751          			break;
+    752          		case ADP_RXSTATE_START:
+    753          			//we have a packet, lets check it out.
+    754          			ptr = a_adp_rx_data.orgpkt.data + a_adp_rx_data.adpOffset;
+    755          
+    756          			#if 0   //待以后增加路由命令帧后再使用
+    757          			if (ADP_IS_CMD(*ptr)) {
+    758          				//currently don't handle CMD packets. Discard.
+    759          				DEBUG_STRING(DBG_INFO,"ADP: Received ADP CMD packet, discarding.\n");
+    760          				//MAC resource already free; need to free the MEM resource
+    761          				MemFree(a_adp_rx_data.orgpkt.data);
+    762          				adpRxState = ADP_RXSTATE_IDLE;
+    763          				break;
+    764          			}
+    765          			#endif  
+    766          
+    767          			#ifdef  LOWSN_NO_MESH_HEADER
+    768          
+    769          			// 在无MESH头的情况下，不支持路由，所以通过MAC层检查能到这一步，
+    770          			// 目标节点已经是当前节点，无须再检查
+    771          
+    772          			// MAC地址未必都是短地址，这里暂时忽略，以后再改正
+    773          			a_adp_rx_data.srcSADDR = a_mac_rx_data.SrcAddr.saddr;
+    774          			a_adp_rx_data.dstSADDR = a_mac_rx_data.DestAddr.saddr;
+    775          
+    776          			adpParseCompHdr();
+    777          			adpRxState = ADP_RXSTATE_NWK_HANDOFF;
+    778          			
+    779          			#else
+    780          			if ((!ADP_IS_MESH_TYPE(*ptr)) || ADP_GET_MESH_ORIGINAL_ADDRTYPE(*ptr) != ADP_MESH_SADDR   
+    781          				  || ADP_SET_MESH_FINAL_ADDRTYPE(*ptr) != ADP_MESH_SADDR)  {
+    782          				  
+    783          				// 未采用MESH路由方式, 或MESH头中含有长地址，丢弃
+    784          				DEBUG_STRING(DBG_INFO,"ADP: Received ADP packet with long address or no mesh type, discarding.\n");
+    785          				//MAC resource already free; need to free the MEM resource
+    786          				MemFree(a_adp_rx_data.orgpkt.data);
+    787          				adpRxState = ADP_RXSTATE_IDLE;
+    788          				break;
+    789          			}
+    790          			
+    791          			//this is a data packet. do more parsing.
+    792          			adpParseHdr(ptr);
+    793          
+    794          			//see if this is for us.
+    795          			if ((a_adp_rx_data.dstSADDR == LOWSN_BCAST_SADDR) ||
+    796          				(a_adp_rx_data.dstSADDR == LOWSN_SADDR_USE_LADDR) ||
+    797          				(a_adp_rx_data.dstSADDR == macGetShortAddr())) {
+    798          
+    799          				adpParseCompHdr();
+    800          				//hand this off to the APS layer
+    801          				adpRxState = ADP_RXSTATE_NWK_HANDOFF;
+    802          			  }
+    803          			  else {
+    804          					//have to route this packet
+    805          					adpRxState = ADP_RXSTATE_DOROUTE;
+    806          			   }
+    807          
+    808          			#endif
+    809          			
+    810          			 goto adpRxFSM_start;
+    811          
+    812          		case ADP_RXSTATE_NWK_HANDOFF:
+    813          
+    814          			//conPrintROMString(" nwkRxState = ");
+    815          			//conPrintUINT8(nwkRxState);
+    816          			//conPrintROMString(" \n");
+    817          
+    818          			if (nwkRxBusy()) break;    //nwkRX is still busy
+    819          			//handoff the current packet
+    820          		
+    821          			nwkRxHandoff();
+    822          
+    823          			//we are finished with this packet.
+    824          			//we don't need to do anything to free this resource other
+    825          			// than to change state
+    826          			adpRxState = ADP_RXSTATE_IDLE;
+    827          			break;
+    828          
+    829          
+    830          		case ADP_RXSTATE_DOROUTE:
+    831          #ifdef LOWSN_RFD
+    832          			//RFD somehow got a data packet not intended for it.
+    833          			//should never happen, but put code here anyway to discard it.
+    834          			DEBUG_STRING(DBG_INFO,"ADP: RFD received spurious datapacket, discarding.\n");
+    835          			MemFree(a_adp_rx_data.orgpkt.data);
+    836          			adpRxState = ADP_RXSTATE_IDLE;
+    837          #else
+    838          			//first, check the hop left, if zero, then discard.
+    839          			if (!ADP_GET_MESH_HOPLFT((*(a_adp_rx_data.orgpkt.data + a_adp_rx_data.adpOffset))))  {
+    840          				DEBUG_STRING(DBG_INFO,"ADP: Data packet is out of hops for dest: ");
+    841          				DEBUG_UINT16(DBG_INFO,a_adp_rx_data.dstSADDR);
+    842          				DEBUG_STRING(DBG_INFO,", discarding...\n");
+    843          				MemFree(a_adp_rx_data.orgpkt.data);
+    844          				adpRxState = ADP_RXSTATE_IDLE;
+    845          				break;
+    846          			}
+    847          			DEBUG_STRING(DBG_INFO,"ADP: Routing ADP Packet to: ");
+    848          			DEBUG_UINT16(DBG_INFO,a_adp_rx_data.dstSADDR);
+    849          			DEBUG_STRING(DBG_INFO,"\n");
+    850          			//this packet requires routing, not destined for us.
+    851          			if (adpRxBuffFull()) {
+    852          				//no more room. discard this packet
+    853          				DEBUG_STRING(DBG_INFO,"ADP: FWD buffer full, discarding pkt.\n");
+    854          				DEBUG_STRING(DBG_INFO,"ADP state: ");
+    855          				DEBUG_UINT8(DBG_INFO,adpState);
+    856          				DEBUG_STRING(DBG_INFO,"MAC state: ");
+    857          				DEBUG_UINT8(DBG_INFO,macState);
+    858          				DEBUG_STRING(DBG_INFO,"\n");
+    859          				MemFree(a_adp_rx_data.orgpkt.data);
+    860          				adpRxState = ADP_RXSTATE_IDLE;
+    861          			}else {
+    862          				//ok, add this pkt to the buffer
+    863          				adp_pib.rxHead++;
+    864          				if (adp_pib.rxHead == ADP_RXBUFF_SIZE) adp_pib.rxHead = 0;
+    865          				//save it.
+    866          				adp_pib.rxBuff[adp_pib.rxHead].data = a_adp_rx_data.orgpkt.data;
+    867          				adp_pib.rxBuff[adp_pib.rxHead].adpOffset = a_adp_rx_data.adpOffset;
+    868          				adpRxState = ADP_RXSTATE_IDLE;
+    869          				//this packet will be retransmitted by adpFSM
+    870          			}
+    871          
+    872          #endif
+    873          
+    874          			break;
+    875          
+    876          		default:
+    877          			break;
+    878          
+    879          	}
+    880          
+    881          
+    882          }
+    883          
+    884          
+    885          
+    886          //Callback from MAC Layer
+    887          //Returns TRUE if adp is still busy with last RX packet.
+    888          
+    889          BOOL adpRxBusy(void){
+    890          	return(adpRxState != ADP_RXSTATE_IDLE);
+    891          }
+    892          
+    893          //Callback from MAC Layer
+    894          //Hands off parsed packet from MAC layer, frees MAC for parsing
+    895          //next packet.
+    896          void adpRxHandoff(void){
+    897          
+    898          	a_adp_rx_data.orgpkt.data = a_mac_rx_data.orgpkt->data;
+    899          	a_adp_rx_data.orgpkt.rssi = a_mac_rx_data.orgpkt->rssi;
+    900          	a_adp_rx_data.adpOffset = a_mac_rx_data.pload_offset;
+    901          	adpRxState = ADP_RXSTATE_START;
+    902          }
+    903          
+    904          static void adpParseHdr(BYTE *ptr) {
+    905          
+    906          	// 已经进行了地址检查，前提是MESH头中的地址都是短地址
+    907          	ptr++;
+    908          	
+    909          	//get originator address
+    910          	a_adp_rx_data.srcSADDR = (UINT16)(*ptr) << 8;
+    911          	ptr++;
+    912          	a_adp_rx_data.srcSADDR += *ptr;
+    913          	ptr++;
+    914          
+    915          	//get final address
+    916          	a_adp_rx_data.dstSADDR = (UINT16)(*ptr) << 8;
+    917          	ptr++;
+    918          	a_adp_rx_data.dstSADDR += *ptr;
+    919          	ptr++;
+    920          }
+    921          
+    922          #ifdef LOWSN_FFD
+    923          
+    924          //copies packet to forward from heap space to TXbuffer space
+    925          void adpCopyFwdPkt(void){
+    926          	BYTE *srcptr, len;
+    927          	ADP_FWD_PKT *pkt;
+    928          
+    929          	phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+    930          	//get next PKT
+    931          	pkt = adpGetRxPacket();
+    932          	
+    933          	srcptr = pkt->data;  //points at original packet in henwkpace
+    934          
+    935          	//compute bytes to copy.
+    936          	//adpoffset is the offset of the adpheader in the original packet
+    937          	len = *(srcptr) - pkt->adpOffset - PACKET_FOOTER_SIZE + 1 ;
+    938          
+    939          
+    940          	//point this one byte past the end of the packet
+    941          	srcptr = srcptr
+    942          		+ *(srcptr) //length of original packet, not including this byte
+    943          		+ 1         //add one for first byte which contains packet length
+    944          		- PACKET_FOOTER_SIZE; //subtract footer bytes, don't want to copy these.
+    945          	//save length
+    946          	phy_pib.currentTxFlen = len;
+    947          	//copy from heap space to TXBuffer space
+    948          	do {
+    949          		srcptr--; phy_pib.currentTxFrm--;
+    950          		*phy_pib.currentTxFrm = *srcptr;
+    951          		len--;
+    952          	}while(len);
+    953          	adpFreeRxPacket(TRUE);  //free this packet
+    954          	//some final steps
+    955          	//get the dstSADDR, needed for routing.
+    956          
+    957          	a_adp_tx_data.dstSADDR = (UINT16)(*(phy_pib.currentTxFrm+3)) <<8;
+    958          	a_adp_tx_data.dstSADDR += *(phy_pib.currentTxFrm+4);
+    959          
+    960          	//decrement the radius before sending it on.
+    961          	*phy_pib.currentTxFrm = *phy_pib.currentTxFrm - 1;
+    962          	a_adp_tx_data.radius = ADP_GET_MESH_HOPLFT(*phy_pib.currentTxFrm);
+    963          
+    964          	
+    965          	//leave the SADDR unchanged as we want to know where this originated from!
+    966          #if 0
+    967          	//replace the SADDR with our SADDR
+    968          	*(phy_pib.currentTxFrm+4) = (BYTE) macGetShortAddr();
+    969          	*(phy_pib.currentTxFrm+5) = (BYTE) (macGetShortAddr() >>8);
+    970          #endif
+    971          
+    972          }
+    973          
+    974          static BOOL adpRxBuffFull(void){
+    975          	BYTE tmp;
+    976          	//if next write would go to where Tail is, then buffer is full
+    977          	tmp = adp_pib.rxHead+1;
+    978          	if (tmp == ADP_RXBUFF_SIZE) tmp = 0;
+    979          	return(tmp == adp_pib.rxTail);
+    980          }
+    981          
+    982          static BOOL adpRxBuffEmpty(void){
+    983          	return(adp_pib.rxTail == adp_pib.rxHead);
+    984          }
+    985          
+    986          //this does NOT remove the packet from the buffer
+    987          static ADP_FWD_PKT *adpGetRxPacket(void) {
+    988          	BYTE tmp;
+    989          	if (adp_pib.rxTail == adp_pib.rxHead) return(NULL);
+    990          	tmp = adp_pib.rxTail+1;
+    991          	if (tmp == ADP_RXBUFF_SIZE) tmp = 0;
+    992          	return(&adp_pib.rxBuff[tmp]);
+    993          }
+    994          
+    995          //frees the first packet in the buffer.
+    996          static void adpFreeRxPacket(BOOL freemem) {
+    997          	adp_pib.rxTail++;
+    998          	if (adp_pib.rxTail == ADP_RXBUFF_SIZE) adp_pib.rxTail = 0;
+    999          	if (freemem) MemFree(adp_pib.rxBuff[adp_pib.rxTail].data);
+   1000          }
+   1001          
+   1002          #endif
+   1003          
+   1004          //given a router child SADDR, find the parent router SADDR
+   1005          UINT16 adpFindParentSADDR(SADDR childSADDR) {
+   1006          
+   1007          	UINT8 currentDepth;
+   1008          	SADDR currentParent;
+   1009          	SADDR currentRouter;
+   1010          	SADDR maxSADDR;
+   1011          	UINT8 i;
+   1012          
+   1013          
+   1014          	currentDepth = 1;
+   1015          	currentParent = 0;
+   1016          	do {
+   1017          		for (i=0; i<LOWSN_MAX_ROUTERS_PER_PARENT; i++) {
+   1018          			if (i==0) currentRouter = currentParent+1;
+   1019          			else currentRouter += ntGetCskip(currentDepth);
+   1020          			if (childSADDR == currentRouter) return(currentRouter);
+   1021          			maxSADDR = ntGetMaxSADDR(currentRouter,currentDepth+1);
+   1022          			if ((childSADDR > currentRouter) && (childSADDR <= maxSADDR))
+   1023          				break; //must go further down the tree
+   1024          		}
+   1025          		currentDepth++;
+   1026          		currentParent = currentRouter;
+   1027          	}
+   1028          	while (currentDepth < LOWSN_MAX_DEPTH-1);
+   1029          	//if we reach here, could not find an address. Return 0 as an error
+   1030          	return(0);
+   1031          }
+   1032          
+   1033          UINT16 adpGetHopsToDest(SADDR dstSADDR){
+   1034          
+   1035          	UINT16 numHops;
+   1036          	SADDR currentParent, maxSADDR;
+   1037          	UINT8 currentDepth;
+   1038          	UINT8 i;
+   1039          	SADDR currentRouter;
+   1040          
+   1041          	numHops = 1;            //return a minimum value of 1
+   1042          
+   1043          	currentDepth = 0;
+   1044          	//first compute hops up the tree then down the tree
+   1045          	if ( macGetShortAddr() == 0) goto adpGetHopsToDest_down;  //this is the coordinator
+   1046          	if (macGetShortAddr() == dstSADDR) return(1);  //to myself, should not happen, but return min value
+   1047          	currentParent = mac_pib.macCoordShortAddress; //start with my parent address
+   1048          	currentDepth = mac_pib.depth - 1; //depth of my parent.
+   1049          	do {
+   1050          		if (currentParent == dstSADDR) return(numHops);  //destination is one of my parent nodes.
+   1051          		if (currentParent == 0) break;         //at coordinator.
+   1052          		//compute the max SADDR address range of parent
+   1053          
+   1054          		maxSADDR = ntGetMaxSADDR(currentParent,currentDepth+1);  //depth of parent's children
+   1055          		if ((dstSADDR > currentParent) &&  (dstSADDR <= maxSADDR)) {
+   1056          			//this address is in this router's range, stop going up.
+   1057          			break;
+   1058          		}
+   1059          		//go up a level
+   1060          		currentDepth--;
+   1061          		numHops++;
+   1062          		if (currentDepth == 0 ) currentParent =0;
+   1063          		else { currentParent = adpFindParentSADDR(currentParent);
+   1064          		if (!currentParent) {
+   1065          			//could not find, set numHops to maximum and return
+   1066          			return(LOWSN_MAX_DEPTH<<1);
+   1067          		}
+   1068          		}
+   1069          	}while(1);
+   1070          
+   1071          adpGetHopsToDest_down:
+   1072          	currentDepth++; //increment depth, as this should reflect my current children
+   1073          	//now search going down.
+   1074          	do {
+   1075          		//destination is in the current parent's range
+   1076          		//see if it is one of the routers or children.
+   1077          		//first see if it is one of the children of current parent
+   1078          		numHops++;
+   1079          		maxSADDR = ntGetMaxSADDR(currentParent,currentDepth);
+   1080          		if (dstSADDR > (maxSADDR-LOWSN_MAX_NON_ROUTER_CHILDREN) &&
+   1081          			dstSADDR <= maxSADDR) break;  //it is one of the children nodes
+   1082          		for (i=0; i<LOWSN_MAX_ROUTERS_PER_PARENT; i++) {
+   1083          			if (i==0) currentRouter = currentParent+1;
+   1084          			else currentRouter += ntGetCskip(currentDepth);
+   1085          
+   1086          			if (dstSADDR == currentRouter) return(currentRouter);
+   1087          			maxSADDR = ntGetMaxSADDR(currentRouter,currentDepth+1);
+   1088          			if ((dstSADDR > currentRouter) && (dstSADDR <= maxSADDR))
+   1089          				break; //must go further down the tree
+   1090          		}
+   1091          		if (i == LOWSN_MAX_ROUTERS_PER_PARENT) {
+   1092          			//must be one of my non-router children, increment hops, return
+   1093          			return(numHops);
+   1094          		}
+   1095          		currentDepth++;
+   1096          		currentParent = currentRouter;
+   1097          
+   1098          	}while(currentDepth < LOWSN_MAX_DEPTH-1);
+   1099          
+   1100          	if (numHops > LOWSN_ADP_MESH_MAXHOP) {
+   1101          		DEBUG_STRING(DBG_ERR,"adpGetHopsToDest: Error in hop calculation: ");
+   1102          		DEBUG_UINT8(DBG_ERR,numHops);
+   1103          		DEBUG_STRING(DBG_ERR,"\n");
+   1104          		numHops = LOWSN_ADP_MESH_MAXHOP-1;
+   1105          	}
+   1106          	return(numHops);
+   1107          }
+   1108          
+   1109          
+   1110          				
+   1111          /*---------------------------------------------------------------------------*
+   1112          
+   1113          解析6LoWPAN帧格式，支持地址压缩的解析
+   1114          暂不支持HC2压缩格式.
+   1115          
+   1116          *---------------------------------------------------------------------------*/
+   1117          void adpParseCompHdr(void)
+   1118          {
+   1119          	UINT8 len;
+   1120          	UINT8 tmp;
+   1121          	BYTE *ptr;
+   1122                  UINT8 i;
+   1123          
+   1124          	ptr = a_adp_rx_data.orgpkt.data + a_adp_rx_data.adpOffset + ADP_MESH_ALLSADDR_HEADER_LEN;
+   1125          
+   1126          	a_adp_rx_data.Dispatch = *ptr;
+   1127          	ptr++;
+   1128          	len = 1;	
+   1129          
+   1130          	switch(a_adp_rx_data.Dispatch) {
+   1131          						
+   1132          	case ADP_DISPATCH_IPV6:   // 未压缩的IPv6数据包
+   1133          						
+   1134          		DEBUG_STRING(DBG_INFO,"ADP: Received uncompressed IPv6 packet.\n");
+   1135          		//标准IPv6头部作为负载考虑
+   1136          		a_adp_rx_data.pload_offset = a_adp_rx_data.adpOffset  + ADP_MESH_ALLSADDR_HEADER_LEN + len;
+   1137                        a_adp_rx_data.hcflag = ADP_RX_IP_UNCOMPRESS;
+   1138          		break;
+   1139          
+   1140          	case ADP_DISPATCH_HC1:   // HC1格式压缩包
+   1141          
+   1142          		DEBUG_STRING(DBG_INFO,"ADP: Received HC1 IPv6 packet.\n");
+   1143          
+   1144          		a_adp_rx_data.HC1Encoding = *ptr;
+   1145          		ptr++;
+   1146          		a_adp_rx_data.HopLimit= *ptr;
+   1147          		ptr++;
+   1148          
+   1149          		len = len + 2;
+   1150          
+   1151          		/*
+   1152          		 The non-compressed IPv6 field that MUST be always present is the Hop
+   1153                         Limit (8 bits). This field MUST always follow the encoding fields
+   1154                         (e.g., "HC1 encoding" as shown in Figure 9), perhaps including other
+   1155                         future encoding fields). Other non-compressed fields MUST follow the
+   1156                         Hop Limit as implied by the "HC1 encoding" in the exact same order as
+   1157                         shown above (Section 10.1): source address prefix (64 bits) and/or
+   1158                         interface identifier (64 bits), destination address prefix (64 bits)
+   1159                         and/or interface identifier (64 bits), Traffic Class (8 bits), Flow
+   1160                          Label (20 bits) and Next Header (8 bits). The actual next header
+   1161                          (e.g., UDP, TCP, ICMP, etc) follows the non-compressed fields.
+   1162                      */
+   1163          
+   1164          		if (ADP_GET_SRC_PREFIX_TYPE(a_adp_rx_data.HC1Encoding) == ADP_PREFIX_PI)  {
+   1165          				for(i=0; i<8; i++) {
+   1166          					a_adp_rx_data.SrcAddress.u8[i] = *ptr;
+   1167          					ptr++;
+   1168          				}	
+   1169          				len = len + 8;
+   1170          		}
+   1171          		else  {
+   1172          			lowsn_create_linklocal_prefix(&a_adp_rx_data.SrcAddress);
+   1173          		}	
+   1174          							
+   1175          		if (ADP_GET_SRC_IID_TYPE(a_adp_rx_data.HC1Encoding) == ADP_IID_II)  {
+   1176          			for(i=0; i<8; i++) {
+   1177          				a_adp_rx_data.SrcAddress.u8[i+8] = *ptr;
+   1178          				ptr++;
+   1179          			}
+   1180          
+   1181          			len = len + 8;
+   1182          		}
+   1183          		else  {
+   1184          			// 目前暂定mesh路由均采用短地址
+   1185          			// 由于6lowpan的mesh路由不支持跨PAN，所以暂时假定收到的节点
+   1186          			// 均与自己处在同一PAN中，即PANID相同.
+   1187          			ds6GenInterfaceID16(&a_adp_rx_data.SrcAddress, macGetPanID(), a_adp_rx_data.srcSADDR);
+   1188          
+   1189          		}								  	
+   1190          
+   1191          		if (ADP_GET_DST_PREFIX_TYPE(a_adp_rx_data.HC1Encoding) == ADP_PREFIX_PI)  {
+   1192          				for(i=0; i<8; i++) {
+   1193          					a_adp_rx_data.DstAddress.u8[i] = *ptr;
+   1194          					ptr++;
+   1195          				}	
+   1196          				len = len + 8;
+   1197          		}
+   1198          		else  {
+   1199          			lowsn_create_linklocal_prefix(&a_adp_rx_data.DstAddress);
+   1200          		}	
+   1201          							
+   1202          		if (ADP_GET_DST_IID_TYPE(a_adp_rx_data.HC1Encoding) == ADP_IID_II)  {
+   1203          			for(i=0; i<8; i++) {
+   1204          				a_adp_rx_data.DstAddress.u8[i+8] = *ptr;
+   1205          				ptr++;
+   1206          			}
+   1207          			len = len + 8;
+   1208          							  	
+   1209          		}
+   1210          		else  {
+   1211          			// 目前暂定mesh路由均采用短地址
+   1212          			// 由于6lowpan的mesh路由不支持跨PAN，所以暂时假定收到的节点
+   1213          			// 均与自己处在同一PAN中，即PANID相同.
+   1214          			ds6GenInterfaceID16(&a_adp_rx_data.DstAddress, macGetPanID(), a_adp_rx_data.dstSADDR);
+   1215          
+   1216          		}			
+   1217          
+   1218          		if (ADP_GET_TRAFFIC_FLOW_TYPE(a_adp_rx_data.HC1Encoding) == ADP_TRAFFIC_FLOW_INLINE)  {
+   1219          
+   1220          			a_adp_rx_data.TrafficClass = *ptr;
+   1221          			ptr++;
+   1222          								
+   1223          			//6lowpan标准并未定义字节分裂的情况，视FlowLabel为3个字节, 尽管它只有20bits.
+   1224          			a_adp_rx_data.FlowLabel = (UINT32)(*ptr) << 16;
+   1225          			ptr++;
+   1226          			a_adp_rx_data.FlowLabel += (UINT32)(*ptr) << 8;
+   1227          			ptr++;
+   1228          			a_adp_rx_data.FlowLabel += *ptr;
+   1229          			ptr++;
+   1230          
+   1231          			len = len + 4;
+   1232          		}
+   1233          		else  {
+   1234          			a_adp_rx_data.TrafficClass= 0;
+   1235          			a_adp_rx_data.FlowLabel = 0;
+   1236          		}	
+   1237          							
+   1238          		tmp = ADP_GET_NEXT_HEADER(a_adp_rx_data.HC1Encoding);
+   1239          
+   1240          			if (tmp == ADP_NEXT_HEADER_INLINE)  {
+   1241          				a_adp_rx_data.NextHeader = *ptr;
+   1242          				ptr++;
+   1243          				len++;
+   1244          			}
+   1245          			else  if (tmp == ADP_NEXT_HEADER_UDP)  {
+   1246          				a_adp_rx_data.NextHeader = LOWSN_PROTO_UDP;
+   1247          			}	
+   1248          			else  if (tmp == ADP_NEXT_HEADER_ICMP)  {
+   1249          				a_adp_rx_data.NextHeader = LOWSN_PROTO_ICMP6;
+   1250          			}								
+   1251          			else  if (tmp == ADP_NEXT_HEADER_TCP)  {
+   1252          				a_adp_rx_data.NextHeader = LOWSN_PROTO_TCP;
+   1253          			}									
+   1254          			else {
+   1255          				;
+   1256          			 }		
+   1257          
+   1258          			if (ADP_GET_HC2_ENCODING(a_adp_rx_data.HC1Encoding) == ADP_HC2_ENCODING_ENABLE)  {
+   1259          
+   1260          				DEBUG_STRING(DBG_INFO,"ADP: HC2, not support. \n");
+   1261          			}
+   1262          
+   1263          			// 此时已经不存在标准IPv6头部，适配层的pload_offset与NWK的pload_offset
+   1264          			// 意义一样，都是指解析完IPv6头部后开始的负载位置
+   1265          			a_adp_rx_data.pload_offset = a_adp_rx_data.adpOffset  + ADP_MESH_ALLSADDR_HEADER_LEN + len;
+   1266          
+   1267          			// 推导出a_adp_rx_data.PayloadLength
+   1268          			//  the packet length can be inferred either from layer two ("Frame Length" in the IEEE 802.15.4 PPDU) or from the
+   1269                               // "datagram_size" field in the fragment header (if present);
+   1270                               // 注意: the first byte in the a_mac_rx_data.orgpkt is the packet length, 即*(a_mac_rx_data.orgpkt->data)
+   1271                              // 而该值在handoff函数中被传递为: a_adp_rx_data.orgpkt.data = a_mac_rx_data.orgpkt->data;
+   1272          		      // 注意: 硬件FIFO传递上来的第一个字节是后续数据包长度，但此长度包括2个字节的FCS，
+   1273          		      // CC2530将FCS替换为RSSI+CRC结果，字节数不变。所以计算实际负载长度时需要减去这2个字节
+   1274          			a_adp_rx_data.PayloadLength = (UINT16)(*(a_adp_rx_data.orgpkt.data) - a_adp_rx_data.pload_offset + 1 -2);
+   1275          			a_adp_rx_data.hcflag = ADP_RX_IP_COMPRESS;
+   1276          							  						
+   1277          			break;	
+   1278          
+   1279          			default:
+   1280          				DEBUG_STRING(DBG_INFO,"ADP: Received unrecognized compressed IPv6 packet.\n");
+   1281          				a_adp_rx_data.pload_offset = a_adp_rx_data.adpOffset  + ADP_MESH_ALLSADDR_HEADER_LEN + len;
+   1282                                      a_adp_rx_data.hcflag = ADP_RX_IP_UNCOMPRESS;
+   1283          				break;
+   1284          						
+   1285          		}
+   1286          }
+   1287          						
+   1288          
+   1289          
+   1290          
+   1291          /*------------------------------------------------------------------------------------*
+   1292          
+   1293          对已经排列好的IP头部进行压缩，在压缩的同时就改变和填充发送缓冲
+   1294          
+   1295          压缩所需的各种参数由a_adp_service.args.hc_information 通过NWK层传递下来.
+   1296          
+   1297          压缩方法:
+   1298          
+   1299          
+   1300          
+   1301          *------------------------------------------------------------------------------------*/
+   1302          void adpFmtCompHeader(void)
+   1303          {
+   1304          
+   1305          	DEBUG_STRING(DBG_INFO,"adp: Format HC1 Header. ");
+   1306          
+   1307          	if (a_adp_service.args.hc_info.NextHeader == LOWSN_PROTO_UDP)  {
+   1308          		ADP_SET_NEXT_HEADER(a_adp_tx_data.HC1Encoding,ADP_NEXT_HEADER_UDP);
+   1309          
+   1310          	}
+   1311          	else if (a_adp_service.args.hc_info.NextHeader == LOWSN_PROTO_ICMP6)  {
+   1312          		ADP_SET_NEXT_HEADER(a_adp_tx_data.HC1Encoding,ADP_NEXT_HEADER_ICMP);
+   1313          	}	
+   1314          	else if (a_adp_service.args.hc_info.NextHeader == LOWSN_PROTO_TCP)  {
+   1315          		ADP_SET_NEXT_HEADER(a_adp_tx_data.HC1Encoding,ADP_NEXT_HEADER_TCP);
+   1316          	}
+   1317          	else
+   1318          	{
+   1319          		;
+   1320          	}
+   1321          
+   1322          	if ((a_adp_service.args.hc_info.TrafficClass == 0) && (a_adp_service.args.hc_info.FlowLabel == 0))  {
+   1323          		ADP_SET_TRAFFIC_FLOW_COMP(a_adp_tx_data.HC1Encoding);
+   1324          
+   1325          	}
+   1326          
+   1327          
+   1328          	//注意: 本部分的地址压缩务必与ds.c中的选择源地址函数ds6FindSrcIP()
+   1329          	// 和nwk.c中的选择目标短地址函数nwkFindDstDLLAddr() 所用的地址策略保持一致!
+   1330          
+   1331          	if(lowsn_is_addr_mcast(&a_adp_service.args.hc_info.DstAddress)){
+   1332          
+   1333          		// 目标地址是组播地址时，目标地址暂不压缩;
+   1334          		// 本地地址采用短地址生成的link-local地址, 前缀和IID全部压缩
+   1335          
+   1336          		 ADP_SET_SRC_PC(a_adp_tx_data.HC1Encoding);
+   1337          		 ADP_SET_SRC_IC(a_adp_tx_data.HC1Encoding);
+   1338          	}	
+   1339          
+   1340          	else if (ds6TestOnLink(&a_adp_service.args.hc_info.DstAddress) == 1){
+   1341          		
+   1342          		// 同一前缀的地址，包括link-local地址
+   1343          
+   1344          		
+   1345          		// 若是link-local地址，则压缩前缀
+   1346          		if (lowsn_is_addr_link_local(&a_adp_service.args.hc_info.DstAddress))  {
+   1347          			ADP_SET_SRC_PC(a_adp_tx_data.HC1Encoding);
+   1348          			ADP_SET_DST_PC(a_adp_tx_data.HC1Encoding);
+   1349          		}	
+   1350          
+   1351          		// 本地地址总是使用 长地址或短地址生成的，所以总压缩
+   1352          		// 当目标地址是link-local时，按照对方是长是短决定本机地址的长短;
+   1353          		// 当目标地址是同一前缀但非link-local时，若对方用长地址，则在mes头填写
+   1354          		// 长地址标示短地址, 长地址在MAC头部传递，本机地址采用短地址生成的方式
+   1355          		// 采用长地址方式时，总是只能传输一跳, mesh路由不支持多跳.
+   1356          		ADP_SET_SRC_IC(a_adp_tx_data.HC1Encoding);
+   1357          
+   1358          		// 若目标节点IID由长地址或短地址生成，则继续压缩IID
+   1359          		if ((lowsn_is_addr_genfrom_shortaddr(&a_adp_service.args.hc_info.DstAddress))
+   1360          		      || (lowsn_is_addr_genfrom_EUI64(&a_adp_service.args.hc_info.DstAddress))) {
+   1361          			ADP_SET_DST_IC(a_adp_tx_data.HC1Encoding);
+   1362          			
+   1363          		}		
+   1364          		// 若目标节点IID生成物规律，则不压缩; 但此时本地传的源地址
+   1365          		else
+   1366          		{
+   1367          			;
+   1368          		}	
+   1369          
+   1370          	}
+   1371          
+   1372          	else {
+   1373          		// 目标地址是外网地址, 不进行任何压缩
+   1374          		;
+   1375          	}
+   1376          
+   1377          }
+   1378          
+   1379          
+   1380          void adpTxCompData(void)
+   1381          {
+   1382          	UINT8 i;
+   1383          
+   1384          	if (a_adp_tx_data.HC1Encoding == 0)  {
+   1385          		a_adp_tx_data.Dispatch = ADP_DISPATCH_IPV6;
+   1386          
+   1387          	}
+   1388          	else {
+   1389          
+   1390          		a_adp_tx_data.Dispatch = ADP_DISPATCH_HC1;
+   1391          		
+   1392          		phy_pib.currentTxFrm = phy_pib.currentTxFrm + LOWSN_IPH_LEN;
+   1393          		phy_pib.currentTxFlen = phy_pib.currentTxFlen - LOWSN_IPH_LEN;
+   1394          	
+   1395          	/*  非压缩域的排列顺序
+   1396          	The non-compressed IPv6 field that MUST be always present is the Hop
+   1397          	Limit (8 bits). This field MUST always follow the encoding fields
+   1398          	(e.g., "HC1 encoding" as shown in Figure 9), perhaps including other
+   1399          	future encoding fields). Other non-compressed fields MUST follow the
+   1400          	Hop Limit as implied by the "HC1 encoding" in the exact same order as
+   1401          	shown above (Section 10.1): source address prefix (64 bits) and/or
+   1402          	interface identifier (64 bits), destination address prefix (64 bits)
+   1403          	and/or interface identifier (64 bits), Traffic Class (8 bits), Flow
+   1404          	Label (20 bits) and Next Header (8 bits). The actual next header
+   1405          	(e.g., UDP, TCP, ICMP, etc) follows the non-compressed fields.
+   1406          	*/
+   1407          
+   1408          		// 暂不支持HC2压缩
+   1409          
+   1410          		//  查询Next Header
+   1411          
+   1412          		if (ADP_GET_NEXT_HEADER(a_adp_tx_data.HC1Encoding) == ADP_NEXT_HEADER_INLINE)  {
+   1413          		
+   1414                 		phy_pib.currentTxFrm--;
+   1415          			*phy_pib.currentTxFrm = a_adp_service.args.hc_info.NextHeader;
+   1416          			phy_pib.currentTxFlen = phy_pib.currentTxFlen + 1;
+   1417          
+   1418          		}
+   1419          
+   1420          		
+   1421          		//  查询流标记和流量类型是否压缩
+   1422          		if (ADP_GET_TRAFFIC_FLOW_TYPE(a_adp_tx_data.HC1Encoding) == ADP_TRAFFIC_FLOW_INLINE)  {
+   1423          
+   1424          			// Flow Label以完整的3个字节表示，RFC4944中没有规范字节中分割的情况
+   1425          			phy_pib.currentTxFrm--;
+   1426          			*phy_pib.currentTxFrm = (BYTE) (a_adp_service.args.hc_info.FlowLabel);
+   1427          			phy_pib.currentTxFrm--;
+   1428          			*phy_pib.currentTxFrm = (BYTE) (a_adp_service.args.hc_info.FlowLabel >> 8);
+   1429          			phy_pib.currentTxFrm--;
+   1430          			*phy_pib.currentTxFrm = ((BYTE) (a_adp_service.args.hc_info.FlowLabel >> 16)) & 0x0F;
+   1431          			
+   1432          			phy_pib.currentTxFrm--;
+   1433          			*phy_pib.currentTxFrm = a_adp_service.args.hc_info.TrafficClass;
+   1434          
+   1435          			phy_pib.currentTxFlen = phy_pib.currentTxFlen + 4;
+   1436          		}
+   1437          
+   1438          		//  查询目标地址和源地址的压缩情况
+   1439          		if (ADP_GET_DST_IID_TYPE(a_adp_tx_data.HC1Encoding) == ADP_IID_II)   {
+   1440          			for(i=0; i<8; i++) {
+   1441                 			phy_pib.currentTxFrm--;
+   1442                       		 	*phy_pib.currentTxFrm = a_adp_service.args.hc_info.DstAddress.u8[15-i];
+   1443                 		}
+   1444          			phy_pib.currentTxFlen = phy_pib.currentTxFlen + 8;
+   1445          		}	
+   1446          		
+   1447          		if (ADP_GET_DST_PREFIX_TYPE(a_adp_tx_data.HC1Encoding) == ADP_PREFIX_PI)   {	
+   1448          			for(i=0; i<8; i++) {
+   1449                 			phy_pib.currentTxFrm--;
+   1450                       		 	*phy_pib.currentTxFrm = a_adp_service.args.hc_info.DstAddress.u8[7-i];
+   1451                 		}
+   1452          			phy_pib.currentTxFlen = phy_pib.currentTxFlen + 8;
+   1453          		}		
+   1454          
+   1455          		if (ADP_GET_SRC_IID_TYPE(a_adp_tx_data.HC1Encoding) == ADP_IID_II)   {
+   1456          			for(i=0; i<8; i++) {
+   1457                 			phy_pib.currentTxFrm--;
+   1458                       		 	*phy_pib.currentTxFrm = a_adp_service.args.hc_info.SrcAddress.u8[15-i];
+   1459                 		}
+   1460          			phy_pib.currentTxFlen = phy_pib.currentTxFlen + 8;
+   1461          		}	
+   1462          		
+   1463          		if (ADP_GET_SRC_PREFIX_TYPE(a_adp_tx_data.HC1Encoding) == ADP_PREFIX_PI)   {	
+   1464          			for(i=0; i<8; i++) {
+   1465                 			phy_pib.currentTxFrm--;
+   1466                       		 	*phy_pib.currentTxFrm = a_adp_service.args.hc_info.SrcAddress.u8[7-i];
+   1467                 		}
+   1468          			phy_pib.currentTxFlen = phy_pib.currentTxFlen + 8;
+   1469          		}		
+   1470          
+   1471          		// 添加Hop Limit
+   1472          		phy_pib.currentTxFrm--;
+   1473          		*phy_pib.currentTxFrm = a_adp_service.args.hc_info.HopLimit;
+   1474          		phy_pib.currentTxFlen++;
+   1475          
+   1476          		// 添加HC1 Header
+   1477          		phy_pib.currentTxFrm--;
+   1478          		*phy_pib.currentTxFrm = a_adp_tx_data.HC1Encoding;
+   1479          		phy_pib.currentTxFlen++;
+   1480          	}	
+   1481          
+   1482          	// 添加LOWPAN DISPATCH
+   1483          	phy_pib.currentTxFrm--;
+   1484          	*phy_pib.currentTxFrm = a_adp_tx_data.Dispatch;
+   1485          	phy_pib.currentTxFlen++;	
+   1486          
+   1487          
+   1488          	// setup the mesh param
+   1489          	// 源地址暂时总是使用短地址，因为只有短地址才支持树形路由
+   1490          	// 这只是适配层帧头用短地址，在MAC层帧头，会默认再自动再携带EUI64长地址
+   1491          	// 当然，MAC层的EUI64仅能使用一跳.
+   1492          	// MSEH Header中源地址和目标地址均使用短地址.
+   1493          	
+   1494          	a_adp_tx_data.srcSADDR = macGetShortAddr();
+   1495          	a_adp_tx_data.MeshType = ADP_MESH_TYPE_BASE;
+   1496          	ADP_SET_MESH_ORIGINAL_SADDR(a_adp_tx_data.MeshType);
+   1497          	ADP_SET_MESH_FINAL_SADDR(a_adp_tx_data.MeshType);
+   1498          	ADP_SET_MESH_HOPLFT(a_adp_tx_data.MeshType, LOWSN_ADP_MESH_MAXHOP);
+   1499          	
+   1500          	//a_adp_tx_data.radius = LOWSN_ADP_MESH_MAXHOP;
+   1501          	//a_adp_tx_data.fcflsb = ADP_FRM_TYPE_DATA | ADP_PROTOCOL | ADP_SUPPRESS_ROUTE_DISCOVER ;
+   1502          	
+   1503          	return;
+   1504          
+   1505          }
+   1506          
+   1507          
+   1508          void adpFormNetworkDirectly(void)
+   1509          {
+   1510          		 phyInit();
+   1511          		 macInit();
+   1512          
+   1513          		 ntInitTable();  
+   1514          
+   1515          		 macInitRadio();
+   1516          
+   1517          		 macSetPANID(LOWSN_DEFAULT_PANID);
+   1518          		 macSetChannel(LOWSN_DEFAULT_START_CHANNEL);
+   1519          		 macSetShortAddr(0);
+   1520          
+   1521          		 ntInitAddressAssignment();
+   1522          
+   1523          		 ds6LocalIPFrom16();
+   1524          
+   1525          		 adp_pib.flags.bits.adpFormed = 1;
+   1526          		 mac_pib.flags.bits.macIsAssociated = 1; 
+   1527          		 mac_pib.flags.bits.macAssociationPermit = 1;
+   1528          		 
+   1529          }
+   1530          
+   1531          
+   1532          /*-----------------------------------------------------------
+   1533          
+   1534          直接设置节点入网:
+   1535          
+   1536          参数设置:
+   1537          my_saddr: 节点自身的短地址
+   1538          parent_addr: 指定父节点的短地址
+   1539          parent_laddr: 指向节点父节点长地址的指针
+   1540          my_depth: 节点的深度
+   1541          
+   1542          注意: 节点自身长地址是通过宏定义直接设定的, 不在此进行初始化.
+   1543          后两项若无须填写的时候，可以指定为0, 1
+   1544          
+   1545          ------------------------------------------------------------*/
+   1546          void adpJoinNetworkDirectly(UINT16 my_saddr, UINT16 parent_saddr, UINT8 *parent_laddr, UINT8 my_depth)
+   1547          {
+   1548          
+   1549          	phyInit();
+   1550          	macInit();
+   1551          	#ifdef LOWSN_FFD
+   1552          	ntInitTable();  //init neighbor table
+   1553          	#endif
+   1554          
+   1555          	macInitRadio(); 
+   1556          
+   1557          	macSetPANID(LOWSN_DEFAULT_PANID);
+   1558          	macSetChannel(LOWSN_DEFAULT_START_CHANNEL);
+   1559          	macSetShortAddr(my_saddr);
+   1560            	mac_pib.macCoordShortAddress = parent_saddr;
+   1561            	mac_pib.depth = my_depth;
+   1562          
+   1563          	mac_pib.macCoordExtendedAddress.bytes[0] = parent_laddr[0];
+   1564          	mac_pib.macCoordExtendedAddress.bytes[1] = parent_laddr[1];
+   1565          	mac_pib.macCoordExtendedAddress.bytes[2] = parent_laddr[2];
+   1566          	mac_pib.macCoordExtendedAddress.bytes[3] = parent_laddr[3];
+   1567          	mac_pib.macCoordExtendedAddress.bytes[4] = parent_laddr[4];
+   1568          	mac_pib.macCoordExtendedAddress.bytes[5] = parent_laddr[5];
+   1569          	mac_pib.macCoordExtendedAddress.bytes[6] = parent_laddr[6];
+   1570          	mac_pib.macCoordExtendedAddress.bytes[7] = parent_laddr[7];
+   1571          
+   1572          	#ifdef LOWSN_FFD
+   1573          	ntInitAddressAssignment();
+   1574          	mac_pib.flags.bits.macAssociationPermit = 1;
+   1575          	#endif
+   1576          	
+   1577          	ds6LocalIPFrom16();
+   1578          
+   1579          	//mpSetEventType(MP_EVENT_SEND_DEVICE_INFO);
+   1580          	//mpSetEventFlag();
+   1581          
+   1582          	mac_pib.flags.bits.macIsAssociated = 1;
+   1583          	
+   1584          }
+
+   Maximum stack usage in bytes:
+
+     Function                     ISTACK PSTACK XSTACK
+     --------                     ------ ------ ------
+     adpCopyFwdPkt                    1      0     10
+       -> MemFree                     0      0     20
+     adpFSM                           2      0      0
+       -> macFSM                      4      0      0
+       -> adpRxFSM                    4      0      0
+       -> adpCopyFwdPkt               4      0      0
+       -> adpTxData                   4      0      0
+       -> adpFmtCompHeader            4      0      0
+       -> adpTxCompData               4      0      0
+       -> adpTxData                   4      0      0
+       -> phyInit                     4      0      0
+       -> macInit                     4      0      0
+       -> ntInitTable                 4      0      0
+       -> macInitRadio                4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> macSetChannel               4      0      0
+       -> macSetShortAddr             4      0      0
+       -> ntInitAddressAssignment     4      0      0
+       -> ds6LocalIPFrom16            4      0      0
+       -> macFSM                      4      0      0
+     adpFindParentSADDR               0      0     34
+       -> ntGetCskip                  0      0     32
+       -> ntGetMaxSADDR               0      0     32
+     adpFmtCompHeader                 2      0     12
+       -> conPrintROMString_func      0      0     24
+       -> ds6TestOnLink               0      0     24
+     adpFormNetworkDirectly           2      0      0
+       -> phyInit                     4      0      0
+       -> macInit                     4      0      0
+       -> ntInitTable                 4      0      0
+       -> macInitRadio                4      0      0
+       -> macSetPANID                 4      0      0
+       -> macSetChannel               4      0      0
+       -> macSetShortAddr             4      0      0
+       -> ntInitAddressAssignment     4      0      0
+       -> ds6LocalIPFrom16            4      0      0
+     adpGetHopsToDest                 0      0     18
+       -> ntGetMaxSADDR               0      0     36
+       -> adpFindParentSADDR          0      0     36
+       -> ntGetMaxSADDR               0      0     36
+       -> ntGetCskip                  0      0     36
+       -> ntGetMaxSADDR               0      0     36
+       -> conPrintROMString_func      0      0     36
+       -> conPrintUINT8               0      0     36
+       -> conPrintROMString_func      0      0     36
+     adpInit                          2      0      0
+     adpJoinNetworkDirectly           0      0     15
+       -> phyInit                     0      0     26
+       -> macInit                     0      0     26
+       -> ntInitTable                 0      0     26
+       -> macInitRadio                0      0     26
+       -> macSetPANID                 0      0     26
+       -> macSetChannel               0      0     26
+       -> macSetShortAddr             0      0     26
+       -> ntInitAddressAssignment     0      0     26
+       -> ds6LocalIPFrom16            0      0     26
+     adpParseCompHdr                  1      0     15
+       -> conPrintROMString_func      0      0     26
+       -> conPrintROMString_func      0      0     26
+       -> ds6GenInterfaceID16         0      0     30
+       -> ds6GenInterfaceID16         0      0     30
+       -> conPrintROMString_func      0      0     26
+       -> conPrintROMString_func      0      0     26
+     adpRxBusy                        2      0      0
+     adpRxFSM                         3      0      0
+       -> conPrintROMString_func      4      0      0
+       -> MemFree                     4      0      0
+       -> adpParseCompHdr             4      0      0
+       -> nwkRxBusy                   4      0      0
+       -> nwkRxHandoff                4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> conPrintUINT16              4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> conPrintUINT16              4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> conPrintUINT8               4      0      0
+       -> conPrintROMString_func      4      0      0
+       -> conPrintUINT8               4      0      0
+       -> conPrintROMString_func      4      0      0
+     adpRxHandoff                     2      0      0
+     adpTxCompData                    1      0     12
+     adpTxData                        1      0     10
+       -> conPrintROMString_func      0      0     20
+       -> halUtilMemCopy              0      0     20
+       -> conPrintROMString_func      0      0     20
+       -> conPrintUINT16              0      0     20
+       -> ntFindNewDst                0      0     20
+       -> conPrintROMString_func      0      0     20
+       -> conPrintUINT16              0      0     20
+       -> conPrintROMString_func      0      0     20
+       -> conPrintROMString_func      0      0     20
+       -> macFSM                      0      0     20
+
+
+   Segment part sizes:
+
+     Function/Label                  Bytes
+     --------------                  -----
+     adpRxState                         1
+     a_adp_service                     41
+     adpState                           1
+     a_adp_rx_data                     55
+     adpDSN                             1
+     adp_pib                           20
+     a_adp_tx_data                     20
+     adpInit                           38
+     ?Subroutine37                      1
+     ??Subroutine45_0                   7
+     adpFSM                           251
+     ?Subroutine4                      17
+     ?Subroutine5                      14
+     ?Subroutine32                      3
+     ??Subroutine51_0                   7
+     ?Subroutine34                     13
+     xxxxromstr                        23
+     adpTxData                        362
+     ?Subroutine38                      5
+     ?Subroutine0                       5
+     ??Subroutine44_0                   5
+     ?Subroutine28                     15
+     ?Subroutine39                      6
+     ?Subroutine29                      6
+     ??Subroutine46_0                   6
+     ?Subroutine16                      3
+     ??Subroutine48_0                   5
+     ?Subroutine7                       9
+     ??Subroutine49_0                   2
+     ??Subroutine50_0                   7
+     xxxxromstr                        43
+     xxxxromstr                        17
+     xxxxromstr                        11
+     xxxxromstr                        23
+     xxxxromstr                         2
+     adpRxFSM                         425
+     ?Subroutine21                     10
+     ?Subroutine20                      7
+     ?Subroutine19                     16
+     ?Subroutine17                     20
+     xxxxromstr                        73
+     xxxxromstr                        43
+     xxxxromstr                        17
+     xxxxromstr                        29
+     xxxxromstr                         2
+     xxxxromstr                        39
+     xxxxromstr                        12
+     xxxxromstr                        12
+     xxxxromstr                         2
+     adpRxBusy                         18
+     adpRxHandoff                      48
+     ?Subroutine18                      5
+     ?Subroutine33                      9
+     adpCopyFwdPkt                    192
+     ?Subroutine15                      9
+     ?Subroutine6                      11
+     ?Subroutine36                      7
+     adpFindParentSADDR               126
+     ?Subroutine41                      5
+     adpGetHopsToDest                 412
+     ?Subroutine25                     13
+     ?Subroutine23                      3
+     ?Subroutine22                      7
+     ??Subroutine47_0                  11
+     xxxxromstr                        45
+     xxxxromstr                         2
+     adpParseCompHdr                  664
+     ?Subroutine12                      4
+     ?Subroutine26                      7
+     ?Subroutine11                      5
+     ?Subroutine2                       7
+     ?Subroutine40                      6
+     ?Subroutine42                      6
+     ?Subroutine14                      4
+     ?Subroutine35                      7
+     xxxxromstr                        41
+     xxxxromstr                        32
+     xxxxromstr                        25
+     xxxxromstr                        52
+     adpFmtCompHeader                 191
+     ?Subroutine43                      5
+     xxxxromstr                        25
+     adpTxCompData                    318
+     ?Subroutine9                       8
+     ?Subroutine8                       5
+     ?Subroutine31                      8
+     ?Subroutine3                      19
+     ?Subroutine30                     16
+     ?Subroutine1                      15
+     adpFormNetworkDirectly            26
+     ?Subroutine24                     16
+     adpJoinNetworkDirectly           133
+     ?Subroutine13                      4
+     ?Subroutine27                      7
+     ?Subroutine10                      6
+     __Constant_0                       4
+     ?<Initializer for __Constant_0>    4
+     ??adpInit?relay                    6
+     ??adpFSM?relay                     6
+     ??adpTxData?relay                  6
+     ??adpRxFSM?relay                   6
+     ??adpRxBusy?relay                  6
+     ??adpRxHandoff?relay               6
+     ??adpCopyFwdPkt?relay              6
+     ??adpFindParentSADDR?relay         6
+     ??adpGetHopsToDest?relay           6
+     ??adpParseCompHdr?relay            6
+     ??adpFmtCompHeader?relay           6
+     ??adpTxCompData?relay              6
+     ??adpFormNetworkDirectly?relay     6
+     ??adpJoinNetworkDirectly?relay     6
+
+ 
+ 3 628 bytes in segment BANKED_CODE
+    84 bytes in segment BANK_RELAYS
+   570 bytes in segment CODE_C
+     4 bytes in segment XDATA_I
+     4 bytes in segment XDATA_ID
+   139 bytes in segment XDATA_Z
+ 
+ 4 282 bytes of CODE  memory (+ 4 bytes shared)
+   139 bytes of XDATA memory (+ 4 bytes shared)
+
+Errors: none
+Warnings: none

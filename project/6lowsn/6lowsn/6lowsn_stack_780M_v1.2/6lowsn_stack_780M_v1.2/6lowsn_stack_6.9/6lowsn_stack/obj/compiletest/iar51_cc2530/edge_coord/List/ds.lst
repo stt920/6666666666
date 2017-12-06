@@ -1,0 +1,1638 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:31 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\ds.c              #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\ds.c -D           #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_SLIP_TO_HOST -lcN F:\6LoWSN\6lowsn_stack\obj #
+#                          \compiletest\iar51_cc2530\edge_coord\List\ -o      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\ -e --debug --core=plain          #
+#                          --dptr=16,1 --data_model=large                     #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\List\ds.lst                           #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\ds.r51                            #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\ds.c
+      1          /*********************************************************************
+      2              文件名：ds.c
+      3              作  者：ji shanyang
+      4              版  本：v1.0.0
+      5              日  期：2012.12
+      6              描  述：define the generic data structure used in 6LoWSN stack
+      7          *********************************************************************/
+      8          #include <string.h>
+      9          #include <stdlib.h>
+     10          //#include <stdin.h>
+     11          #include <stddef.h>
+     12          #include "6lowsn_common_types.h"
+     13          #include "6lowsn_config.h"
+     14          #include "console.h"
+     15          #include "debug.h"
+     16          #include "halstack.h"
+     17          #include "ds.h"
+     18          #include "nd.h"
+     19          #include "nwk.h"
+     20          #include "mac.h"
+     21          #include "neighbor.h"
+     22          
+     23          
+     24          
+     25          /**
+     26            * @{\* define the data structures used by neighbor discovery protocol
+     27          **/
+     28          //lowsn_ds6_schedule_t lowsn_ds6_schedule;	//the envet scheduling data structure
+     29          lowsn_ds6_netif_t lowsn_ds6_if;		//brief the single ipv6 network interface
+     30          
+     31          lowsn_ds6_prefix_t lowsn_ds6_prefix_list[LOWSN_DS6_PREFIX_NB];	//brief prefix list
+     32          
+     33          
+     34          uint8_t lladdr_dadfail = 0;	//--1 indicate the dad fail;  0 indicate the dad succes
+     35          
+     36          //systime_s_t internalclock;
+     37          //systime_ms_t internalclock_ms;
+     38          
+     39          //lowsn_ds6_nbr_t lowsn_ds6_nbr_cache[LOWSN_DS6_NBR_NB];	//brief neighbor cache
+     40          //lowsn_ds6_dest_t lowsn_ds6_dest_cache[LOWSN_DS6_DEST_NB];	//brief destination cache
+     41          //lowsn_ds6_defrt_t lowsn_ds6_defrt_list[LOWSN_DS6_DEFRT_NB];		//brief default router list
+     42          
+     43          
+     44          /**
+     45            * @}\*
+     46          **/
+     47          
+     48          
+     49          
+     50          
+     51          
+     52          /* "full" (as opposed to pointer) ip address used in this file,  */
+     53          static lowsn_ipaddr_t loc_fipaddr;
+     54          
+     55          /* Pointers used in this file */
+     56          //static lowsn_ipaddr_t *locipaddr;		
+     57          static lowsn_ds6_uaddr_t *locuaddr;	
+     58          static lowsn_ds6_maddr_t *locmaddr;
+     59          static lowsn_ds6_aaddr_t *locaaddr;
+     60          static lowsn_ds6_prefix_t *locprefix;
+     61          //static lowsn_ds6_nbr_t *locnbr;
+     62          //static lowsn_ds6_defrt_t *locdefrt;
+     63          //static lowsn_ds6_dest_t *locdest;
+     64          
+     65          /*extern variable*/
+     66          extern lowsn_ds6_pmtu_t pmtu;
+     67          //extern lowsn_lladdr_t lowsn_lladdr;
+     68          extern lowsn_ds6_reassbuf_t lowsn_reassbuf;
+     69          
+     70          lowsn_lladdr_t lowsn_lladdr;
+     71          
+     72          
+     73          
+     74          /*---------------------------------------------------------------------*
+     75          初始化系统的IPv6地址及其结构
+     76          (不包含短地址生成的link-local地址的初始化，该部分需在
+     77          获取短地址之后再运行)
+     78          
+     79          
+     80          
+     81          *---------------------------------------------------------------------*/
+     82          void ds6Init(void)
+     83          {
+     84          
+     85          
+     86          	DEBUG_STRING(DBG_INFO,"ds6 init. \n");
+     87          	
+     88          	memset(&lowsn_ds6_if, 0, sizeof(lowsn_ds6_if));
+     89          	memset(lowsn_ds6_prefix_list, 0, sizeof(lowsn_ds6_prefix_list));
+     90          
+     91          	lowsn_ds6_if.link_mtu = LOWSN_LINK_MTU;
+     92          	lowsn_ds6_if.cur_hop_limit = LOWSN_TTL;
+     93          	lowsn_ds6_if.base_reachable_time = (LOWSN_ND6_REACHABLE_TIME);
+     94          	lowsn_ds6_if.retrans_tminterval = LOWSN_ND6_RETRANS_TIMER;
+     95          	lowsn_ds6_if.maxdadns = LOWSN_ND6_DEF_MAXDADNS;
+     96          	lowsn_ds6_if.iid_gen_method = LOWSN_IID_METHOD_FOR_GLOABL;
+     97          
+     98          	pmtu.size = lowsn_ds6_if.link_mtu;
+     99          
+    100          	lowsn_create_linklocal_prefix(&loc_fipaddr);
+    101          #ifdef LOWSN_FFD
+    102          	lowsn_ds6_prefix_add(&loc_fipaddr, LOWSN_DEFAULT_PREFIX_LEN, 0,0,0,0);
+    103          #else
+    104          	lowsn_ds6_prefix_add(&loc_fipaddr, LOWSN_DEFAULT_PREFIX_LEN, 0);
+    105          #endif
+    106          	ds6GenInterfaceID64(&loc_fipaddr);
+    107          	lowsn_ds6_uaddr_add(&loc_fipaddr, 0, ADDR_AUTOCONF_EUI64);
+    108          
+    109          	/*join the all-nodes multicast address*/
+    110          	lowsn_create_linklocal_allnodes_mcast(&loc_fipaddr);
+    111          	lowsn_ds6_maddr_add(&loc_fipaddr);
+    112          
+    113          #ifdef LOWSN_FFD
+    114          	/*(Router Only) creat link local all router multicast address*/
+    115          	lowsn_create_linklocal_allrouters_mcast(&loc_fipaddr);
+    116          	lowsn_ds6_maddr_add(&loc_fipaddr);
+    117          #else
+    118          	lowsn_ds6_if.rscount = 0;
+    119          #endif
+    120          	
+    121          
+    122          }
+    123          
+    124          
+    125          /*---------------------------------------------------------------------*
+    126          
+    127          构造来自于短地址和PANID的link-local IPv6地址
+    128          在组网完成，入网或重新入网完成调用。
+    129          
+    130          
+    131          *---------------------------------------------------------------------*/
+    132          void ds6LocalIPFrom16(void)
+    133          {
+    134          
+    135          	DEBUG_STRING(DBG_INFO,"set iid from short address. \n");
+    136          	// 添加由短地址生成的Interface ID
+    137          	lowsn_create_linklocal_prefix(&loc_fipaddr);
+    138          	ds6GenInterfaceID16(&loc_fipaddr, macGetPanID(), macGetShortAddr());
+    139          	lowsn_ds6_uaddr_add(&loc_fipaddr, 0, ADDR_AUTOCONF_SHORTADDR);
+    140          
+    141          }
+    142          
+    143          /*---------------------------------------------------------------------*/
+    144          /** \brief Generic loop routine on an abstract data structure, which generalizes
+    145           * all data structures used in DS6
+    146           * arguments:	list			the pointer pint to the header of the list
+    147           *			size			the size of the list
+    148           *			elementsize	the size of the list element
+    149           *			ipaddr		ipv6 address
+    150           *			ipaddrlen		the length of the ipv6 address
+    151           *			out_element	the pointer point to the found element
+    152           *
+    153           * rev:		FOUND		indicate that we have found a suitable element, point by out_element
+    154           *			FREESPACE	indicate that we have found a free space in the list, point by out_element
+    155           *			NOSPACE		indicate that the list is full, the arg out_element equal NULL
+    156           */
+    157          uint8_t lowsn_ds6_list_loop(lowsn_ds6_element_t *list, uint8_t size,
+    158                            uint16_t elementsize, lowsn_ipaddr_t *ipaddr,
+    159                            uint8_t ipaddrlen, lowsn_ds6_element_t **out_element)
+    160          {
+    161            lowsn_ds6_element_t *element;
+    162          
+    163            *out_element = NULL;
+    164          
+    165            for(element = list; element <(lowsn_ds6_element_t *)((uint8_t *)list + (size * elementsize));
+    166                element = (lowsn_ds6_element_t *)((uint8_t *)element + elementsize)) {
+    167              if(element->isused) {
+    168                if(lowsn_ipaddr_prefixcmp(&element->ipaddr, ipaddr, ipaddrlen)) {
+    169                  *out_element = element;
+    170                  return FOUND;
+    171                }
+    172              } else {
+    173                *out_element = element;
+    174              }
+    175            }
+    176          
+    177            return *out_element != NULL ? FREESPACE : NOSPACE;
+    178          }
+    179          
+    180          
+    181          /*---------------------------------------------------------------------------*/
+    182          /** \brief add a new entry to the prefix list*/
+    183          
+    184          #ifdef LOWSN_FFD
+    185          /**
+    186            * the add prefix funtion used by router is defferent from that uesd by host,
+    187            * so we should implement the fuction separately
+    188          */
+    189          lowsn_ds6_prefix_t * lowsn_ds6_prefix_add(lowsn_ipaddr_t *ipaddr, uint8_t ipaddrlen,
+    190                             uint8_t advertise, uint8_t flags, unsigned long vtime,
+    191                             unsigned long ptime)
+    192          {
+    193          
+    194              if(lowsn_ds6_list_loop
+    195               ((lowsn_ds6_element_t *)lowsn_ds6_prefix_list, LOWSN_DS6_PREFIX_NB,
+    196                sizeof(lowsn_ds6_prefix_t), ipaddr, ipaddrlen,
+    197                (lowsn_ds6_element_t **)&locprefix) == FREESPACE) {
+    198              locprefix->isused = 1;
+    199              lowsn_ipaddr_copy(&locprefix->ipaddr, ipaddr);
+    200              locprefix->length = ipaddrlen;
+    201              locprefix->advertise = advertise;
+    202              locprefix->l_a_reserved = flags;
+    203              locprefix->vlifetime = vtime;
+    204              locprefix->plifetime = ptime;
+    205          	
+    206              DEBUG_STRING(DBG_INFO,"Add a prefix:  ");
+    207              DEBUG_IP6ADDR(DBG_INFO, &locprefix->ipaddr, 0);
+    208              DEBUG_STRING(DBG_INFO,"Prefix Len: ");
+    209              DEBUG_UINT16(DBG_INFO, ipaddrlen);
+    210              DEBUG_STRING(DBG_INFO,"\n");
+    211          	
+    212              return locprefix;
+    213            } else {
+    214              DEBUG_STRING(DBG_INFO, "No more space in Prefix list\n");
+    215            }
+    216            return NULL;
+    217          
+    218          }
+    219          
+    220          #else
+    221          lowsn_ds6_prefix_t *lowsn_ds6_prefix_add(lowsn_ipaddr_t *ipaddr, uint8_t ipaddrlen,
+    222                             unsigned long interval)
+    223          {
+    224          
+    225          	if(lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_prefix_list, LOWSN_DS6_PREFIX_NB,
+    226          		   sizeof(lowsn_ds6_prefix_t), ipaddr, ipaddrlen,
+    227          		(lowsn_ds6_element_t **)&locprefix) == FREESPACE) {
+    228          		locprefix->isused = 1;
+    229          		lowsn_ipaddr_copy(&locprefix->ipaddr, ipaddr);
+    230          		locprefix->length = ipaddrlen;
+    231          		if(interval != 0) {
+    232          			//stimer_set(&locprefix->invalidtime, interval);
+    233          			locprefix->isinfinite = 0;
+    234          		}
+    235          		else {
+    236          			locprefix->isinfinite = 1;
+    237          		}
+    238          
+    239          		DEBUG_STRING(DBG_INFO,"Add a prefix:  ");
+    240          		DEBUG_IP6ADDR(DBG_INFO, &locprefix->ipaddr, 0);
+    241          		DEBUG_STRING(DBG_INFO,"Prefix Len: ");
+    242          		DEBUG_UINT16(DBG_INFO, ipaddrlen);
+    243          		DEBUG_STRING(DBG_INFO,"\n");
+    244          	}
+    245          	return NULL;
+    246          }
+    247          #endif
+    248          
+    249          /*---------------------------------------------------------------------------*/
+    250          /** \brief remove an entry in the prefix list*/
+    251          void lowsn_ds6_prefix_rm(lowsn_ds6_prefix_t *prefix)
+    252          {
+    253          	if(prefix != NULL) {
+    254          		prefix->isused = 0;
+    255          		prefix->invalidtime = 0;
+    256          	}
+    257          
+    258          	DEBUG_STRING(DBG_INFO,"Remove a prefix:  ");
+    259          	DEBUG_IP6ADDR(DBG_INFO, &prefix->ipaddr, 0);
+    260          	DEBUG_STRING(DBG_INFO,"Prefix Len: ");
+    261          	DEBUG_UINT16(DBG_INFO, prefix->length);
+    262          	DEBUG_STRING(DBG_INFO,"\n");
+    263          
+    264          	return;
+    265          }
+    266          
+    267          
+    268          /*---------------------------------------------------------------------------*/
+    269          /** \brief lookup an entry in the prefix list*/
+    270          lowsn_ds6_prefix_t * lowsn_ds6_prefix_lookup(lowsn_ipaddr_t *ipaddr, uint8_t ipaddrlen)
+    271          {
+    272              if(lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_prefix_list,
+    273          		       LOWSN_DS6_PREFIX_NB, sizeof(lowsn_ds6_prefix_t),
+    274          		       ipaddr, ipaddrlen,
+    275          		       (lowsn_ds6_element_t **)&locprefix) == FOUND) {
+    276              return locprefix;
+    277            }
+    278            return NULL;
+    279          }
+    280          
+    281          
+    282          /*-----------------------------------------------------------------------*
+    283          
+    284           添加一个新的单播地址到单播地址列表
+    285          
+    286          
+    287          *-----------------------------------------------------------------------*/
+    288          lowsn_ds6_uaddr_t * lowsn_ds6_uaddr_add(lowsn_ipaddr_t *ipaddr, unsigned long vlifetime, uint8_t type)
+    289          {
+    290            if(lowsn_ds6_list_loop
+    291               ((lowsn_ds6_element_t *)lowsn_ds6_if.uaddr_list, LOWSN_DS6_UADDR_NB,
+    292                sizeof(lowsn_ds6_uaddr_t), ipaddr, 128,
+    293                (lowsn_ds6_element_t **)&locuaddr) == FREESPACE) {
+    294              locuaddr->isused = 1;
+    295              lowsn_ipaddr_copy(&locuaddr->ipaddr, ipaddr);
+    296              locuaddr->type = type;
+    297          
+    298              // 暂时不考虑时间，永远有效	
+    299              locuaddr->state = ADDR_PREFERRED;
+    300          	
+    301              if(vlifetime == 0) {
+    302                locuaddr->isinfinite = 1;
+    303              } else {
+    304                locuaddr->isinfinite = 0;
+    305              }
+    306          
+    307              DEBUG_STRING(DBG_INFO,"Add a uaddr:  ");
+    308              DEBUG_IP6ADDR(DBG_INFO, &locuaddr->ipaddr, 0);
+    309              DEBUG_STRING(DBG_INFO,"type: ");
+    310              DEBUG_UINT16(DBG_INFO, locuaddr->type);
+    311              DEBUG_STRING(DBG_INFO,"\n");
+    312          
+    313              lowsn_create_solicited_node(ipaddr, &loc_fipaddr);
+    314              lowsn_ds6_maddr_add(&loc_fipaddr);
+    315              return locuaddr;
+    316            }
+    317            return NULL;
+    318          }
+    319          
+    320          
+    321          /*---------------------------------------------------------------------------*/
+    322          /**
+    323            * \brief add a new unicast address to the unicast address list
+    324          **/
+    325          void lowsn_ds6_uaddr_rm(lowsn_ds6_uaddr_t *addr)
+    326          {
+    327            if(addr != NULL) {
+    328              lowsn_create_solicited_node(&addr->ipaddr, &loc_fipaddr);
+    329              if((locmaddr = lowsn_ds6_maddr_lookup(&loc_fipaddr)) != NULL) {
+    330                lowsn_ds6_maddr_rm(locmaddr);
+    331              }
+    332              addr->isused = 0;
+    333            }
+    334            return;
+    335          }
+    336          
+    337          
+    338          /*---------------------------------------------------------------------------*/
+    339          /**
+    340            * \brief lookup a unicast address in the unicast address list
+    341          **/
+    342          lowsn_ds6_uaddr_t * lowsn_ds6_uaddr_lookup(lowsn_ipaddr_t *ipaddr)
+    343          {
+    344            if(lowsn_ds6_list_loop
+    345               ((lowsn_ds6_element_t *)lowsn_ds6_if.uaddr_list, LOWSN_DS6_UADDR_NB,
+    346                sizeof(lowsn_ds6_uaddr_t), ipaddr, 128,
+    347                (lowsn_ds6_element_t **)&locuaddr) == FOUND) {
+    348              return locuaddr;
+    349            }
+    350            return NULL;
+    351          }
+    352          
+    353          
+    354          
+    355          /*---------------------------------------------------------------------------*/
+    356          /**
+    357            * \brief add a new mulitcast address to the mulitcast address list
+    358          **/
+    359          lowsn_ds6_maddr_t * lowsn_ds6_maddr_add(lowsn_ipaddr_t *ipaddr)
+    360          {
+    361          	uint8_t ret;
+    362          	ret = lowsn_ds6_list_loop	((lowsn_ds6_element_t *)lowsn_ds6_if.maddr_list, LOWSN_DS6_MADDR_NB,
+    363          												sizeof(lowsn_ds6_maddr_t), ipaddr, 128, (lowsn_ds6_element_t **)&locmaddr);
+    364          	if(ret == FOUND){
+    365          		locmaddr->assoc_count++;
+    366          		return locmaddr;
+    367          	}
+    368          	else if(ret == FREESPACE) {
+    369          		locmaddr->isused = 1;
+    370          		lowsn_ipaddr_copy(&locmaddr->ipaddr, ipaddr);
+    371          		locmaddr->assoc_count++;
+    372          		return locmaddr;
+    373          	}
+    374          	return NULL;
+    375          }
+    376          
+    377          
+    378          
+    379          /*---------------------------------------------------------------------------*/
+    380          /**
+    381            * \brief rmove a multicast address from the mulitcast address list
+    382          **/
+    383          void lowsn_ds6_maddr_rm(lowsn_ds6_maddr_t *maddr)
+    384          {
+    385          	if(maddr != NULL) {
+    386          		maddr->assoc_count--;
+    387          		if(maddr->assoc_count==0){
+    388          			maddr->isused = 0;
+    389          		}
+    390          	}
+    391          	return;
+    392          }
+    393          
+    394          /*---------------------------------------------------------------------------*/
+    395          /**
+    396            * \brief lookup a multicast address in the mulitcast address list
+    397          **/
+    398          lowsn_ds6_maddr_t * lowsn_ds6_maddr_lookup(lowsn_ipaddr_t *ipaddr)
+    399          {
+    400            if(lowsn_ds6_list_loop
+    401               ((lowsn_ds6_element_t *)lowsn_ds6_if.maddr_list, LOWSN_DS6_MADDR_NB,
+    402                sizeof(lowsn_ds6_maddr_t), ipaddr, 128,
+    403                (lowsn_ds6_element_t **)&locmaddr) == FOUND) {
+    404              return locmaddr;
+    405            }
+    406            return NULL;
+    407          }
+    408          
+    409          
+    410          /*---------------------------------------------------------------------------*/
+    411          lowsn_ds6_aaddr_t * lowsn_ds6_aaddr_add(lowsn_ipaddr_t *ipaddr)
+    412          {
+    413            if(lowsn_ds6_list_loop
+    414               ((lowsn_ds6_element_t *)lowsn_ds6_if.aaddr_list, LOWSN_DS6_AADDR_NB,
+    415                sizeof(lowsn_ds6_aaddr_t), ipaddr, 128,
+    416                (lowsn_ds6_element_t **)&locaaddr) == FREESPACE) {
+    417              locaaddr->isused = 1;
+    418              lowsn_ipaddr_copy(&locaaddr->ipaddr, ipaddr);
+    419              return locaaddr;
+    420            }
+    421            return NULL;
+    422          }
+    423          
+    424          /*---------------------------------------------------------------------------*/
+    425          void lowsn_ds6_aaddr_rm(lowsn_ds6_aaddr_t *aaddr)
+    426          {
+    427            if(aaddr != NULL) {
+    428              aaddr->isused = 0;
+    429            }
+    430            return;
+    431          }
+    432          
+    433          /*---------------------------------------------------------------------------*/
+    434          lowsn_ds6_aaddr_t * lowsn_ds6_aaddr_lookup(lowsn_ipaddr_t *ipaddr)
+    435          {
+    436            if(lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_if.aaddr_list,
+    437          		       LOWSN_DS6_AADDR_NB, sizeof(lowsn_ds6_aaddr_t), ipaddr, 128,
+    438          		       (lowsn_ds6_element_t **)&locaaddr) == FOUND) {
+    439              return locaaddr;
+    440            }
+    441            return NULL;
+    442          }
+    443          
+    444          
+    445          
+    446          
+    447          /*-----------------------------------------------------------------------*
+    448          
+    449          判断一个IP地址是否是on-link
+    450          
+    451          1: on-link; 0: off-link
+    452          
+    453          on-link是指该IP地址的前缀与本节点内部所存的前缀列表中的
+    454          某一前缀完全相同，即相同的位数等于前缀的位数。
+    455          
+    456          在原始IPv6协议中，前缀相同表明在同一个路由器内，
+    457          在WSN中，前缀相同，不论是link-local的前缀相同还是global的前缀
+    458          相同，都表明是在WSN内部。
+    459          
+    460          
+    461          *-----------------------------------------------------------------------*/
+    462          uint8_t ds6TestOnLink(lowsn_ipaddr_t *ipaddr)
+    463          {
+    464            for(locprefix = lowsn_ds6_prefix_list;
+    465                locprefix < lowsn_ds6_prefix_list + LOWSN_DS6_PREFIX_NB; locprefix++) {
+    466              if(locprefix->isused &&
+    467                 lowsn_ipaddr_prefixcmp(&locprefix->ipaddr, ipaddr, locprefix->length)) {
+    468                return 1;
+    469              }
+    470            }
+    471            return 0;
+    472          }
+    473          
+    474          
+    475          
+    476          /*---------------------------------------------------------------------------*/
+    477          /**
+    478          根据目标地址的类型选择源地址
+    479          
+    480          
+    481          *-----------------------------------------------------------------------*/
+    482          void ds6FindSrcIP(lowsn_ipaddr_t *src, lowsn_ipaddr_t *dst)
+    483          {
+    484            uint8_t best = 0;             /* number of bit in common with best match */
+    485            uint8_t n = 0;
+    486            lowsn_ds6_uaddr_t *matchaddr = NULL;
+    487          
+    488          // 注意: 对于on-link的地址，无论对方是长地址生成的还是短地址生成的，
+    489          // 本机地址一律采用短地址生成的进行回复.
+    490          //  if(!lowsn_is_addr_link_local(dst) && !lowsn_is_addr_mcast(dst)) {
+    491            if((!lowsn_is_addr_link_local(dst) && !lowsn_is_addr_mcast(dst))||lowsn_is_addr_gmcast(dst)) {
+    492              /* find longest match */
+    493              for(locuaddr = lowsn_ds6_if.uaddr_list;
+    494                  locuaddr < lowsn_ds6_if.uaddr_list + LOWSN_DS6_UADDR_NB; locuaddr++) {
+    495                /* Only preferred global (not link-local) addresses */
+    496                if(locuaddr->isused && locuaddr->state == ADDR_PREFERRED &&
+    497                   !lowsn_is_addr_link_local(&locuaddr->ipaddr)) {
+    498                  n = ds6MatchNum(dst, &locuaddr->ipaddr);
+    499                  if(n >= best) {
+    500                    best = n;
+    501                    matchaddr = locuaddr;
+    502                  }
+    503                }
+    504              }
+    505            }
+    506            else {
+    507          
+    508          	#if LOWSN_SRC_IP_MODE == 1 
+    509          		matchaddr = ds6FindLinkLocalIP(ADDR_PREFERRED, ADDR_AUTOCONF_SHORTADDR);
+    510          	#elif LOWSN_SRC_IP_MODE == 2	
+    511          		matchaddr = ds6FindLinkLocalIP(ADDR_PREFERRED, ADDR_AUTOCONF_EUI64);
+    512          	#else
+    513          		 if (lowsn_is_addr_genfrom_EUI64(dst))  {
+    514          			matchaddr = ds6FindLinkLocalIP(ADDR_PREFERRED, ADDR_AUTOCONF_EUI64);
+    515          		
+    516          		}
+    517          		else {	
+    518              			matchaddr = ds6FindLinkLocalIP(ADDR_PREFERRED, ADDR_AUTOCONF_SHORTADDR);
+    519          		}
+    520          	#endif
+    521          
+    522          	// 若对方是link-local的长地址生成的IPv6地址，则本机回复时也选用
+    523          	// 该类地址. 注意: 长地址不能进行MESH路由，仅能用于星形网.
+    524          	// 其他情况均用短地址回复.
+    525          	//if (lowsn_is_addr_genfrom_EUI64(dst))  {
+    526          	//	matchaddr = ds6FindLinkLocalIP(ADDR_PREFERRED, ADDR_AUTOCONF_EUI64);
+    527          	//	
+    528          	//}
+    529          	//else {	
+    530              	//	matchaddr = ds6FindLinkLocalIP(ADDR_PREFERRED, ADDR_AUTOCONF_SHORTADDR);
+    531          	//}		
+    532          	
+    533            }
+    534          
+    535            /* use the :: (unspecified address) as source if no match found */
+    536            if(matchaddr == NULL) {
+    537            	
+    538              DEBUG_STRING(DBG_INFO,"ds: Can not find matched src, use unspecified address. \n ");
+    539              lowsn_create_unspecified(src);
+    540            } else {
+    541              lowsn_ipaddr_copy(src, &matchaddr->ipaddr);
+    542            }
+    543          }
+    544          
+    545          
+    546          
+    547          /*---------------------------------------------------------------------------*
+    548          
+    549          获取一个符合要求的link-local IPv6地址
+    550           * state = -1 => any address is ok. Otherwise state = desired state of addr.
+    551           * (TENTATIVE, PREFERRED, DEPRECATED)
+    552            *type = -1 => any address is ok. Otherwise type = desired state of addr.
+    553           * (ADDR_ANYTYPE, ADDR_MANUAL, ADDR_AUTOCONF_EUI48, ADDR_AUTOCONF_EUI64,
+    554             ADDR_AUTOCONF_SHORTADDR, ADDR_AUTOCONF_OTHER)
+    555          
+    556          ---------------------------------------------------------------------------*/
+    557          
+    558          lowsn_ds6_uaddr_t * ds6FindLinkLocalIP(int8_t state, int8_t type)
+    559          {
+    560            for(locuaddr = lowsn_ds6_if.uaddr_list;
+    561                locuaddr < lowsn_ds6_if.uaddr_list + LOWSN_DS6_UADDR_NB; locuaddr++) {
+    562              if(locuaddr->isused && (state == -1 || locuaddr->state == state) && (type == -1 || locuaddr->type == type)
+    563                 && (lowsn_is_addr_link_local(&locuaddr->ipaddr))) {
+    564                return locuaddr;
+    565              }
+    566            }
+    567            return NULL;
+    568          }
+    569          
+    570          
+    571          /*---------------------------------------------------------------------------*/
+    572          /*
+    573          获取一个global IPv6地址
+    574           * state = -1 => any address is ok. Otherwise state = desired state of addr.
+    575           * (TENTATIVE, PREFERRED, DEPRECATED)
+    576             *type = -1 => any address is ok. Otherwise type = desired state of addr.
+    577           * (ADDR_ANYTYPE, ADDR_MANUAL, ADDR_AUTOCONF_EUI48, ADDR_AUTOCONF_EUI64,
+    578             ADDR_AUTOCONF_SHORTADDR, ADDR_AUTOCONF_OTHER)
+    579          ---------------------------------------------------------------------------*/
+    580          
+    581          lowsn_ds6_uaddr_t * ds6FindGlobalIP(int8_t state,  int8_t type)
+    582          {
+    583            for(locuaddr = lowsn_ds6_if.uaddr_list;
+    584                locuaddr < lowsn_ds6_if.uaddr_list + LOWSN_DS6_UADDR_NB; locuaddr++) {
+    585              if(locuaddr->isused && (state == -1 || locuaddr->state == state) && (type == -1 || locuaddr->type == type)
+    586                 && !(lowsn_is_addr_link_local(&locuaddr->ipaddr))) {
+    587                return locuaddr;
+    588              }
+    589            }
+    590            return NULL;
+    591          }
+    592          
+    593          
+    594          
+    595          /*---------------------------------------------------------------------------*
+    596          
+    597          由链路层地址生成IPv6地址的interface ID
+    598          
+    599          genmethod: 0: 由64位长地址生成; 1或其它: 由48位MAC地址生成
+    600          
+    601          通用函数，为了兼容时才使用
+    602          
+    603          *---------------------------------------------------------------------------*/
+    604          void ds6GenInterfaceID_EUI(lowsn_ipaddr_t *ipaddr, BYTE *lladdr, uint8_t genmethod)
+    605          {
+    606          
+    607            if (genmethod == 0)  {	
+    608            	memcpy(ipaddr->u8 + 8, lladdr, LOWSN_LLADDR_LEN);
+    609            	ipaddr->u8[8] ^= 0x02;
+    610            }
+    611            else  {
+    612            	 memcpy(ipaddr->u8 + 8, lladdr, 3);
+    613           	 ipaddr->u8[11] = 0xff;
+    614           	 ipaddr->u8[12] = 0xfe;
+    615           	 memcpy(ipaddr->u8 + 13, (uint8_t *)lladdr + 3, 3);
+    616            	 ipaddr->u8[8] ^= 0x02;
+    617            }	
+    618          
+    619          }
+    620          
+    621          
+    622          
+    623          /*---------------------------------------------------------------------------*
+    624          
+    625          由EUI64地址直接生成IPv6地址的interface ID，仅用于IEEE 802.15.4网络
+    626          
+    627          直接获取本地EUI64地址生成
+    628          
+    629          为了本地生成方便而设定的函数，更通用的函数是ds6GenInterfaceID_EUI
+    630          
+    631          *---------------------------------------------------------------------------*/
+    632          void ds6GenInterfaceID64(lowsn_ipaddr_t *ipaddr)
+    633          {
+    634          
+    635          	halGetProcessorIEEEAddress(ipaddr->u8 + 8);
+    636            	ipaddr->u8[8] ^= 0x02;
+    637          
+    638          }
+    639          
+    640          
+    641          
+    642          /*---------------------------------------------------------------------------*
+    643          
+    644          由短地址生成IPv6地址的interface ID，仅用于IEEE 802.15.4网络
+    645          RFC4944  pp. 13
+    646          
+    647          *---------------------------------------------------------------------------*/
+    648          void ds6GenInterfaceID16(lowsn_ipaddr_t *ipaddr, UINT16 panid, UINT16 short_addr)
+    649          {
+    650          
+    651          	//ipaddr->u8[8] = (uint8_t)(macGetPanID() >> 8);
+    652          	//ipaddr->u8[9] = (uint8_t)(macGetPanID());
+    653          	ipaddr->u8[8] = (uint8_t)(panid >> 8);
+    654          	ipaddr->u8[9] = (uint8_t)(panid);
+    655          	ipaddr->u8[10] = 0;
+    656          	ipaddr->u8[11] = 0xFF;
+    657          	ipaddr->u8[12] = 0xFE;
+    658          	ipaddr->u8[13] = 0;
+    659          	//ipaddr->u8[14] = (uint8_t)(macGetShortAddr() >> 8);
+    660          	//ipaddr->u8[15] = (uint8_t)(macGetShortAddr());
+    661          	ipaddr->u8[14] = (uint8_t)(short_addr >> 8);
+    662          	ipaddr->u8[15] = (uint8_t)(short_addr);
+    663          	
+    664           	//the "Universal/Local" (U/L) bit SHALL be set to zero in keeping with the fact that this is not a globally unique value.
+    665          	ipaddr->u8[8] &= 0xFD;
+    666          
+    667          }
+    668          
+    669          
+    670          /*---------------------------------------------------------------------------*
+    671          
+    672          寻找目标地址与某个备选源地址前缀匹配的位数
+    673          
+    674          *---------------------------------------------------------------------------*/
+    675          uint8_t ds6MatchNum(lowsn_ipaddr_t *src, lowsn_ipaddr_t *dst)
+    676          {
+    677            uint8_t j, k, x_or;
+    678            uint8_t len = 0;
+    679          
+    680            for(j = 0; j < 16; j++) {
+    681              if(src->u8[j] == dst->u8[j]) {
+    682                len += 8;
+    683              } else {
+    684                x_or = src->u8[j] ^ dst->u8[j];
+    685                for(k = 0; k < 8; k++) {
+    686                  if((x_or & 0x80) == 0) {
+    687                    len++;
+    688                    x_or <<= 1;
+    689                  } else {
+    690                    break;
+    691                  }
+    692                }
+    693                break;
+    694              }
+    695            }
+    696            return len;
+    697          }
+    698          
+    699          
+    700          
+    701          /*---------------------------------------------------------------------------*/
+    702          /**
+    703            *  Convert 16-bit quantity from host byte order to network byte order.
+    704          **/
+    705          
+    706          uint16_t
+    707          lowsn_htons(uint16_t val)
+    708          {
+    709            return LOWSN_HTONS(val);
+    710          }
+    711          
+    712          uint32_t
+    713          lowsn_htonl(uint32_t val)
+    714          {
+    715            return LOWSN_HTONL(val);
+    716          }
+    717          
+    718          
+    719          
+    720          
+    721          
+    722          
+    723          uint8_t lowsn_ds6_ipcmp(lowsn_ipaddr_t* srcip, lowsn_ipaddr_t* destip){
+    724          	uint8_t i;
+    725          	for(i=0; i<16 ; i++){
+    726          		if(srcip->u8[i] != destip->u8[i]){
+    727          			return 0;
+    728          		}
+    729          	}
+    730          	return 1;
+    731          }
+    732          
+    733          
+    734          uint8_t lowsn_ds6_lladdr_cmp(lowsn_lladdr_t* srcll, lowsn_lladdr_t* destll){
+    735          	uint8_t i;
+    736          	for(i=0; i<LOWSN_LLADDR_LEN; i++){
+    737          		if(srcll->addr[i] != destll->addr[i]){
+    738          			return 0;
+    739          		}
+    740          	}
+    741          	return 1;
+    742          }
+    743          
+    744          
+    745          
+    746          #if 0
+    747          
+    748          
+    749          void lowsn_ds6_schedule_ms(systime_ms_t internal_clock_ms){
+    750          	int i;
+    751          	lowsn_ds6_defrt_t* tmpdefrt = NULL;
+    752          	/*Event 1--Send NS Message For Address Resolution And Duplicate Address Detectation*/
+    753          	for(i=0;i<LOWSN_DS6_NBR_NB;i++){
+    754          		if(lowsn_ds6_nbr_cache[i].isused && (lowsn_ds6_nbr_cache[i].sendns != 0)){
+    755          			if( lowsn_ds6_nbr_cache[i].sendns <= internal_clock_ms){
+    756          				//the entry is doing address resolution
+    757          				if(lowsn_ds6_nbr_cache[i].state== NBR_INCOMPLETE){
+    758          					if(lowsn_ds6_nbr_cache[i].nscount== LOWSN_ND6_MAX_MULTICAST_SOLICIT){
+    759          						DEBUG_STRING(DBG_INFO, "Addr Resolution Fail\r\n");
+    760          						lowsn_ds6_nbr_rm(&lowsn_ds6_nbr_cache[i]);
+    761          						/*update the destination cache table*/
+    762          						lowsn_ds6_dest_update(&lowsn_ds6_nbr_cache[i].ipaddr);
+    763          					}
+    764          					else{
+    765          						mstimer_set(&lowsn_ds6_nbr_cache[i].sendns, lowsn_ds6_if.retrans_tminterval);
+    766          						lowsn_ds6_nbr_cache[i].nscount++;
+    767          						lowsn_nd_ns_output(NULL, NULL, &lowsn_ds6_nbr_cache[i].ipaddr);
+    768          						DEBUG_STRING(DBG_INFO, "Retransmit a NS for Addr Resolution\r\n");
+    769          						return;
+    770          					}
+    771          				}
+    772          				//the entry is doing DAD
+    773          				else if(lowsn_ds6_nbr_cache[i].state== NBR_DELAY){
+    774          					lowsn_ds6_nbr_cache[i].state = NBR_PROBE;
+    775          					mstimer_set(&lowsn_ds6_nbr_cache[i].sendns, lowsn_ds6_if.retrans_tminterval);
+    776          					lowsn_ds6_nbr_cache[i].nscount++;
+    777          					lowsn_nd_ns_output(NULL, &lowsn_ds6_nbr_cache[i].ipaddr, &lowsn_ds6_nbr_cache[i].ipaddr);
+    778          					DEBUG_STRING(DBG_INFO, "Transmit a NS for NURD\r\n");
+    779          					return;
+    780          				}
+    781          				else if(lowsn_ds6_nbr_cache[i].state== NBR_PROBE){
+    782          					if(lowsn_ds6_nbr_cache[i].nscount== LOWSN_ND6_MAX_UNICAST_SOLICIT){
+    783          						DEBUG_STRING(DBG_INFO, "NURD Fail update DTC and remove the NBC\r\n");
+    784          						/*update the destination cache table*/
+    785          						lowsn_ds6_dest_update(&lowsn_ds6_nbr_cache[i].ipaddr);
+    786          //						for(j=0; j<LOWSN_DS6_DEST_NB; j++){
+    787          //							if(lowsn_ds6_dest_cache[j].isused &&
+    788          //										(lowsn_ds6_ipcmp(&lowsn_ds6_dest_cache[j].nexthop, &lowsn_ds6_nbr_cache[i].ipaddr))){
+    789          //								lowsn_ds6_dest_rm(&lowsn_ds6_dest_cache[j]);
+    790          //							}
+    791          //						}
+    792          						/*if the neighbor is a default router set the fail flag*/
+    793          						tmpdefrt=lowsn_ds6_defrt_lookup(&lowsn_ds6_nbr_cache[i].ipaddr);
+    794          						if(tmpdefrt != NULL){
+    795          							tmpdefrt->fail =1;
+    796          						}
+    797          						/*remove the neighbor from the neighbor cache table*/
+    798          						lowsn_ds6_nbr_rm(&lowsn_ds6_nbr_cache[i]);
+    799          					}
+    800          					else{
+    801          						mstimer_set(&lowsn_ds6_nbr_cache[i].sendns, lowsn_ds6_if.retrans_tminterval);
+    802          						lowsn_ds6_nbr_cache[i].nscount++;
+    803          						lowsn_nd_ns_output(NULL,&lowsn_ds6_nbr_cache[i].ipaddr, &lowsn_ds6_nbr_cache[i].ipaddr);
+    804          						DEBUG_STRING(DBG_INFO, "Retransmit a NS for NURD\r\n");
+    805          						return;
+    806          					}
+    807          				}
+    808          			}
+    809          		}
+    810          	}
+    811          
+    812          	/*Event 2--Send NS Message For DAD*/
+    813          	if(lladdr_dadfail==0){
+    814          		for(i=0; i<LOWSN_DS6_UADDR_NB; i++){
+    815          			if(lowsn_ds6_if.uaddr_list[i].isused && (lowsn_ds6_if.uaddr_list[i].dadtimer != 0)){
+    816          				if(lowsn_ds6_if.uaddr_list[i].dadtimer <= internal_clock_ms){
+    817          					lowsn_ds6_dad(&lowsn_ds6_if.uaddr_list[i]);
+    818          				}
+    819          			}
+    820          		}
+    821          	}
+    822          }
+    823          
+    824          /*----------------------------------------------------------------------*/
+    825          /**\lookup all the schedule event's schudule time and find the smallest*/
+    826          void lowsn_ds6_schedule(systime_s_t internal_clock){
+    827          	int i;
+    828          	/*Event 1--Send NS Message*/
+    829          /*========================
+    830          	for(i=0;i<LOWSN_DS6_NBR_NB;i++){
+    831          		if(lowsn_ds6_nbr_cache[i].isused && (lowsn_ds6_nbr_cache[i].sendns != 0)){
+    832          			if( lowsn_ds6_nbr_cache[i].sendns <= internal_clock){
+    833          				//the entry is doing address resolution
+    834          				if(lowsn_ds6_nbr_cache[i].state== NBR_INCOMPLETE){
+    835          					if(lowsn_ds6_nbr_cache[i].nscount== LOWSN_ND6_MAX_MULTICAST_SOLICIT){
+    836          						lowsn_ds6_nbr_rm(&lowsn_ds6_nbr_cache[i]);
+    837          						DEBUG_STRING(DBG_INFO, "Addr Resolution Fail\r\n");
+    838          					}
+    839          					else{
+    840          						stimer_set(&lowsn_ds6_nbr_cache[i].sendns, lowsn_ds6_if.retrans_tminterval);
+    841          						lowsn_ds6_nbr_cache[i].nscount++;
+    842          						lowsn_nd_ns_output(NULL, NULL, &lowsn_ds6_nbr_cache[i].ipaddr);
+    843          						DEBUG_STRING(DBG_INFO, "Retransmit a NS for Addr Resolution\r\n");
+    844          						return;
+    845          					}
+    846          				}
+    847          				//the entry is doing DAD
+    848          				else if(lowsn_ds6_nbr_cache[i].state== NBR_DELAY){
+    849          					lowsn_ds6_nbr_cache[i].state = NBR_PROBE;
+    850          					stimer_set(&lowsn_ds6_nbr_cache[i].sendns, lowsn_ds6_if.retrans_tminterval);
+    851          					lowsn_ds6_nbr_cache[i].nscount++;
+    852          					lowsn_nd_ns_output(NULL, &lowsn_ds6_nbr_cache[i].ipaddr, &lowsn_ds6_nbr_cache[i].ipaddr);
+    853          					DEBUG_STRING(DBG_INFO, "Transmit a NS for DAD\r\n");
+    854          					return;
+    855          				}
+    856          				else if(lowsn_ds6_nbr_cache[i].state== NBR_PROBE){
+    857          					if(lowsn_ds6_nbr_cache[i].nscount== LOWSN_ND6_MAX_UNICAST_SOLICIT){
+    858          						lowsn_ds6_nbr_rm(&lowsn_ds6_nbr_cache[i]);
+    859          						DEBUG_STRING(DBG_INFO, "DAD Fail\r\n");
+    860          					}
+    861          					else{
+    862          						stimer_set(&lowsn_ds6_nbr_cache[i].sendns, lowsn_ds6_if.retrans_tminterval);
+    863          						lowsn_ds6_nbr_cache[i].nscount++;
+    864          						lowsn_nd_ns_output(NULL,&lowsn_ds6_nbr_cache[i].ipaddr, &lowsn_ds6_nbr_cache[i].ipaddr);
+    865          						DEBUG_STRING(DBG_INFO, "Retransmit a NS for DAD\r\n");
+    866          						return;
+    867          					}
+    868          				}
+    869          			}
+    870          		}
+    871          	}
+    872          ========================*/
+    873          	/*Event 1--Remove an invaild uincast address*/
+    874          	for(i=0; i<LOWSN_DS6_UADDR_NB; i++){
+    875          		if(lowsn_ds6_if.uaddr_list[i].isused && !lowsn_ds6_if.uaddr_list[i].isinfinite){
+    876          			if((lowsn_ds6_if.uaddr_list[i].invalidtime<=internal_clock) &&
+    877          						(lowsn_ds6_if.uaddr_list[i].type == ADDR_AUTOCONF)){
+    878          				/*remove invalidation address (autoconfigration)*/
+    879          				lowsn_ds6_uaddr_rm(&lowsn_ds6_if.uaddr_list[i]);
+    880          				DEBUG_STRING(DBG_INFO, "Remove an invalidation uaddr\r\n");
+    881          			}
+    882          		}
+    883          	}
+    884          	
+    885          	/*Event 2--Remove invalidation Prefix*/
+    886          	for(i=0; i<LOWSN_DS6_PREFIX_NB; i++){
+    887          		if(lowsn_ds6_prefix_list[i].isused && !lowsn_ds6_prefix_list[i].isinfinite){
+    888          			if( lowsn_ds6_prefix_list[i].invalidtime <=internal_clock){
+    889          				lowsn_ds6_prefix_rm(&lowsn_ds6_prefix_list[i]);
+    890          				DEBUG_STRING(DBG_INFO, "Remove an invalidation Prefix\r\n");
+    891          			}
+    892          		}
+    893          	}
+    894          
+    895          	/*Event 3--Remove invalidation Default Router*/
+    896          	for(i=0; i<LOWSN_DS6_DEFRT_NB; i++){
+    897          		if(lowsn_ds6_defrt_list[i].isused && !lowsn_ds6_defrt_list[i].isinfinite){
+    898          			if(lowsn_ds6_defrt_list[i].invalidtime <=internal_clock){
+    899          				/*_ MUST update the Destination Cache_*/
+    900          				lowsn_ds6_dest_update(&lowsn_ds6_defrt_list[i].ipaddr);
+    901          //				for(j=0; j<LOWSN_DS6_DEST_NB; j++){
+    902          //					if(lowsn_ds6_dest_cache[j].isused &&
+    903          //								(lowsn_ds6_ipcmp(&lowsn_ds6_dest_cache[j].nexthop, &lowsn_ds6_defrt_list[i].ipaddr))){
+    904          //						lowsn_ds6_dest_rm(&lowsn_ds6_dest_cache[j]);
+    905          //					}
+    906          //				}		
+    907          				lowsn_ds6_defrt_rm(&lowsn_ds6_defrt_list[i]);
+    908          				DEBUG_STRING(DBG_INFO, "Remove an invalidation Default Router\r\n");
+    909          			}
+    910          		}
+    911          	}
+    912          
+    913          	/*Event 4--Host send RS Message*/
+    914          #ifdef LOWSN_COORDINATOR
+    915          #else
+    916          	if((lowsn_ds6_if.sendrs <= internal_clock)&&(lowsn_ds6_if.sendrs != 0)){
+    917          		if(lowsn_ds6_if.rscount == LOWSN_ND6_MAX_RTR_SOLICITATIONS){
+    918          			lowsn_ds6_if.sendrs = 0;
+    919          		}
+    920          		else{
+    921          			if(lladdr_dadfail == 1){
+    922          				stimer_set(&lowsn_ds6_if.sendrs, 0);
+    923          				return;
+    924          			}
+    925          			stimer_set(&lowsn_ds6_if.sendrs, LOWSN_ND6_RTR_SOLICITATION_INTERVAL);
+    926          			lowsn_ds6_if.rscount++;
+    927          			lowsn_nd_rs_output();
+    928          			DEBUG_STRING(DBG_INFO, "Host send an RS\r\n");
+    929          			return;	
+    930          		}
+    931          	}
+    932          #endif
+    933          
+    934          	/*Event 5--IPv6 packet reassembly timeout*/
+    935          	if(lowsn_reassbuf.isused){
+    936          		if(lowsn_reassbuf.reass_timer <= internal_clock){
+    937          			DEBUG_STRING(DBG_INFO, "reassembly timeout\r\n");
+    938          			lowsn_reass_timeout();
+    939          			 /* copy the header for src and dest address*/
+    940          //			memcpy(LOWSN_IP_BUF, FBUF, LOWSN_IPH_LEN);
+    941          //			lowsn_icmp6_error_output(ICMP6_TIME_EXCEEDED, ICMP6_TIME_EXCEED_REASSEMBLY, 0);
+    942          //			memset(&lowsn_reassbuf, 0, sizeof(lowsn_reassbuf));
+    943          //			stimer_set(&lowsn_reassbuf.reass_timer, 0);
+    944          			return;
+    945          		}
+    946          	}
+    947          
+    948          	/*Event 6--update the PMTU*/
+    949          	if(pmtu.age<=internal_clock){
+    950          		DEBUG_STRING(DBG_INFO, "update the PMTU.\r\n");
+    951          		pmtu.size = lowsn_ds6_if.link_mtu;
+    952          		stimer_set(&pmtu.age, PMTU_UPDATE_INTERVAL);
+    953          	}
+    954          }
+    955          
+    956          
+    957          
+    958          /*---------------------------------------------------------------------------*/
+    959          /** \brief add a new entry to the Neighbor Cache Table
+    960           * arguments:	ipaddr		the on-link ipv6 address of the neighbor's
+    961           *			lladdr		the link layer address of the neighbor's
+    962           *			isrouter		indicate wether the neighbor is an router
+    963           *			state		the state of the new Neighbor Cache Table entry
+    964           *
+    965           */
+    966           lowsn_ds6_nbr_t *
+    967           lowsn_ds6_nbr_add(lowsn_ipaddr_t *ipaddr, lowsn_lladdr_t *lladdr,
+    968          				 uint8_t isrouter, uint8_t state)
+    969          {
+    970          	int r;
+    971          
+    972          	r = lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_nbr_cache, LOWSN_DS6_NBR_NB,
+    973          		sizeof(lowsn_ds6_nbr_t), ipaddr, 128, (lowsn_ds6_element_t **)&locnbr);
+    974          
+    975          	//we have found a free space, add the new entry
+    976          	if(r == FREESPACE) {
+    977          		locnbr->isused = 1;
+    978          		lowsn_ipaddr_copy(&locnbr->ipaddr, ipaddr);
+    979          		if(lladdr != NULL) {
+    980          			memcpy(&locnbr->lladdr, lladdr, LOWSN_LLADDR_LEN);
+    981          		} else {
+    982          			memset(&locnbr->lladdr, 0, LOWSN_LLADDR_LEN);
+    983          		}
+    984          		locnbr->isrouter = isrouter;
+    985          		locnbr->state = state;
+    986          
+    987          		/* timers are set separately, for now we put them in expired state
+    988                  and set the reachable and sendns timer to 0*/
+    989          		stimer_set(&(locnbr->reachable), 0);
+    990          		stimer_set(&(locnbr->sendns), 0);
+    991          		locnbr->nscount = 0;
+    992          		locnbr->last_lookup =sysclock_get();
+    993          			
+    994          		DEBUG_STRING(DBG_INFO, "Adding neighbor with ip addr ");
+    995          		PRINT6ADDR(ipaddr);
+    996          		DEBUG_STRING(DBG_INFO, "link addr ");
+    997          		PRINTLLADDR((&(locnbr->lladdr)));
+    998          		DEBUG_STRING(DBG_INFO, "state %u\r\n", state);
+    999          
+   1000          		return locnbr;
+   1001          	}
+   1002          	else if(r == NOSPACE) {
+   1003          		/* We did not find any empty slot on the neighbor list, so we need
+   1004               	  to remove one old entry to make room. */
+   1005          		lowsn_ds6_nbr_t *n, *oldest;
+   1006          		systime_s_t oldest_time;
+   1007          
+   1008          		oldest = NULL;
+   1009          		oldest_time = sysclock_get();
+   1010          
+   1011          		for(n = lowsn_ds6_nbr_cache; n < &lowsn_ds6_nbr_cache[LOWSN_DS6_NBR_NB];n++) {
+   1012          			if(n->isused) {
+   1013          				if(n->last_lookup < oldest_time) {
+   1014          					oldest = n;
+   1015          					oldest_time = n->last_lookup;
+   1016          				}
+   1017          			}
+   1018          		}
+   1019          		if(oldest != NULL) {
+   1020          			lowsn_ds6_nbr_rm(oldest);
+   1021          			return lowsn_ds6_nbr_add(ipaddr, lladdr, isrouter, state);
+   1022          		}
+   1023          	}
+   1024          	return NULL;
+   1025          }
+   1026          
+   1027          
+   1028          /*---------------------------------------------------------------------------*/
+   1029          /** \brief remove a entry existing in  the Neighbor Cache Table
+   1030           * arguments:	nbr		the pointer point to the entry that need to be removed
+   1031           *
+   1032           * retrv:	none
+   1033           */
+   1034           void lowsn_ds6_nbr_rm(lowsn_ds6_nbr_t *nbr){
+   1035            if(nbr != NULL) {
+   1036          	nbr->isused = 0;
+   1037          	nbr->sendns = 0;
+   1038          	nbr->nscount = 0;
+   1039          #if LOWSN_CONF_IPV6_QUEUE_PKT
+   1040              /** free the packet existing in the queue buffer,
+   1041                *  waiting for address resolution complete.
+   1042                */
+   1043                nbr->queue_buflen = 0;
+   1044          
+   1045          #endif /* LOWSN_CONF_IPV6_QUEUE_PKT */
+   1046            }
+   1047            return;
+   1048          }
+   1049          
+   1050          
+   1051          /*---------------------------------------------------------------------------*/
+   1052          /** \brief lookup a sutiable entry in the neighbor cache based on ipv6 address
+   1053           * arguments:	ipaddr	the ipv6 address
+   1054           *
+   1055           * retrv:	the pointer of the found entry
+   1056           */
+   1057          lowsn_ds6_nbr_t *
+   1058          lowsn_ds6_nbr_lookup(lowsn_ipaddr_t *ipaddr)
+   1059          {
+   1060            if(lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_nbr_cache, LOWSN_DS6_NBR_NB,
+   1061                sizeof(lowsn_ds6_nbr_t), ipaddr, 128,
+   1062                (lowsn_ds6_element_t **)&locnbr) == FOUND) {
+   1063              locnbr->last_lookup = sysclock_get();
+   1064              return locnbr;
+   1065            }
+   1066            return NULL;
+   1067          }
+   1068          
+   1069          /*---------------------------------------------------------------------------*/
+   1070          /** \brief lookup a sutiable entry in the neighbor cache based on link layer address
+   1071           * arguments:	lladdr	the link layer address
+   1072           *
+   1073           * retrv:	the pointer of the found entry
+   1074           */
+   1075          lowsn_ds6_nbr_t *
+   1076          lowsn_ds6_nbr_ll_lookup(lowsn_lladdr_t *lladdr)
+   1077          {
+   1078            lowsn_ds6_nbr_t *fin;
+   1079          
+   1080            for(locnbr = lowsn_ds6_nbr_cache, fin = locnbr + LOWSN_DS6_NBR_NB;
+   1081                 locnbr < fin;
+   1082                 ++locnbr) {
+   1083              if(locnbr->isused) {
+   1084                if(!memcmp(lladdr, &locnbr->lladdr, LOWSN_LLADDR_LEN)) {
+   1085                  return locnbr;
+   1086                }
+   1087              }
+   1088            }
+   1089            return NULL;
+   1090          }
+   1091          
+   1092          /*---------------------------------------------------------------------------*/
+   1093          /**
+   1094            * destination cache table basic routines
+   1095          **/
+   1096          lowsn_ds6_dest_t *
+   1097          lowsn_ds6_dest_add(lowsn_ipaddr_t *ipaddr, lowsn_ipaddr_t *nexthop)
+   1098          {
+   1099          	int r;
+   1100          	r = lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_dest_cache, LOWSN_DS6_DEST_NB,
+   1101          			sizeof(lowsn_ds6_dest_t), ipaddr, 128, (lowsn_ds6_element_t **)&locdest) ;
+   1102          	if(r == FREESPACE) {
+   1103          		lowsn_ipaddr_copy(&locdest->destaddr, ipaddr);
+   1104          		lowsn_ipaddr_copy(&locdest->nexthop, nexthop);
+   1105          		locdest->last_lookup = sysclock_get();
+   1106          		locdest->isused = 1;
+   1107          			
+   1108          		DEBUG_STRING(DBG_INFO, "Adding dest with ip addr ");
+   1109          		PRINT6ADDR(ipaddr);
+   1110          		DEBUG_STRING(DBG_INFO, "next addr ");
+   1111          		PRINT6ADDR(nexthop);
+   1112          		DEBUG_STRING(DBG_INFO, "\r\n");
+   1113          		return locdest;
+   1114          	}
+   1115          	else if(r == NOSPACE){
+   1116          		/* We did not find any empty slot on the destination cache list, so we need
+   1117               	  to remove one old entry to make room. */
+   1118          		lowsn_ds6_dest_t *n, *oldest;
+   1119          		systime_s_t oldest_time;
+   1120          
+   1121          		oldest = NULL;
+   1122          		oldest_time = sysclock_get();
+   1123          
+   1124          		for(n = lowsn_ds6_dest_cache; n < &lowsn_ds6_dest_cache[LOWSN_DS6_DEST_NB];n++) {
+   1125          			if(n->isused) {
+   1126          				if(n->last_lookup < oldest_time) {
+   1127          					oldest = n;
+   1128          					oldest_time = n->last_lookup;
+   1129          				}
+   1130          			}
+   1131          		}
+   1132          		if(oldest != NULL) {
+   1133          			lowsn_ds6_dest_rm(oldest);
+   1134          			return lowsn_ds6_dest_add(ipaddr, nexthop);
+   1135          		}
+   1136          	}
+   1137          	return NULL;
+   1138          }
+   1139          
+   1140          
+   1141          
+   1142          void
+   1143          lowsn_ds6_dest_rm(lowsn_ds6_dest_t *destcach)
+   1144          {
+   1145            if(destcach != NULL) {
+   1146              destcach->isused = 0;
+   1147            }
+   1148            return;
+   1149          }
+   1150          
+   1151          
+   1152          
+   1153          lowsn_ds6_dest_t *
+   1154          lowsn_ds6_dest_lookup(lowsn_ipaddr_t *ipaddress)
+   1155          {
+   1156          	if(lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_dest_cache,
+   1157          		       LOWSN_DS6_DEST_NB, sizeof(lowsn_ds6_dest_t), ipaddress, 128,
+   1158          		       (lowsn_ds6_element_t **)&locdest) == FOUND) {
+   1159          		locdest->last_lookup = sysclock_get();
+   1160          		return locdest;
+   1161          	}
+   1162          	return NULL;
+   1163          }
+   1164          
+   1165          /**\update the destination cache table*/
+   1166          void lowsn_ds6_dest_update(lowsn_ipaddr_t* ipaddress){
+   1167          	uint8_t i = 0;
+   1168          	for(i=0; i< LOWSN_DS6_DEST_NB; i++){
+   1169          		if(lowsn_ds6_ipcmp(&lowsn_ds6_dest_cache[i].nexthop, ipaddress)){
+   1170             			lowsn_ds6_dest_cache[i].isused = 0;
+   1171          		}
+   1172          	}
+   1173          }
+   1174          
+   1175          
+   1176          
+   1177          
+   1178          
+   1179          /*---------------------------------------------------------------------------*/
+   1180          /** \brief add a new entry to the default router table*/
+   1181          lowsn_ds6_defrt_t *
+   1182          lowsn_ds6_defrt_add(lowsn_ipaddr_t *ipaddr, unsigned long interval)
+   1183          {
+   1184          	if(lowsn_ds6_list_loop
+   1185          		  ((lowsn_ds6_element_t *)lowsn_ds6_defrt_list, LOWSN_DS6_DEFRT_NB,
+   1186          		  sizeof(lowsn_ds6_defrt_t), ipaddr, 128,
+   1187          	  	  (lowsn_ds6_element_t **)&locdefrt) == FREESPACE)
+   1188          	{
+   1189          		locdefrt->isused = 1;
+   1190          		locdefrt->fail = 0;
+   1191          		lowsn_ipaddr_copy(&locdefrt->ipaddr, ipaddr);
+   1192          		if(interval != 0) {
+   1193          			stimer_set(&locdefrt->invalidtime, interval);
+   1194          			locdefrt->isinfinite = 0;
+   1195          		}
+   1196          		else {
+   1197          			locdefrt->isinfinite = 1;
+   1198          		}
+   1199          		
+   1200          		DEBUG_STRING(DBG_INFO, "Adding defrt with ip addr:");
+   1201          		PRINT6ADDR(ipaddr);
+   1202          		DEBUG_STRING(DBG_INFO, "isinfnite==%d",locdefrt->isinfinite);
+   1203          		DEBUG_STRING(DBG_INFO, "\r\n");
+   1204          		
+   1205          		return locdefrt;
+   1206          	}
+   1207          	return NULL;
+   1208          }
+   1209          
+   1210          
+   1211          /*---------------------------------------------------------------------------*/
+   1212          /** \brief remove a entry existing in the default router table*/
+   1213          void lowsn_ds6_defrt_rm(lowsn_ds6_defrt_t *defrt)
+   1214          {
+   1215          	if(defrt != NULL) {
+   1216          		/*update the destination cache table*/
+   1217          		lowsn_ds6_dest_update(&defrt->ipaddr);
+   1218          		
+   1219          		defrt->isused = 0;
+   1220          		defrt->invalidtime = 0;
+   1221          		defrt->fail = 0;
+   1222          	}
+   1223          	return;
+   1224          }
+   1225          
+   1226          
+   1227          
+   1228          
+   1229          /*---------------------------------------------------------------------------*/
+   1230          /** \brief lookup a sutiable entry in the default router table based on ipv6 address*/
+   1231          lowsn_ds6_defrt_t *
+   1232          lowsn_ds6_defrt_lookup(lowsn_ipaddr_t *ipaddr)
+   1233          {
+   1234            if(lowsn_ds6_list_loop((lowsn_ds6_element_t *)lowsn_ds6_defrt_list,
+   1235          		       LOWSN_DS6_DEFRT_NB, sizeof(lowsn_ds6_defrt_t), ipaddr, 128,
+   1236          		       (lowsn_ds6_element_t **)&locdefrt) == FOUND) {
+   1237              return locdefrt;
+   1238            }
+   1239            return NULL;
+   1240          }
+   1241          
+   1242          /*---------------------------------------------------------------------------*/
+   1243          /** \brief choose a router as the next hop from the default router table*/
+   1244          /*the best router is that its link layer address exists in the neighbor cache table*/
+   1245          lowsn_ipaddr_t *
+   1246          lowsn_ds6_defrt_choose(void)
+   1247          {
+   1248           	lowsn_ds6_nbr_t *bestnbr;
+   1249          	uint8_t defrtpriority=0, tmppriority=0;
+   1250          	lowsn_ds6_defrt_t* bestdefrt = NULL;
+   1251          
+   1252          	locipaddr = NULL;
+   1253          	for(locdefrt = lowsn_ds6_defrt_list; locdefrt < lowsn_ds6_defrt_list + LOWSN_DS6_DEFRT_NB; locdefrt++) {
+   1254          		if(locdefrt->isused) {
+   1255          			bestnbr = lowsn_ds6_nbr_lookup(&locdefrt->ipaddr);
+   1256          			if(bestnbr != NULL && bestnbr->state != NBR_INCOMPLETE){
+   1257          				tmppriority = 3;
+   1258          			}
+   1259          			else if(locdefrt->fail == 0){
+   1260          				tmppriority = 2;
+   1261          			}
+   1262          			else if(locdefrt->fail == 1){
+   1263          				tmppriority = 1;
+   1264          			}
+   1265          			
+   1266          			if(tmppriority > defrtpriority){
+   1267          				bestdefrt = locdefrt;
+   1268          				locipaddr = &bestdefrt->ipaddr;
+   1269          				defrtpriority = tmppriority;
+   1270          			}
+   1271          		}
+   1272          	}
+   1273          	if(locipaddr == NULL){
+   1274          		printf("there is no default router\r\n");
+   1275          	}
+   1276          	return locipaddr;
+   1277          }
+   1278          
+   1279          
+   1280          
+   1281          
+   1282          /*----------------------------------------------------------------------*/
+   1283          /**breif: compute the reachable time based on base reachable time. see RFC 4861*/
+   1284          uint32_t
+   1285          lowsn_ds6_compute_reachable_time(void)
+   1286          {
+   1287          	return (uint32_t)(LOWSN_ND6_MIN_RANDOM_FACTOR(lowsn_ds6_if.base_reachable_time))+
+   1288          		((uint16_t)(random_rand()<<8) + (uint16_t)random_rand())%
+   1289          		(uint32_t) (LOWSN_ND6_MAX_RANDOM_FACTOR(lowsn_ds6_if.base_reachable_time) -
+   1290                          LOWSN_ND6_MIN_RANDOM_FACTOR(lowsn_ds6_if.base_reachable_time));
+   1291          
+   1292          }
+   1293          
+   1294          unsigned short random_rand(void)
+   1295          {
+   1296            return (unsigned short)rand();
+   1297          }
+   1298          
+   1299          
+   1300          
+   1301          
+   1302          
+   1303          /*--------------------------------------------------------------------*/
+   1304          #if LOWSN_ND6_DEF_MAXDADNS > 0
+   1305          void
+   1306          lowsn_ds6_dad(lowsn_ds6_uaddr_t *addr)
+   1307          {
+   1308            /* send maxdadns NS for DAD  */
+   1309            if(addr->dadnscount < lowsn_ds6_if.maxdadns) {
+   1310              lowsn_nd_ns_output(NULL, NULL, &addr->ipaddr);
+   1311              addr->dadnscount++;
+   1312              mstimer_set(&addr->dadtimer, (lowsn_ds6_if.retrans_tminterval));
+   1313              return;
+   1314            }
+   1315            /*
+   1316             * If we arrive here it means DAD succeeded, otherwise the dad process
+   1317             * would have been interrupted in ds6_dad_ns/na_input
+   1318             */
+   1319            DEBUG_STRING(DBG_INFO, "DAD succeeded, ipaddr:");
+   1320            PRINT6ADDR(&addr->ipaddr);
+   1321            DEBUG_STRING(DBG_INFO, "\r\n");
+   1322          
+   1323            addr->state = ADDR_PREFERRED;
+   1324            addr->dadtimer = 0;
+   1325            if(lowsn_is_addr_link_local(&addr->ipaddr)){
+   1326            	stimer_set(&lowsn_ds6_if.sendrs, LOWSN_ND6_MAX_RTR_SOLICITATION_DELAY);
+   1327            }
+   1328            return;
+   1329          }
+   1330          
+   1331          /*---------------------------------------------------------------------------*/
+   1332          /*
+   1333           * Calling code must handle when this returns 0 (e.g. link local
+   1334           * address can not be used).
+   1335           */
+   1336          int
+   1337          lowsn_ds6_dad_failed(lowsn_ds6_uaddr_t *addr)
+   1338          {
+   1339          	if(lowsn_is_addr_link_local(&addr->ipaddr)) {
+   1340          		printf("6LoWSN shutdown, DAD for link local address failed\r\n");
+   1341          		lladdr_dadfail = 1;
+   1342          		return 0;
+   1343          	}
+   1344          	lowsn_ds6_uaddr_rm(addr);
+   1345          	return 1;
+   1346          }
+   1347          #endif /*LOWSN_ND6_DEF_MAXDADNS > 0 */
+   1348          
+   1349          
+   1350          
+   1351          
+   1352          
+   1353          
+   1354          
+   1355          
+   1356          
+   1357          
+   1358          
+   1359          
+   1360          
+   1361          
+   1362          
+   1363          
+   1364          
+   1365          
+   1366          
+   1367          
+   1368          
+   1369          
+   1370          
+   1371          
+   1372          
+   1373          
+   1374          
+   1375          
+   1376          
+   1377          #endif   // #if  0
+   1378          
+   1379          
+   1380          
+
+   Maximum stack usage in bytes:
+
+     Function                       ISTACK PSTACK XSTACK
+     --------                       ------ ------ ------
+     ds6FindGlobalIP                    2      0      0
+     ds6FindLinkLocalIP                 2      0     14
+     ds6FindSrcIP                       0      0     14
+       -> ds6FindLinkLocalIP            0      0     28
+       -> ds6MatchNum                   0      0     28
+       -> ds6FindLinkLocalIP            0      0     28
+     ds6GenInterfaceID16                1      0     12
+     ds6GenInterfaceID64                2      0     12
+       -> halGetProcessorIEEEAddress
+                                        4      0      0
+     ds6GenInterfaceID_EUI              1      0     16
+       -> memcpy                        0      0     32
+       -> memcpy                        0      0     32
+       -> memcpy                        0      0     32
+     ds6Init                            0      0     20
+       -> memset                        0      0     28
+       -> memset                        0      0     28
+       -> lowsn_ds6_prefix_add          0      0     40
+       -> ds6GenInterfaceID64           0      0     24
+       -> lowsn_ds6_uaddr_add           0      0     32
+       -> lowsn_ds6_maddr_add           0      0     24
+       -> lowsn_ds6_maddr_add           0      0     24
+     ds6LocalIPFrom16                   2      0      4
+       -> ds6GenInterfaceID16           4      0      4
+       -> lowsn_ds6_uaddr_add           4      0      8
+     ds6MatchNum                        1      0     26
+     ds6TestOnLink                      0      0     12
+       -> memcmp                        0      0     24
+     lowsn_ds6_aaddr_add                2      0     17
+       -> lowsn_ds6_list_loop           0      0     34
+     lowsn_ds6_aaddr_lookup             0      0     15
+       -> lowsn_ds6_list_loop           0      0     30
+     lowsn_ds6_aaddr_rm                 3      0      0
+     lowsn_ds6_ipcmp                    0      0      9
+     lowsn_ds6_list_loop                0      0     43
+       -> memcmp                        0      0     40
+     lowsn_ds6_lladdr_cmp               0      0      9
+     lowsn_ds6_maddr_add                2      0     33
+       -> lowsn_ds6_list_loop           0      0     34
+     lowsn_ds6_maddr_lookup             0      0     25
+       -> lowsn_ds6_list_loop           0      0     30
+     lowsn_ds6_maddr_rm                 3      0     10
+     lowsn_ds6_prefix_add               2      0     43
+       -> lowsn_ds6_list_loop           0      0     46
+       -> conPrintIP6ADDR               0      0     36
+       -> conPrintUINT16                0      0     36
+     lowsn_ds6_prefix_lookup            0      0     15
+       -> lowsn_ds6_list_loop           0      0     30
+     lowsn_ds6_prefix_rm                1      0     12
+       -> conPrintIP6ADDR               0      0     24
+       -> conPrintUINT16                0      0     24
+     lowsn_ds6_uaddr_add                2      0     37
+       -> lowsn_ds6_list_loop           0      0     42
+       -> conPrintIP6ADDR               0      0     32
+       -> conPrintUINT16                0      0     32
+       -> lowsn_ds6_maddr_add           0      0     32
+     lowsn_ds6_uaddr_lookup             0      0     15
+       -> lowsn_ds6_list_loop           0      0     30
+     lowsn_ds6_uaddr_rm                 1      0     10
+       -> lowsn_ds6_maddr_lookup        0      0     20
+       -> lowsn_ds6_maddr_rm            0      0     20
+     lowsn_htonl                        0      0     16
+     lowsn_htons                        0      0      0
+
+
+   Segment part sizes:
+
+     Function/Label                     Bytes
+     --------------                     -----
+     lowsn_ds6_if                        279
+     lowsn_ds6_prefix_list                96
+     lladdr_dadfail                        1
+     loc_fipaddr                          16
+     locuaddr                              2
+     locmaddr                              2
+     locaaddr                              2
+     locprefix                             2
+     lowsn_lladdr                          8
+     ds6Init                             220
+     ?Subroutine1                         26
+     ?Subroutine2                         13
+     ?Subroutine36                        21
+     ?Subroutine5                          9
+     ?Subroutine29                        14
+     ?Subroutine38                         5
+     ds6LocalIPFrom16                     56
+     ?Subroutine39                         7
+     lowsn_ds6_list_loop                 216
+     ?Subroutine8                          9
+     ?Subroutine40                         5
+     ??Subroutine46_0                      5
+     lowsn_ds6_prefix_add                217
+     ?Subroutine31                         1
+     ??Subroutine44_0                      2
+     ??Subroutine45_0                      6
+     ?Subroutine23                         8
+     ?Subroutine20                         7
+     ?Subroutine12                         3
+     ??Subroutine47_0                      4
+     ??Subroutine48_0                      7
+     ?Subroutine32                        11
+     ?Subroutine25                        10
+     ??Subroutine50_0                      6
+     ??Subroutine51_0                     10
+     ??Subroutine52_0                      6
+     ?Subroutine34                        10
+     lowsn_ds6_prefix_rm                  82
+     ?Subroutine24                         8
+     ??Subroutine49_0                      5
+     lowsn_ds6_prefix_lookup              57
+     ?Subroutine41                         5
+     lowsn_ds6_uaddr_add                 204
+     ?Subroutine11                         3
+     ?Subroutine26                         8
+     ?Subroutine22                        15
+     ?Subroutine35                         6
+     ?Subroutine0                         27
+     ?Subroutine7                         13
+     ?Subroutine9                          3
+     ?Subroutine14                         3
+     lowsn_ds6_uaddr_rm                   78
+     lowsn_ds6_uaddr_lookup               64
+     lowsn_ds6_maddr_add                 105
+     ?Subroutine10                         8
+     lowsn_ds6_maddr_rm                   30
+     ?Subroutine28                         3
+     lowsn_ds6_maddr_lookup               64
+     lowsn_ds6_aaddr_add                  94
+     lowsn_ds6_aaddr_rm                   19
+     lowsn_ds6_aaddr_lookup               67
+     ds6TestOnLink                       115
+     ??Subroutine54_0                      5
+     ds6FindSrcIP                        259
+     ?Subroutine42                         5
+     ?Subroutine27                        12
+     ?Subroutine6                          4
+     ?Subroutine30                         6
+     ?Subroutine37                        10
+     ?Subroutine4                          8
+     ??Subroutine53_0                      8
+     ?Subroutine15                        12
+     ?Subroutine13                         3
+     ?Subroutine3                         13
+     ds6FindLinkLocalIP                   57
+     ?Subroutine17                         3
+     ?Subroutine19                        12
+     ?Subroutine18                        12
+     ?Subroutine33                        11
+     ?Subroutine16                        20
+     ds6FindGlobalIP                      59
+     ds6GenInterfaceID_EUI               135
+     ds6GenInterfaceID64                  24
+     ds6GenInterfaceID16                 117
+     ds6MatchNum                          96
+     lowsn_htons                           9
+     lowsn_htonl                          85
+     lowsn_ds6_ipcmp                      20
+     ?Subroutine43                         5
+     ?Subroutine21                        25
+     lowsn_ds6_lladdr_cmp                 22
+     __Constant_7f                         4
+     ?<Initializer for __Constant_7f>      4
+     __Constant_7530                       4
+     ?<Initializer for __Constant_7530>    4
+     __Constant_3e8                        4
+     ?<Initializer for __Constant_3e8>     4
+     __Constant_0                          4
+     ?<Initializer for __Constant_0>       4
+     ??ds6Init?relay                       6
+     ??ds6LocalIPFrom16?relay              6
+     ??lowsn_ds6_list_loop?relay           6
+     ??lowsn_ds6_prefix_add?relay          6
+     ??lowsn_ds6_prefix_rm?relay           6
+     ??lowsn_ds6_prefix_lookup?relay       6
+     ??lowsn_ds6_uaddr_add?relay           6
+     ??lowsn_ds6_uaddr_rm?relay            6
+     ??lowsn_ds6_uaddr_lookup?relay        6
+     ??lowsn_ds6_maddr_add?relay           6
+     ??lowsn_ds6_maddr_rm?relay            6
+     ??lowsn_ds6_maddr_lookup?relay        6
+     ??lowsn_ds6_aaddr_add?relay           6
+     ??lowsn_ds6_aaddr_rm?relay            6
+     ??lowsn_ds6_aaddr_lookup?relay        6
+     ??ds6TestOnLink?relay                 6
+     ??ds6FindSrcIP?relay                  6
+     ??ds6FindLinkLocalIP?relay            6
+     ??ds6FindGlobalIP?relay               6
+     ??ds6GenInterfaceID_EUI?relay         6
+     ??ds6GenInterfaceID64?relay           6
+     ??ds6GenInterfaceID16?relay           6
+     ??ds6MatchNum?relay                   6
+     ??lowsn_htons?relay                   6
+     ??lowsn_htonl?relay                   6
+     ??lowsn_ds6_ipcmp?relay               6
+     ??lowsn_ds6_lladdr_cmp?relay          6
+
+ 
+ 3 057 bytes in segment BANKED_CODE
+   162 bytes in segment BANK_RELAYS
+    16 bytes in segment XDATA_I
+    16 bytes in segment XDATA_ID
+   408 bytes in segment XDATA_Z
+ 
+ 3 219 bytes of CODE  memory (+ 16 bytes shared)
+   408 bytes of XDATA memory (+ 16 bytes shared)
+
+Errors: none
+Warnings: 4

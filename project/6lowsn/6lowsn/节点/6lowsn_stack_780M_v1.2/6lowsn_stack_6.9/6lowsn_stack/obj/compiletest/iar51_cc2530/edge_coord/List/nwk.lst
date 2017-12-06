@@ -1,0 +1,2397 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:36 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\nwk.c             #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\nwk.c -D          #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_SLIP_TO_HOST -lcN F:\6LoWSN\6lowsn_stack\obj #
+#                          \compiletest\iar51_cc2530\edge_coord\List\ -o      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\ -e --debug --core=plain          #
+#                          --dptr=16,1 --data_model=large                     #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\List\nwk.lst                          #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\nwk.r51                           #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\nwk.c
+      1          
+      2          /******************************************************************************************************
+      3          *
+      4          * 文 件 名：nwk.c
+      5          *
+      6          * 文件描述：
+      7          *
+      8          * 创 建 者：Ji Shanyang
+      9          *
+     10          * 当前版本： 0.50
+     11          *
+     12          * 修 改 者：
+     13          *
+     14          * 修改历史：
+     15          
+     16          
+     17          
+     18          ********************************************************************************************************/
+     19          #include <stdlib.h>
+     20          #include <string.h>
+     21          
+     22          #include "compiler.h"
+     23          #include "6lowsn_config.h"         //user configurations
+     24          #include "6lowsn_common_types.h"   //types common acrosss most files
+     25          #include "ieee_lrwpan_defs.h"
+     26          #include "ds.h"
+     27          #include "console.h"
+     28          #include "debug.h"
+     29          #include "memalloc.h"
+     30          #include "neighbor.h"
+     31          #include "icmpv6.h"
+     32          #include "nd.h"
+     33          #include "hal.h"
+     34          #include "halStack.h"
+     35          #include "phy.h"
+     36          #include "mac.h"
+     37          #include "adp.h"
+     38          #include "nwk.h"
+     39          #include "mp.h"
+     40          #include "aps.h"
+     41          #include "evboard.h"
+     42          #include "nd.h"
+     43          #ifdef LOWSN_COORDINATOR
+     44          #ifdef LOWSN_SLIP_TO_HOST
+     45          #include "slip.h"
+     46          #endif
+     47          #endif
+     48          
+     49          
+     50          
+     51          static UINT32 nwk_utility_timer;   //utility timer
+     52          
+     53          /** \name Buffer variables
+     54           ** @{ */
+     55          /** Packet buffer for incoming and outgoing packets */
+     56          lowsn_buf_t lowsn_aligned_buf;
+     57          uint16_t lowsn_len;	//the packet length in the lowsn_aligned_buf
+     58          /*define the fragment buffer*/
+     59          lowsn_ds6_fragbuf_t lowsn_fragbuf;
+     60          /**define the reassemble buffer*/
+     61          lowsn_ds6_reassbuf_t lowsn_reassbuf;
+     62          /**define the swap buffer*/
+     63          lowsn_swap_buf_t lowsn_swap_buf;
+     64          /** @} */
+     65          
+     66          
+     67          
+     68          /** \name UDP connections and pointer*/
+     69          /** @{ */
+     70          /**define the UDP connections*/
+     71          lowsn_udp_conn_t *lowsn_udp_conn;
+     72          lowsn_udp_conn_t lowsn_udp_conns[LOWSN_UDP_CONNS];
+     73          /** @} */
+     74          
+     75          /** \network layer  Finite State Machine(FSM) variables*/
+     76          /** @{ */
+     77          lowsn_ipv6_state_t nwkState;
+     78          lowsn_ipv6_rxstate_t nwkRxState;
+     79          lowsn_ipv6_service_t a_nwk_service;
+     80          lowsn_ipv6_pib_t nwk_pib;
+     81          NWK_TX_DATA a_nwk_tx_data;
+     82          NWK_RX_DATA a_nwk_rx_data;
+     83          /** @} */
+     84          
+     85          #ifdef LOWSN_COORDINATOR
+     86          #ifdef LOWSN_SLIP_TO_HOST
+     87          // 用于恢复压缩的IP头使用
+     88          BYTE ip_header_buf[LOWSN_IPH_LEN]; 
+     89          #endif
+     90          #endif
+     91          
+     92          extern systime_s_t internalclock;
+     93          extern systime_ms_t internalclock_ms;
+     94          extern uint8_t lladdr_dadfail;
+     95          
+     96          /**
+     97            * @{\* define the PMUT (used by network layer)
+     98          **/
+     99          lowsn_ds6_pmtu_t pmtu;
+    100          /**
+    101            * @}\*
+    102          **/
+    103          
+    104          
+    105          /*---------------------------------------------------------------------------*/
+    106          /* Buffers                                                                   */
+    107          /*---------------------------------------------------------------------------*/
+    108          /** \name Buffer defines
+    109           *  @{
+    110           */
+    111          #define FBUF                            					 ((lowsn_ip_hdr_t *)&lowsn_reassbuf.buf[0])
+    112          #define LOWSN_IP_BUF                          ((lowsn_ip_hdr_t *)&lowsn_buf[LOWSN_LLH_LEN])
+    113          #define LOWSN_ICMP_BUF                      ((lowsn_icmp6_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+    114          #define LOWSN_ECHO_BUF				 ((lowsn_echo_hdr_t *)&lowsn_buf[LOWSN_LLH_LEN + LOWSN_IPH_LEN+LOWSN_ICMPH_LEN])
+    115          //#define LOWSN_UDP_BUF                        ((lowsn_udp_hdr_t *)&lowsn_buf[LOWSN_LLH_LEN + LOWSN_IPH_LEN])
+    116          #define LOWSN_UDP_BUF                        ((lowsn_udp_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+    117          #define LOWSN_EXT_BUF                        ((lowsn_ext_hdr_t*)&lowsn_buf[lowsn_l2_l3_hdr_len])
+    118          #define LOWSN_ROUTING_BUF                ((lowsn_routing_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+    119          #define LOWSN_FRAG_BUF                      ((lowsn_frag_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+    120          #define LOWSN_HBHO_BUF                      ((lowsn_hbho_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+    121          #define LOWSN_DESTO_BUF                    ((lowsn_desto_hdr_t *)&lowsn_buf[lowsn_l2_l3_hdr_len])
+    122          #define LOWSN_EXT_HDR_OPT_BUF            ((lowsn_ext_hdr_opt_t *)&lowsn_buf[lowsn_l2_l3_hdr_len + lowsn_ext_opt_offset])
+    123          #define LOWSN_EXT_HDR_OPT_PADN_BUF  ((lowsn_ext_hdr_opt_padn_t *)&lowsn_buf[lowsn_l2_l3_hdr_len + lowsn_ext_opt_offset])
+    124          #define LOWSN_ICMP6_ERROR_BUF            ((lowsn_icmp6_error_t *)&lowsn_buf[lowsn_l2_l3_icmp_hdr_len])
+    125          /** @} */
+    126          
+    127          
+    128          /*---------------------------------------------------------------------------*/
+    129          /** @{ \name Layer 3 variables */
+    130          /*---------------------------------------------------------------------------*/
+    131          /**
+    132           * \brief Type of the next header in IPv6 header or extension headers
+    133           *
+    134           * Can be the next header field in the IPv6 header or in an extension header.
+    135           * When doing fragment reassembly, we must change the value of the next header
+    136           * field in the header before the fragmentation header, hence we need a pointer
+    137           * to this field.
+    138           */
+    139          uint8_t *lowsn_next_hdr;
+    140          /** \brief bitmap we use to record which IPv6 headers we have already seen */
+    141          uint8_t lowsn_ext_bitmap = 0;
+    142          /**
+    143           * \brief length of the extension headers read. updated each time we process
+    144           * a header
+    145           */
+    146          uint8_t lowsn_ext_len = 0;
+    147          /** \brief length of the header options read */
+    148          uint8_t lowsn_ext_opt_offset = 0;
+    149          /** @} */
+    150          
+    151          
+    152          
+    153          /*---------------------------------------------------------------------------*/
+    154          /*Calculate the checksum of the packet in lowsn_buf. */
+    155          static uint16_t
+    156          chksum(uint16_t sum, const uint8_t *data, uint16_t len)
+    157          {
+    158            uint16_t t;
+    159            const uint8_t *dataptr;
+    160            const uint8_t *last_byte;
+    161          
+    162            dataptr = data;
+    163            last_byte = data + len - 1;
+    164          
+    165            while(dataptr < last_byte) {   /* At least two more bytes */
+    166              t = (dataptr[0] << 8) + dataptr[1];
+    167              sum += t;
+    168              if(sum < t) {
+    169                sum++;      /* carry */
+    170              }
+    171              dataptr += 2;
+    172            }
+    173          
+    174            if(dataptr == last_byte) {
+    175              t = (dataptr[0] << 8) + 0;
+    176              sum += t;
+    177              if(sum < t) {
+    178                sum++;      /* carry */
+    179              }
+    180            }
+    181          
+    182            /* Return sum in host byte order. */
+    183            return sum;
+    184          }
+    185          /*---------------------------------------------------------------------------*/
+    186          uint16_t
+    187          lowsn_chksum(uint16_t *data, uint16_t len)
+    188          {
+    189            return lowsn_htons(chksum(0, (uint8_t *)data, len));
+    190          }
+    191          /*---------------------------------------------------------------------------*/
+    192          
+    193          // for send: lowsn_ipchksum(a_nwk_tx_data.IPStartPtr)
+    194          // for receive: lowsn_ipchksum(a_nwk_rx_data.orgpkt.data+a_nwk_rx_data.nwkOffset)
+    195          uint16_t
+    196          lowsn_ipchksum(BYTE *iphead_start)
+    197          {
+    198            uint16_t sum;
+    199          
+    200            //sum = chksum(0, &lowsn_buf[LOWSN_LLH_LEN], LOWSN_IPH_LEN);
+    201            sum = chksum(0, iphead_start, LOWSN_IPH_LEN);
+    202            return (sum == 0) ? 0xffff : lowsn_htons(sum);
+    203          }
+    204          /*---------------------------------------------------------------------------*/
+    205          
+    206          // 传递来的参数iphead_start是IP头部起始位置在发送或接收缓冲中的位置, 对应标准IPv6头部
+    207          // send: upper_layer_chksum(proto, a_nwk_tx_data.IPStartPtr, a_nwk_tx_data.PayloadLength)
+    208          // receive: upper_layer_chksum(proto, a_nwk_rx_data.orgpkt.data+a_nwk_rx_data.nwkOffset, a_nwk_rx_data.PayloadLength)
+    209          static uint16_t
+    210          upper_layer_chksum(uint8_t proto, BYTE *iphead_start, UINT16 ipplen)
+    211          {
+    212          
+    213            uint16_t upper_layer_len;
+    214            uint16_t sum;
+    215          
+    216            upper_layer_len = (ipplen - lowsn_ext_len);
+    217          // upper_layer_len = (a_nwk_tx_data.PayloadLength - lowsn_ext_len);
+    218           //upper_layer_len = (((uint16_t)(LOWSN_IP_BUF->len[0]) << 8) + LOWSN_IP_BUF->len[1] - lowsn_ext_len);
+    219          //  upper_layer_len = lowsn_ntohs(LOWSN_IP_BUF->len);
+    220          
+    221            /* First sum pseudoheader. */
+    222            /* IP protocol and length fields. This addition cannot carry. */
+    223            sum = upper_layer_len + proto;
+    224            /* Sum IP source and destination addresses. */
+    225           // sum = chksum(sum, (uint8_t *)&LOWSN_IP_BUF->srcipaddr, 2 * sizeof(lowsn_ipaddr_t));
+    226           //sum = chksum(sum, (uint8_t *)&(a_nwk_tx_data.SrcAddress), 2 * sizeof(lowsn_ipaddr_t));
+    227            sum = chksum(sum, iphead_start+8, 2 * sizeof(lowsn_ipaddr_t));
+    228          
+    229            /* Sum TCP header and data. */
+    230            //sum = chksum(sum, &lowsn_buf[LOWSN_IPH_LEN + LOWSN_LLH_LEN + lowsn_ext_len],
+    231            //            upper_layer_len);
+    232            //sum = chksum(sum, a_nwk_tx_data.IPStartPtr + LOWSN_IPH_LEN + lowsn_ext_len],
+    233            //             upper_layer_len);
+    234            sum = chksum(sum, iphead_start + LOWSN_IPH_LEN + lowsn_ext_len,upper_layer_len);
+    235          	
+    236            //return (sum == 0) ? 0xffff : lowsn_htons(sum);
+    237            return (sum == 0) ? 0xffff : sum;
+    238          }
+    239          /*---------------------------------------------------------------------------*/
+    240          uint16_t
+    241          lowsn_icmp6chksum(BYTE *iphead_start, UINT16 ipplen)
+    242          {
+    243            return upper_layer_chksum(LOWSN_PROTO_ICMP6, iphead_start, ipplen);
+    244          
+    245          }
+    246          /*---------------------------------------------------------------------------*/
+    247          uint16_t
+    248          lowsn_tcpchksum(BYTE *iphead_start, UINT16 ipplen)
+    249          {
+    250            return upper_layer_chksum(LOWSN_PROTO_TCP, iphead_start, ipplen);
+    251          }
+    252          /*---------------------------------------------------------------------------*/
+    253          uint16_t
+    254          lowsn_udpchksum(BYTE *iphead_start, UINT16 ipplen)
+    255          {
+    256            return upper_layer_chksum(LOWSN_PROTO_UDP, iphead_start, ipplen);
+    257          }
+    258          /*---------------------------------------------------------------------------*/
+    259          
+    260          
+    261          
+    262          void nwkInit(void)
+    263          {
+    264          
+    265          	ds6Init();
+    266          	nwk_pib.flags.val = 0;
+    267          	nwkState = NWK_STATE_IDLE;
+    268          	nwkRxState = NWK_RXSTATE_IDLE;
+    269          }
+    270          
+    271          
+    272          
+    273          /*
+    274          *brief: the network layer main FSM.
+    275          *arg: none
+    276          *return: none
+    277          */
+    278          void nwkFSM(void)
+    279          {
+    280          
+    281          	/**used by next hop determitation and address resolution**/
+    282          	//lowsn_ds6_nbr_t* nbr = NULL;
+    283          	lowsn_ipaddr_t* nexthop = NULL;
+    284          	//lowsn_ds6_dest_t* locdest=NULL;
+    285          	BYTE icmp_type;
+    286          
+    287          	adpFSM();	//the adp layer main FSM
+    288          	nwkRxFSM();	//the network layer recieving FSM
+    289          
+    290          nwkFSM_start:
+    291          	
+    292          	switch(nwkState){
+    293          		
+    294          		case NWK_STATE_IDLE:
+    295          			if(nwk_pib.flags.bits.nwkPending == 1)  {
+    296          			/**
+    297          			  *there is a solicitation packet pending in the lowsn_buf buffer. Handle it.
+    298          			  *there are 4 kinds of scenarios:
+    299          			  * (1.1) response to echo request message,
+    300          			  * (1.2) response to neighbor solicitation message,
+    301          			  * (1.3) response to router solicitation message(router only),
+    302          			  *
+    303          			  * (2) send ICMP error message.
+    304          			  *
+    305          			  * (3)send the packet triggering address resolution when the address resolution is successful.
+    306          
+    307          			**/
+    308          
+    309          				icmp_type = *(a_nwk_rx_data.orgpkt.data + a_nwk_rx_data.pload_offset);
+    310          
+    311          				switch (icmp_type) {
+    312                       			case ICMP6_ECHO_REQUEST:
+    313          
+    314          					if (phyTxUnLocked()) {
+    315                             				phyGrabTxLock(); //grab the lock
+    316                            		 		nwkState = NWK_STATE_SEND_PING_REPLY;
+    317                             	
+    318                             				goto nwkFSM_start;
+    319                          		 	}
+    320          
+    321          				#ifdef LOWSN_FFD
+    322          				
+    323                       			case ICMP6_RS:
+    324          
+    325          					DEBUG_STRING(DBG_INFO,"nwk: FSM, received RS. \n");
+    326          
+    327          					// 目前未加入对RS帧的核对，仅仅发现是RS就回应RA.
+    328          
+    329          					if (phyTxUnLocked()) {
+    330                             				phyGrabTxLock(); //grab the lock
+    331                            		 		nwkState = NWK_STATE_SEND_RA;
+    332                             				
+    333                             				goto nwkFSM_start;
+    334                          		 	}
+    335          				#endif	
+    336          
+    337          				default:
+    338                         			DEBUG_STRING(1,"NWK: Received ICMP packet that is not currently implemented, discarding.\n");
+    339                        			nwk_pib.flags.bits.nwkPending = 0;
+    340          				}	
+    341          
+    342          			
+    343          				//nwkState = NWK_STATE_NEXT_HOP_START;
+    344          				
+    345          				nwk_pib.flags.bits.nwkPending = 0; //release pending
+    346          				
+    347          				goto nwkFSM_start;
+    348          				
+    349          			}
+    350          
+    351          			#ifdef LOWSN_COORDINATOR
+    352          			#ifdef LOWSN_SLIP_TO_HOST
+    353          			if (nwk_pib.flags.bits.slipforwardPending) {
+    354          
+    355          				if (phyTxLocked())     break;
+    356                       			phyGrabTxLock();  
+    357          				nwkInjectSlipTxPacket();
+    358          				nwkState = NWK_STATE_NEXT_HOP_START;
+    359          				goto nwkFSM_start;
+    360          
+    361          
+    362          			}
+    363          			
+    364          			#endif
+    365          			#endif
+    366          
+    367          		break;
+    368          			
+    369          			/*****************************************************/
+    370          
+    371          			#if 0
+    372          			/*send the sencond paket in the swap buffer*/
+    373          			else if(lowsn_swap_buf.buflen != 0){
+    374          				/*Copy the swap paket to the lowsn_buf, clean the swap buffer and
+    375          				  * set the network FSM state to NWK_STATE_NEXT_HOP_START*/
+    376          				lowsn_len = lowsn_swap_buf.buflen;
+    377          				memcpy(LOWSN_IP_BUF, lowsn_swap_buf.buf, lowsn_len);
+    378          				lowsn_swap_buf.buflen = 0;
+    379          				nwkState = NWK_STATE_NEXT_HOP_START;
+    380          				goto nwkFSM_start;
+    381          				
+    382          			}
+    383          
+    384          			/**
+    385          			  * Process the Periodic events or time out events.
+    386          			  * here if we want to process a time out or periodic event, we MUST guarantee
+    387          			  * the lowsn_buf buffer is free. if the lowsn_buf buffer is not empty, we
+    388          			  * should process the event some time later.
+    389          			**/
+    390          			else if(internalclock_ms < sysclock_get_ms()){
+    391          				if(lowsn_len !=0){
+    392          					break;
+    393          				}
+    394          				internalclock_ms = sysclock_get_ms();
+    395          				lowsn_ds6_schedule_ms(internalclock_ms);
+    396          				if(lowsn_len==0){
+    397          					if(internalclock < sysclock_get()){
+    398          						internalclock = sysclock_get();
+    399          						lowsn_ds6_schedule(internalclock);
+    400          						if(lowsn_len == 0){
+    401          							break;
+    402          						}
+    403          					}
+    404          				}
+    405          				nwkState = NWK_STATE_NEXT_HOP_START;
+    406          				goto nwkFSM_start;
+    407          			}
+    408          			break;
+    409          
+    410          			#endif
+    411          
+    412          			/*****************************************************/
+    413          			
+    414          		case NWK_STATE_CMD_START:
+    415          			switch(a_nwk_service.cmd) {
+    416          				
+    417          				case LOWSN_SVC_NWK_GENERIC_TX:
+    418          					/**only support udp protocol
+    419          					  * construct the ipv6 packet include the ipv6 heander may include a fragment header,
+    420          					  * if the packet size is exceeded the link MTU, we should fragment the udp packet.
+    421          					
+    422          					**/
+    423          					
+    424                                            lowsn_len = a_nwk_tx_data.PayloadLength + LOWSN_IPH_LEN;
+    425          					
+    426          
+    427          					#if 0
+    428          					//if(lowsn_len > LOWSN_LINK_MTU){
+    429          					if(lowsn_len > lowsn_ds6_if.link_mtu){
+    430          
+    431          						conPrintROMString(" 13b\n");
+    432          						//here if the packet size excceded the link MTU, we just discard the packet!!!
+    433          						lowsn_len = 0;
+    434          						a_nwk_service.status = LOWSN_STATUS_NWK_PACKET_EXCEEDED;
+    435          						nwkState = NWK_STATE_IDLE;
+    436          						break;
+    437          					}
+    438          					#endif
+    439          
+    440          					nwkState = NWK_STATE_NEXT_HOP_START;
+    441          					goto nwkFSM_start;
+    442          //					break;
+    443          
+    444          				case LOWSN_SVC_NWK_PING6_TX:
+    445          					DEBUG_STRING(DBG_INFO,"nwk send a echo request. \n");
+    446          
+    447          					#if 0
+    448          					//ping命令暂时不支持IP和适配层的分片重组，即不能超过127个字节
+    449          					if (a_nwk_service.args.tx_ping6.plen > LOWSN_MAX_FRAME_SIZE - LOWSN_ICMPH_LEN - LOWSN_IPH_LEN - 4) {
+    450          						a_nwk_service.status = LOWSN_STATUS_NWK_PING_OVERLEN;
+    451          						DEBUG_STRING(DBG_INFO,"NWK: Ping exceeds max length.\n");
+    452          						nwkState = NWK_STATE_IDLE;	
+    453          						break;
+    454          					}	
+    455          
+    456          					#endif
+    457          					
+    458          					 //break if the TXBUFFER is locked
+    459                       				if (phyTxLocked()) break;
+    460                       				phyGrabTxLock();  //Grab the lock
+    461          
+    462          					nwk_pib.flags.bits.nwkIsGetEchoReply = 0;
+    463                       				
+    464          					icmpFmtEchoRequest(a_nwk_service.args.tx_ping6.plen);
+    465          					icmpCommonFmt(&a_nwk_service.args.tx_ping6.dstaddr);
+    466          					nwkFindDstDLLAddr();
+    467          					
+    468          					nwk_pib.flags.bits.WaitingForEchoRelay = 1;
+    469          					
+    470          					nwkTxData(FALSE);
+    471                       				nwkState = NWK_STATE_PING_REQ_WAIT1;
+    472          					break;
+    473          
+    474          
+    475          				case LOWSN_SVC_NWK_GET_RA:
+    476          					DEBUG_STRING(DBG_INFO,"nwk send RS. \n");
+    477          
+    478                       				if (phyTxLocked()) break;
+    479                       				phyGrabTxLock();  //Grab the lock
+    480          
+    481          					nwk_pib.flags.bits.nwkIsGetRA = 0;
+    482                       				
+    483          					ndFmtRS();
+    484          					nwkFindDstDLLAddr();
+    485          					
+    486          					nwk_pib.flags.bits.WaitingForRA = 1;
+    487          					
+    488          					nwkTxData(FALSE);
+    489                       				nwkState = NWK_STATE_RS_WAIT1;
+    490          					break;
+    491          
+    492          
+    493          
+    494          				case LOWSN_SVC_NWK_ADP_PASSTHRU:
+    495          		 			if (adpBusy()) break;  //wait until nwk is idle
+    496          		 			adpDoService();
+    497          		 			nwkState = NWK_STATE_ADP_PASSTHRU_WAIT;
+    498          		 		break;
+    499          
+    500          				default:
+    501          					break;
+    502          
+    503          			}
+    504          			
+    505          			break;
+    506          
+    507          		case NWK_STATE_PING_REQ_WAIT1:
+    508          
+    509          			// 暂时未设置NWK发送状态机，所以直接查看下层状态决定是否发送成功	
+    510          			if (adpBusy()) break;
+    511          
+    512          			phyReleaseTxLock();	
+    513          		
+    514          			if (a_adp_service.status != LOWSN_STATUS_SUCCESS) {
+    515          				a_nwk_service.status = a_adp_service.status;
+    516          				nwk_pib.flags.bits.WaitingForEchoRelay = 0;
+    517          				nwkState = NWK_STATE_IDLE;			
+    518                       			break;
+    519          			}
+    520          
+    521                     		//now need to wait for ping response
+    522                     		//start a timer
+    523                     		nwk_utility_timer = halGetMACTimer();
+    524                    		nwkState = NWK_STATE_PING_REQ_WAIT2;
+    525                     		break;
+    526          
+    527          		case NWK_STATE_PING_REQ_WAIT2:
+    528          			if (nwk_pib.flags.bits.nwkIsGetEchoReply) {
+    529                       		//get ping relay successful
+    530          			a_nwk_service.status = LOWSN_STATUS_SUCCESS;
+    531          			nwk_pib.flags.bits.WaitingForEchoRelay = 0;
+    532          			nwkState = NWK_STATE_IDLE;	
+    533          			}else if ((halMACTimerNowDelta(nwk_utility_timer)) >  MSECS_TO_MACTICKS(NWK_DEFAULT_PING_WAIT_TIME)){
+    534          			//timeout on ping, give it up
+    535          			a_nwk_service.status = LOWSN_STATUS_NWK_PING_TIMEOUT;
+    536          			DEBUG_STRING(DBG_INFO,"NWK: Ping timeout\n");
+    537          			nwk_pib.flags.bits.WaitingForEchoRelay = 0;
+    538          			nwkState = NWK_STATE_IDLE;	
+    539                     		}
+    540          
+    541                    		break;
+    542          
+    543          		case NWK_STATE_RS_WAIT1:
+    544          
+    545          			// 暂时未设置NWK发送状态机，所以直接查看下层状态决定是否发送成功	
+    546          			if (adpBusy()) break;
+    547          
+    548          			phyReleaseTxLock();	
+    549          		
+    550          			if (a_adp_service.status != LOWSN_STATUS_SUCCESS) {
+    551          				a_nwk_service.status = a_adp_service.status;
+    552          				nwk_pib.flags.bits.WaitingForRA = 0;
+    553          				nwkState = NWK_STATE_IDLE;			
+    554                       			break;
+    555          			}
+    556          
+    557                     		//now need to wait for ping response
+    558                     		//start a timer
+    559                     		nwk_utility_timer = halGetMACTimer();
+    560                    		nwkState = NWK_STATE_RS_WAIT2;
+    561                     		break;
+    562          
+    563          		case NWK_STATE_RS_WAIT2:
+    564          			if (nwk_pib.flags.bits.nwkIsGetRA) {
+    565                       		//get RA relay successful
+    566          			a_nwk_service.status = LOWSN_STATUS_SUCCESS;
+    567          			nwk_pib.flags.bits.WaitingForRA = 0;
+    568          			nwkState = NWK_STATE_IDLE;	
+    569          			}else if ((halMACTimerNowDelta(nwk_utility_timer)) > MSECS_TO_MACTICKS(LOWSN_DEFAULT_RS_WAIT_DURATION)){
+    570          			//timeout on ping, give it up
+    571          			a_nwk_service.status = LOWSN_STATUS_NWK_RS_TIMEOUT;
+    572          			DEBUG_STRING(DBG_INFO,"nwk: RS timeout\n");
+    573          			nwk_pib.flags.bits.WaitingForRA = 0;
+    574          			nwkState = NWK_STATE_IDLE;	
+    575                     		}
+    576          
+    577                    		break;
+    578          			
+    579          		case NWK_STATE_NEXT_HOP_START:
+    580          
+    581          			nexthop = NULL;
+    582          
+    583          			/*****************************************************/
+    584          			#if 0
+    585          			
+    586          			/*check if the fragment buffer is not free*/
+    587          			if(nwk_pib.flags.bits.nwktxfragment == 1){
+    588          				//TX other fragments of the original packet
+    589          				lowsn_tx_other_frag();
+    590          			}
+    591          			
+    592          			if(lowsn_len == 0){
+    593          				nwkState = NWK_STATE_IDLE;
+    594          				break;
+    595          			}
+    596          			/**
+    597          			  * check if the packet need to be fragmented.
+    598          			**/
+    599          			if(lowsn_len >= pmtu.size){	//pmtu 15 testing
+    600                      			DEBUG_STRING(DBG_INFO, "Fragment the packet.\r\n");
+    601          				lowsn_tx_first_frag();
+    602          			}
+    603          
+    604          			#endif
+    605          			
+    606          			/*****************************************************/
+    607          			
+    608          			/*start of next hop determination*/
+    609          			/**
+    610          			  *  if the destination is a multicast address, we don't need
+    611          			  *  to execute nexthop determination and address resolution.
+    612          			**/
+    613          			nwkFindDstDLLAddr();
+    614          
+    615          			#ifdef LOWSN_COORDINATOR
+    616          			#ifdef LOWSN_SLIP_TO_HOST
+    617          			if (nwk_pib.flags.bits.slipforwardPending) {
+    618          				nwkTxData(TRUE);
+    619          				// 网络传来的IP包已经分段好，无需再分片
+    620          				nwkState = NWK_STATE_SLIP_TX_WAIT;
+    621          			}
+    622          
+    623          			#endif
+    624          			#endif
+    625          	
+    626          			nwkTxData(FALSE);
+    627          			if(nwk_pib.flags.bits.nwktxfragment == 1){
+    628          				nwkState = NWK_STATE_FRAG_TX_WAIT;
+    629          			}
+    630          			else{
+    631          				nwkState = NWK_STATE_GENERIC_TX_WAIT;
+    632          			}
+    633          			goto nwkFSM_start;
+    634          				//break;	
+    635          			
+    636          		
+    637          		case NWK_STATE_ADDR_RESOL_START:
+    638          			
+    639          				DEBUG_STRING(DBG_INFO,"NWK_STATE_ADDR_RESOL_START, Not used in WPAN\n");
+    640          				nwkState = NWK_STATE_IDLE;
+    641          				break;					
+    642          			
+    643          
+    644          		case NWK_STATE_FRAG_TX_WAIT:
+    645          			 if (adpBusy()) break;
+    646          			 //adp finished, copy status.
+    647          			 a_nwk_service.status = a_adp_service.status;
+    648          			 nwkState = NWK_STATE_NEXT_HOP_START;
+    649          			break;
+    650          		
+    651          		case NWK_STATE_GENERIC_TX_WAIT:
+    652          
+    653          			 if (adpBusy()) break;
+    654          			 //adp finished, copy status.
+    655          			 a_nwk_service.status = a_adp_service.status;
+    656          			 nwkState = NWK_STATE_IDLE;
+    657          			break;
+    658                          #ifdef LOWSN_COORDINATOR
+    659          		#ifdef LOWSN_SLIP_TO_HOST
+    660          		case NWK_STATE_SLIP_TX_WAIT:
+    661          
+    662          			 if (adpBusy()) break;
+    663          			 a_slip_service.status = a_adp_service.status;
+    664          			 nwk_pib.flags.bits.slipforwardPending = 0;
+    665          			 nwkState = NWK_STATE_IDLE;
+    666          			break;
+    667                          #endif
+    668                          #endif
+    669                                  
+    670          		case NWK_STATE_ADP_PASSTHRU_WAIT:
+    671          		 //for split-phase passthrus
+    672          		 if (adpBusy()) break;
+    673          		 a_nwk_service.status = a_adp_service.status;
+    674          		 nwkState = NWK_STATE_IDLE;
+    675          		 break;
+    676          
+    677          		 case NWK_STATE_SEND_PING_REPLY:
+    678          			DEBUG_STRING(DBG_INFO,"NWK: Sending ping reply.\n");
+    679                     		icmpFmtEchoReply();
+    680          			icmpCommonFmt(&a_nwk_rx_data.SrcAddress);
+    681          
+    682          			nwk_pib.flags.bits.nwkPending = 0; //release packet
+    683          			
+    684          			nwkFindDstDLLAddr();
+    685                     		nwkTxData(FALSE);
+    686                     		nwkState = NWK_STATE_GENERIC_TX_WAIT_AND_UNLOCK;
+    687          		break;
+    688          
+    689          		#ifdef LOWSN_FFD
+    690          		case NWK_STATE_SEND_RA:
+    691          			DEBUG_STRING(DBG_INFO,"NWK: Sending RA.\n");
+    692                     		ndFmtRA(0);
+    693          				
+    694          			nwk_pib.flags.bits.nwkPending = 0; //release packet
+    695          				
+    696          			nwkFindDstDLLAddr();
+    697                     		nwkTxData(FALSE);
+    698                     		nwkState = NWK_STATE_GENERIC_TX_WAIT_AND_UNLOCK;
+    699          		break;
+    700          		#endif
+    701          
+    702          		              //this is used by NWK ICMPs in general which send a packet.
+    703          		case NWK_STATE_GENERIC_TX_WAIT_AND_UNLOCK:
+    704                    		if (adpBusy()) break;
+    705                    		//TX is finished, copy status
+    706                    		 a_nwk_service.status = a_adp_service.status;
+    707                     		 nwkState = NWK_STATE_IDLE;	
+    708                     		//also unlock TX buffer
+    709                     		phyReleaseTxLock();
+    710                     		break;
+    711          			
+    712          		default:
+    713          			break;
+    714          
+    715          
+    716                 }//end of switch
+    717          
+    718          }
+    719          
+    720          
+    721          
+    722          
+    723          /*
+    724          *brief: the network layer recieving FSM.
+    725          *arg: none
+    726          *return: none
+    727          */
+    728          void nwkRxFSM(void){
+    729          		
+    730          //	char* locpointer=NULL;
+    731          	BYTE *ptr;
+    732          
+    733          nwkRxFSM_start:
+    734          	switch(nwkRxState){
+    735          	case NWK_RXSTATE_IDLE:
+    736          
+    737          		#ifdef LOWSN_COORDINATOR
+    738          		#ifdef LOWSN_SLIP_TO_HOST
+    739          		if (nwk_pib.flags.bits.slipRxPending)  {
+    740          			
+    741          			if (nwkInjectSlipRxPacket() == 0)  {
+    742          				a_slip_service.status = LOWSN_STATUS_SUCCESS;
+    743          				nwk_pib.flags.bits.slipRxPending = 0;
+    744          				nwkRxState = NWK_RXSTATE_START;
+    745          				goto nwkRxFSM_start;
+    746          			}
+    747          			else 
+    748          			{
+    749          				// 分配内存失败
+    750          				a_slip_service.status = LOWSN_STATUS_SLIP_NWK_RX_HEAP_ERROR;
+    751          				nwk_pib.flags.bits.slipRxPending = 0;
+    752          			}
+    753          		}
+    754          		#endif
+    755          		#endif
+    756          		
+    757          		break;
+    758          		
+    759          	case NWK_RXSTATE_START:
+    760          
+    761          		//if(lladdr_dadfail == 1){
+    762          		//	nwkRxState = NWK_RXSTATE_IDLE;
+    763          		//	lowsn_len = 0;
+    764          		//	break;
+    765          		//}
+    766          
+    767          		if (a_nwk_rx_data.hcflag == ADP_RX_IP_UNCOMPRESS) {	
+    768          			
+    769          			// 如果hcflag没压缩，表示需NWK自己解析IP Header
+    770          
+    771          			// 如果负载长度比IP 头部40个字节还小，则丢弃，但ADP头部中没有长度域，只能
+    772          			// 从MAC域中减出来，较为复杂，暂不检查
+    773          			
+    774          			ptr = a_nwk_rx_data.orgpkt.data + a_nwk_rx_data.nwkOffset;
+    775          
+    776          			if (!NWK_IS_IP6(*ptr)) {
+    777          				DEBUG_STRING(DBG_INFO,"NWK: Received is not IPv6 packet, discarding.\n");
+    778          				MemFree(a_nwk_rx_data.orgpkt.data);
+    779          				nwkRxState = NWK_RXSTATE_IDLE;
+    780          				break;
+    781          			}
+    782          
+    783          			// 解析IPv6头部，对应内容填入a_nwk_rx_data 的相应域，方便下面代码进行判断
+    784          			nwkParseHdr(ptr);
+    785          			
+    786          		}
+    787          
+    788          		else if (a_nwk_rx_data.hcflag == ADP_RX_IP_COMPRESS) {
+    789          
+    790          			// 适配层已经恢复了IP头部的各个域，并在handoff函数中填充到了a_nwk_rx_data中
+    791          			DEBUG_STRING(DBG_INFO,"NWK: Received compressed IP packet. \n");
+    792          		}
+    793          
+    794          		else {
+    795          				DEBUG_STRING(DBG_INFO,"NWK: Received wrong hcflag packet, discarding.\n");
+    796          				MemFree(a_nwk_rx_data.orgpkt.data);
+    797          				nwkRxState = NWK_RXSTATE_IDLE;
+    798          				break;
+    799          		}		
+    800          	
+    801          			
+    802          		// 检查负载头部长度域是否正确，暂略去
+    803          
+    804          			/*********
+    805          			//check the payload length of the recieced packet
+    806          			if(((LOWSN_IP_BUF->len[0]<<8)+LOWSN_IP_BUF->len[1]) != (lowsn_len-LOWSN_IPH_LEN)){
+    807          				if(((LOWSN_IP_BUF->len[0]<<8) + LOWSN_IP_BUF->len[1]) < (lowsn_len-LOWSN_IPH_LEN)){
+    808          
+    809          					lowsn_len = (LOWSN_IP_BUF->len[0]<<8) + LOWSN_IP_BUF->len[1] +LOWSN_IPH_LEN;
+    810          				}
+    811          				else if(((LOWSN_IP_BUF->len[0]<<8) + LOWSN_IP_BUF->len[1]) > (lowsn_len-LOWSN_IPH_LEN)){
+    812          					/.drop the packet
+    813          					DEBUG_STRING(DBG_INFO, "Discard the packet : invalid Payload Lenght\r\n");
+    814          					lowsn_len = 0;
+    815          					nwkRxState = NWK_RXSTATE_IDLE;
+    816          					break;
+    817          				}
+    818          			}
+    819          
+    820          			*****************/
+    821          			
+    822          		//check the src address of the packet
+    823          		
+    824          		//if the source ipv6 address is a multicast address, drop the packet
+    825          
+    826          		if(lowsn_is_addr_mcast(&a_nwk_rx_data.SrcAddress)){
+    827          			DEBUG_STRING(DBG_INFO,"NWK: Discard the packet : Muliticast src IP Addr.\n");
+    828          			MemFree(a_nwk_rx_data.orgpkt.data);
+    829          			lowsn_len = 0;
+    830          			nwkRxState = NWK_RXSTATE_IDLE;
+    831          			break;
+    832          		}
+    833          
+    834          
+    835          		//check the destination ipv6 address*/
+    836          		if(!lowsn_ds6_is_my_uaddr(&a_nwk_rx_data.DstAddress)&&
+    837          		   !lowsn_ds6_is_my_maddr(&a_nwk_rx_data.DstAddress)&&
+    838                           !lowsn_ds6_is_my_aaddr(&a_nwk_rx_data.DstAddress)) {
+    839          			
+    840          			#ifdef LOWSN_COORDINATOR
+    841          			#ifdef LOWSN_SLIP_TO_HOST
+    842          			    if (slip_pib.forward_kind == SLIP_FORWARD_IP_PACKET)  {
+    843          			    		if (a_nwk_rx_data.hcflag == ADP_RX_IP_COMPRESS)  {
+    844          						nwkRestoreCompHeader();
+    845          					}	
+    846                  				nwkRxState = NWK_RXSTATE_FORWARD_HOST;
+    847                 			 	goto nwkRxFSM_start;
+    848              			    }		
+    849             			#endif
+    850              			#endif
+    851          			
+    852          			DEBUG_STRING(DBG_INFO,"NWK: Discard the packet : Error dest IP Addr.\n");
+    853          			MemFree(a_nwk_rx_data.orgpkt.data);
+    854          			lowsn_len = 0;
+    855          			nwkRxState = NWK_RXSTATE_IDLE;
+    856          			break;
+    857          		}
+    858          
+    859          
+    860          		ptr = a_nwk_rx_data.orgpkt.data + a_nwk_rx_data.pload_offset;
+    861          
+    862          			/********************************/
+    863          			/*								*/
+    864          			/*	  Process the next header field	*/
+    865          			/*								*/
+    866          			/********************************/
+    867          			lowsn_next_hdr = &(a_nwk_rx_data.NextHeader);
+    868          			lowsn_ext_len = 0;
+    869          			lowsn_ext_bitmap = 0;
+    870          		
+    871          			// 暂不支持扩展Header，所以暂不用while(1)
+    872          			//while(1){
+    873          				switch(a_nwk_rx_data.NextHeader){
+    874          					/*process the udp header*/
+    875          					case LOWSN_PROTO_UDP:
+    876          						
+    877          						DEBUG_STRING(DBG_INFO, "UDP packet\r\n");
+    878          						
+    879          						#if LOWSN_CONF_UDP_CHECK
+    880          						// 目前的计算校验和函数只支持连续IP数据段，但采用压缩时，IP数据段的
+    881          						// 连续性会被破坏，所以需要重新设计一个针对压缩的校验函数，目前暂
+    882          						// 不对压缩包进行校验.
+    883          
+    884          						if (a_nwk_rx_data.hcflag == ADP_RX_IP_UNCOMPRESS) 
+    885          						{
+    886          							UINT16 udpChecksum;
+    887          							udpChecksum = (((UINT16)*(ptr+6)) << 8);
+    888          							udpChecksum += *(ptr+7);
+    889          									
+    890          							if(udpChecksum != 0 && lowsn_udpchksum(a_nwk_rx_data.orgpkt.data+a_nwk_rx_data.nwkOffset, a_nwk_rx_data.PayloadLength) != 0xffff) { 
+    891          								DEBUG_STRING(DBG_INFO,"NWK: udp: bad checksum.\n  Check Num from rcv data is :  ");
+    892          								DEBUG_UINT16(DBG_INFO, udpChecksum);	
+    893          								DEBUG_STRING(DBG_INFO, "   Recalculated Number is :");
+    894          								DEBUG_UINT16(DBG_INFO, lowsn_udpchksum(a_nwk_rx_data.orgpkt.data+a_nwk_rx_data.nwkOffset, a_nwk_rx_data.PayloadLength));
+    895          								MemFree(a_nwk_rx_data.orgpkt.data);
+    896          								lowsn_len = 0;
+    897          								nwkRxState = NWK_RXSTATE_IDLE;
+    898          								goto nwkRxFSM_start;		
+    899          							}
+    900          						}	
+    901          						#endif
+    902          
+    903          						// UDP的解析及出错后回复端口不可达报文由APS层处理
+    904          
+    905          						nwkRxState = NWK_RXSTATE_APS_HANDOFF;
+    906          						goto nwkRxFSM_start;							
+    907          
+    908          					case LOWSN_PROTO_ICMP6:
+    909          						
+    910          						//DEBUG_STRING(DBG_INFO, "Processing ICMP header \n");
+    911          						//DEBUG_STRING(DBG_INFO, "ICMP Type No.: ");
+    912          						//DEBUG_UINT8(DBG_INFO, *ptr);
+    913          						//DEBUG_STRING(DBG_INFO, "\n");
+    914          
+    915          						if (a_nwk_rx_data.hcflag == ADP_RX_IP_UNCOMPRESS)  {					
+    916          							if(lowsn_icmp6chksum(a_nwk_rx_data.orgpkt.data+a_nwk_rx_data.nwkOffset, a_nwk_rx_data.PayloadLength) != 0xffff){  
+    917          								DEBUG_STRING(DBG_INFO,"Discard the ICMP packet : Error Checksum\r\n");
+    918          								DEBUG_STRING(DBG_INFO,"NWK: icmp: bad checksum.\n");
+    919          								MemFree(a_nwk_rx_data.orgpkt.data);
+    920          								lowsn_len = 0;
+    921          								nwkRxState = NWK_RXSTATE_IDLE;
+    922          								goto nwkRxFSM_start;
+    923          							}
+    924          						}	
+    925          							// check the icmp type
+    926          							switch(*ptr) {
+    927          
+    928          								/**************************************************
+    929          								//parse the NS message and construct a NA massage
+    930          								case ICMP6_NS:
+    931          									lowsn_nd_ns_input();
+    932          
+    933          									nwkRxState = NWK_RXSTATE_CMD_PENDING;
+    934          
+    935                                              				nwk_pib.flags.bits.nwkPending = 1;
+    936          
+    937          									goto nwkRxFSM_start;
+    938          
+    939          								//parse the NA message
+    940          								case ICMP6_NA:
+    941          									lowsn_nd_na_input();
+    942          									nwkRxState = NWK_RXSTATE_IDLE;
+    943          									goto nwkRxFSM_start;
+    944          
+    945          								//parse the Redirect message
+    946          								case ICMP6_RED:
+    947          									lowsn_nd_red_input();
+    948          									nwkRxState = NWK_RXSTATE_IDLE;
+    949          									goto nwkRxFSM_start;
+    950          
+    951          								case ICMP6_PACKET_TOO_BIG:
+    952          									lowsn_icmp6_pktbigerr_input();
+    953          									nwkRxState = NWK_RXSTATE_IDLE;
+    954          									goto nwkRxFSM_start;
+    955          									
+    956          								   **************************************************/
+    957          
+    958          								#ifdef LOWSN_FFD
+    959          
+    960          								case ICMP6_RS:
+    961          
+    962          									DEBUG_STRING(DBG_INFO,"nwk: received RS. \n");
+    963          									
+    964          									nwk_pib.flags.bits.nwkPending = 1;
+    965          									nwkRxState = NWK_RXSTATE_CMD_PENDING;
+    966          									goto nwkRxFSM_start;
+    967          
+    968          								#endif	
+    969          
+    970          
+    971          								#ifndef LOWSN_COORDINATOR
+    972          								
+    973          								case ICMP6_RA:
+    974          
+    975          									DEBUG_STRING(DBG_INFO,"nwk: received RA. \n");
+    976          									
+    977          									// 暂设定为主动发出RS后才解析收到的RA帧，实际上应可自由接收RA
+    978          									if (nwk_pib.flags.bits.WaitingForRA){
+    979                  									ndParseRA();
+    980          										nwk_pib.flags.bits.nwkIsGetRA = 1;
+    981                									}					
+    982          		
+    983                									//free this packet, we are finished with it.
+    984                									MemFree(a_nwk_rx_data.orgpkt.data);
+    985          										
+    986          									lowsn_len = 0;
+    987          									nwkRxState = NWK_RXSTATE_IDLE;
+    988          									goto nwkRxFSM_start;
+    989          									
+    990          								#endif
+    991          
+    992          								case ICMP6_ECHO_REQUEST:
+    993          									//lowsn_icmp6_echo_request_input();
+    994          									// 暂不支持超过127个字节的PING请求
+    995          									if (a_nwk_rx_data.PayloadLength> LOWSN_MAX_FRAME_SIZE - LOWSN_ICMPH_LEN - LOWSN_IPH_LEN - 4) {
+    996          										DEBUG_STRING(DBG_INFO,"NWK: icmp: echo request overlength.\n");
+    997          										MemFree(a_nwk_rx_data.orgpkt.data);
+    998          										lowsn_len = 0;
+    999          										nwkRxState = NWK_RXSTATE_IDLE;
+   1000          										goto nwkRxFSM_start;
+   1001          									}	
+   1002          									nwk_pib.flags.bits.nwkPending = 1;
+   1003          									nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1004          									goto nwkRxFSM_start;
+   1005          
+   1006          								case ICMP6_ECHO_REPLY:
+   1007                									if (nwk_pib.flags.bits.WaitingForEchoRelay){
+   1008                  									icmpParseEchoReply();
+   1009                									}					
+   1010          		
+   1011                									//free this packet, we are finished with it.
+   1012                									MemFree(a_nwk_rx_data.orgpkt.data);
+   1013          										
+   1014          									lowsn_len = 0;
+   1015          									nwkRxState = NWK_RXSTATE_IDLE;
+   1016          									goto nwkRxFSM_start;
+   1017          			
+   1018          								default:
+   1019          									MemFree(a_nwk_rx_data.orgpkt.data);
+   1020          									lowsn_len = 0;
+   1021          									nwkRxState = NWK_RXSTATE_IDLE;
+   1022          									goto nwkRxFSM_start;
+   1023          						
+   1024          						}
+   1025          					  //break;
+   1026          
+   1027                                        /*************************************************************************/
+   1028          					#if 0
+   1029          
+   1030          					
+   1031          					//process the hop-by-hop option header
+   1032          					case LOWSN_PROTO_HBHO:
+   1033          						DEBUG_STRING(DBG_INFO, "Processing hop-by-hop header\r\n");
+   1034          						//the hop-by-hop option must immedately follow the ipv6 header
+   1035          						if(lowsn_ext_bitmap != 0){
+   1036          							//*the hop-by-hop option is not the first extention option header
+   1037          							  //* or the option has already been present. the reciever drops the
+   1038          							  //* packet and constructs an ICMP error message.
+   1039          							
+   1040          							lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_NEXTHEADER,
+   1041          							 					(uint32_t)(lowsn_next_hdr - (uint8_t *)LOWSN_IP_BUF));
+   1042          							if(lowsn_len>0){
+   1043          								nwk_pib.flags.bits.nwkPending = 1;
+   1044          								//nwk_pib.flags.bits.sendicmperr = 1;
+   1045          								nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1046          								goto nwkRxFSM_start;
+   1047          							}
+   1048          						}
+   1049          						else{
+   1050          							lowsn_ext_bitmap |= LOWSN_EXT_HDR_BITMAP_HBHO;
+   1051          							// process the extention header
+   1052          							switch(lowsn_ext_hdr_process()) {
+   1053          							      //continue
+   1054          							      case 0:
+   1055          							     	 lowsn_next_hdr = &LOWSN_EXT_BUF->next;
+   1056          									//
+   1057          									//   verify that a node discard a packet that has a Next Header
+   1058          									 //   field of zero in header orther than an IPv6 header and generates
+   1059          									  // an ICMPv6 Parameter message to the source of the packet.
+   1060          
+   1061          									 if(*lowsn_next_hdr == 0){
+   1062          									 	DEBUG_STRING(DBG_INFO, "Discard, Next header is zero\r\n");
+   1063          									 	lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_NEXTHEADER,
+   1064          															(uint32_t)(lowsn_next_hdr - (uint8_t *)LOWSN_IP_BUF));
+   1065          										if(lowsn_len>0){
+   1066          											nwk_pib.flags.bits.nwkPending = 1;
+   1067          											nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1068          											goto nwkRxFSM_start;
+   1069          										}
+   1070          									 }
+   1071          							     	 lowsn_ext_len += (LOWSN_EXT_BUF->len << 3) + 8;
+   1072          							     	 break;
+   1073          							       //silently discard
+   1074          							      case 1:
+   1075          							     	 lowsn_len = 0;
+   1076          							     	 nwkRxState = NWK_RXSTATE_IDLE;
+   1077          							     	 goto nwkRxFSM_start;
+   1078          							     // send icmp error message (created in ext_hdr_options_process) and discard
+   1079          							      case 2:
+   1080          							     	 nwk_pib.flags.bits.nwkPending = 1;
+   1081          							     	 //nwk_pib.flags.bits.sendicmperr = 1;
+   1082          							     	 nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1083          							     	 goto nwkRxFSM_start;
+   1084          							}
+   1085          						}
+   1086          						break;
+   1087          					//process the destination option header
+   1088          					case LOWSN_PROTO_DESTO:
+   1089          						DEBUG_STRING(DBG_INFO, "Processing dest header\r\n");
+   1090          						if(lowsn_ext_bitmap & LOWSN_EXT_HDR_BITMAP_DESTO1){
+   1091          							if(lowsn_ext_bitmap & LOWSN_EXT_HDR_BITMAP_DESTO2){
+   1092          								//Destination option header. if we saw two already, drop
+   1093          								 lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_NEXTHEADER,
+   1094          								 					(uint32_t)(lowsn_next_hdr - (uint8_t *)LOWSN_IP_BUF));
+   1095          								if(lowsn_len>0){
+   1096          									nwk_pib.flags.bits.nwkPending = 1;
+   1097          									//nwk_pib.flags.bits.sendicmperr = 1;
+   1098          									nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1099          									goto nwkRxFSM_start;
+   1100          								}
+   1101          							}
+   1102          							else{
+   1103          								uint8_t ret;
+   1104          								lowsn_ext_bitmap |= LOWSN_EXT_HDR_BITMAP_DESTO2;
+   1105          								ret = lowsn_ext_hdr_process();
+   1106          								if(ret == 0){
+   1107          								    lowsn_next_hdr = &LOWSN_EXT_BUF->next;
+   1108          									if(*lowsn_next_hdr == 0){
+   1109          										DEBUG_STRING(DBG_INFO, "Discard, Next header is zero\r\n");
+   1110          										lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_NEXTHEADER,
+   1111          															(uint32_t)(lowsn_next_hdr - (uint8_t *)LOWSN_IP_BUF));
+   1112          										if(lowsn_len>0){
+   1113          											nwk_pib.flags.bits.nwkPending = 1;
+   1114          											nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1115          											goto nwkRxFSM_start;
+   1116          										}
+   1117          									}
+   1118          								     lowsn_ext_len += (LOWSN_EXT_BUF->len << 3) + 8;
+   1119          								     break;
+   1120          								}
+   1121          								else if(ret == 1){
+   1122          										lowsn_len = 0;
+   1123          										nwkRxState = NWK_RXSTATE_IDLE;
+   1124          										goto nwkRxFSM_start;
+   1125          								}
+   1126          								else if(ret == 2){
+   1127          										nwk_pib.flags.bits.nwkPending = 1;
+   1128          										nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1129          										goto nwkRxFSM_start;
+   1130          								}						
+   1131          							}
+   1132          						}
+   1133          						else{
+   1134          							uint8_t ret;
+   1135          							lowsn_ext_bitmap |= LOWSN_EXT_HDR_BITMAP_DESTO1;
+   1136          							//process the destination option header
+   1137          							ret = lowsn_ext_hdr_process();
+   1138          							if(ret == 0){
+   1139          							    lowsn_next_hdr = &LOWSN_EXT_BUF->next;
+   1140          								if(*lowsn_next_hdr == 0){
+   1141          									DEBUG_STRING(DBG_INFO, "Discard, Next header is zero\r\n");
+   1142          									lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_NEXTHEADER,
+   1143          														(uint32_t)(lowsn_next_hdr - (uint8_t *)LOWSN_IP_BUF));
+   1144          									if(lowsn_len>0){
+   1145          										nwk_pib.flags.bits.nwkPending = 1;
+   1146          										nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1147          										goto nwkRxFSM_start;
+   1148          									}
+   1149          								}
+   1150          							     lowsn_ext_len += (LOWSN_EXT_BUF->len << 3) + 8;
+   1151          							     break;
+   1152          							}
+   1153          							else if(ret == 1){
+   1154          									lowsn_len = 0;
+   1155          									nwkRxState = NWK_RXSTATE_IDLE;
+   1156          									goto nwkRxFSM_start;
+   1157          							}
+   1158          							else if(ret == 2){
+   1159          									nwk_pib.flags.bits.nwkPending = 1;
+   1160          									nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1161          									goto nwkRxFSM_start;
+   1162          							}						
+   1163          						}
+   1164          						break;
+   1165          					//process the routing option header
+   1166          					case LOWSN_PROTO_ROUTING:
+   1167          						DEBUG_STRING(DBG_INFO, "Processing routing header\r\n");
+   1168          						if(lowsn_ext_bitmap & LOWSN_EXT_HDR_BITMAP_ROUTING){
+   1169          							 lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_NEXTHEADER,
+   1170          							 					(uint32_t)(lowsn_next_hdr - (uint8_t *)LOWSN_IP_BUF));
+   1171          							if(lowsn_len>0){
+   1172          								nwk_pib.flags.bits.nwkPending = 1;
+   1173          								//nwk_pib.flags.bits.sendicmperr = 1;
+   1174          								nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1175          								goto nwkRxFSM_start;
+   1176          							}
+   1177          						}
+   1178          						else{
+   1179          							lowsn_ext_bitmap |= LOWSN_EXT_HDR_BITMAP_ROUTING;
+   1180          						    //
+   1181          						     //Routing Header  length field is in units of 8 bytes, excluding
+   1182          						     // As per RFC2460 section 4.4, if routing type is unrecognized:
+   1183          						     // if segments left = 0, ignore the header
+   1184          						     // if segments left > 0, discard packet and send icmp error pointing
+   1185          						     // to the routing type
+   1186          						     //
+   1187          						    if(LOWSN_ROUTING_BUF->seg_left > 0) {
+   1188          						     	 lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_HEADER,
+   1189          							  		LOWSN_IPH_LEN + lowsn_ext_len + 2);
+   1190          								if(lowsn_len>0){
+   1191          									nwk_pib.flags.bits.nwkPending = 1;
+   1192          									nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1193          									goto nwkRxFSM_start;
+   1194          								}
+   1195          						    }
+   1196          							else{
+   1197          						    	lowsn_next_hdr = &LOWSN_EXT_BUF->next;
+   1198          						    	lowsn_ext_len += (LOWSN_EXT_BUF->len << 3) + 8;
+   1199          								break;
+   1200          							}
+   1201          						}
+   1202          						break;
+   1203          						
+   1204          					//process the fragment header
+   1205          					case LOWSN_PROTO_FRAG:
+   1206          						DEBUG_STRING(DBG_INFO, "Processing frag header\r\n");
+   1207          						ret = lowsn_reassembly();
+   1208          						if(ret == 0){
+   1209          							nwkRxState = NWK_RXSTATE_IDLE;
+   1210          							goto nwkRxFSM_start;
+   1211          						}
+   1212          						else if(ret == 1){
+   1213          							nwk_pib.flags.bits.nwkPending = 1;
+   1214          							nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1215          							goto nwkRxFSM_start;
+   1216          						}
+   1217          						else if(ret == 2){
+   1218          							nwkRxState = NWK_RXSTATE_START;
+   1219          							goto nwkRxFSM_start;
+   1220          						}
+   1221          
+   1222          					//no next header
+   1223          					case LOWSN_PROTO_NONE:
+   1224          						/*slient to discard the packet*/
+   1225          						lowsn_len = 0;
+   1226          						nwkRxState = NWK_RXSTATE_IDLE;
+   1227          						goto nwkRxFSM_start;
+   1228          					
+   1229          					//process unrec
+   1230          					default:
+   1231          						lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_NEXTHEADER,
+   1232          						 					(uint32_t)(lowsn_next_hdr - (uint8_t *)LOWSN_IP_BUF));
+   1233          						if(lowsn_len>0){
+   1234          							nwk_pib.flags.bits.nwkPending = 1;
+   1235          							//nwk_pib.flags.bits.sendicmperr = 1;
+   1236          							nwkRxState = NWK_RXSTATE_CMD_PENDING;
+   1237          							goto nwkRxFSM_start;
+   1238          						}
+   1239          						break;
+   1240          
+   1241          
+   1242          				#endif  //if 0	
+   1243          				 /*************************************************************************/
+   1244          				default:
+   1245          					DEBUG_STRING(DBG_INFO,"NWK: unrecoginzed next header, drop it.  \n");
+   1246          					MemFree(a_nwk_rx_data.orgpkt.data);
+   1247          					lowsn_len = 0;
+   1248          					nwkRxState = NWK_RXSTATE_IDLE;
+   1249          				break;
+   1250          				
+   1251          			}
+   1252          		
+   1253          
+   1254          		break;
+   1255          		
+   1256          	case NWK_RXSTATE_APS_HANDOFF:
+   1257          		if(apsRxBusy()) break;
+   1258          
+   1259          		apsRxHandoff();
+   1260          		nwkRxState = NWK_RXSTATE_IDLE;
+   1261          		lowsn_len = 0;
+   1262          		break;
+   1263          		
+   1264          	case NWK_RXSTATE_CMD_PENDING:
+   1265          		if (nwk_pib.flags.bits.nwkPending ) break;
+   1266          		MemFree(a_nwk_rx_data.orgpkt.data);
+   1267                        nwkRxState = NWK_RXSTATE_IDLE;
+   1268                        break;
+   1269          			  
+   1270            	#ifdef LOWSN_COORDINATOR
+   1271            	#ifdef LOWSN_SLIP_TO_HOST
+   1272            	case NWK_RXSTATE_FORWARD_HOST:
+   1273            		if (slipTxLocked())  break;
+   1274          
+   1275          		DEBUG_STRING(DBG_INFO,"NWK: Forward IP packet to the host.\n");
+   1276          
+   1277          		slipGrabTxLock();
+   1278          		slipSendIPFlags();
+   1279          		
+   1280          		if (a_nwk_rx_data.hcflag == ADP_RX_IP_COMPRESS)  {
+   1281          			slipSend(&ip_header_buf[0], LOWSN_IPH_LEN, 3);
+   1282          			slipSend(a_nwk_rx_data.orgpkt.data+a_nwk_rx_data.pload_offset, a_nwk_rx_data.PayloadLength, 1);
+   1283          		}	
+   1284          		else  {
+   1285          			slipSend(a_nwk_rx_data.orgpkt.data+a_nwk_rx_data.nwkOffset, a_nwk_rx_data.PayloadLength+LOWSN_IPH_LEN, 1);
+   1286          		}	
+   1287          			
+   1288          		slipReleaseTxLock();
+   1289          
+   1290          		MemFree(a_nwk_rx_data.orgpkt.data);
+   1291          		lowsn_len = 0;
+   1292          		nwkRxState = NWK_RXSTATE_IDLE;
+   1293          
+   1294          		break;
+   1295            	#endif
+   1296            	#endif
+   1297          
+   1298          	default:
+   1299          		break;
+   1300          
+   1301          
+   1302          	}//end of switch
+   1303          
+   1304          }
+   1305          
+   1306          
+   1307          /**
+   1308            * handle the data to adp layer .
+   1309            * set the arguments used by adp service in the function.
+   1310            * argument : the link layer address of the nexthop, if the lladdr=NULL indicate that
+   1311            * the packet is a broadcast packet.
+   1312            **/
+   1313            // IETF标准网络字节顺序是大端模式，而IEEE 802.15.4标准是小端模式
+   1314            // CC2430是小端存储，发送缓冲是倒着往前放数据的。
+   1315            // forward_flag: 0 正常发送; 1: 转发包( 主要是来自SLIP的IP包)
+   1316          void nwkTxData(BOOL forward_flag)
+   1317          {
+   1318          
+   1319          	BYTE i;
+   1320          	UINT16 checksum;
+   1321          
+   1322          	if (forward_flag == FALSE)
+   1323          	{
+   1324          
+   1325          	// add Destination Address
+   1326          	for(i=0; i<16; i++) {
+   1327                 	phy_pib.currentTxFrm--;
+   1328                        *phy_pib.currentTxFrm = a_nwk_tx_data.DstAddress.u8[15-i];
+   1329                 }
+   1330          
+   1331          	// add Source Address
+   1332          	for(i=0; i<16; i++) {
+   1333                 	phy_pib.currentTxFrm--;
+   1334                        *phy_pib.currentTxFrm = a_nwk_tx_data.SrcAddress.u8[15-i];
+   1335                 }
+   1336          	
+   1337          	// add Hop Limit
+   1338                 phy_pib.currentTxFrm--;
+   1339          	*phy_pib.currentTxFrm = a_nwk_tx_data.HopLimit;
+   1340          
+   1341          	// add Next Header
+   1342                 phy_pib.currentTxFrm--;
+   1343          	*phy_pib.currentTxFrm = a_nwk_tx_data.NextHeader;
+   1344          
+   1345          	//add Payload Length
+   1346          	phy_pib.currentTxFrm--;
+   1347          	*phy_pib.currentTxFrm = (BYTE) (a_nwk_tx_data.PayloadLength);
+   1348          	phy_pib.currentTxFrm--;
+   1349          	*phy_pib.currentTxFrm = (BYTE) (a_nwk_tx_data.PayloadLength >> 8);	
+   1350          
+   1351          	//add Flow Label (last 16 bits)
+   1352          
+   1353          	phy_pib.currentTxFrm--;
+   1354          	*phy_pib.currentTxFrm = (BYTE) (a_nwk_tx_data.FlowLabel);
+   1355          	phy_pib.currentTxFrm--;
+   1356          	*phy_pib.currentTxFrm = (BYTE) (a_nwk_tx_data.FlowLabel >> 8);
+   1357          
+   1358          	// add Flow Label (first 4 bits), Traffic Class and Version
+   1359          	phy_pib.currentTxFrm--;
+   1360          	*phy_pib.currentTxFrm = ((BYTE) (a_nwk_tx_data.FlowLabel >> 16)) & 0x0F + (BYTE) ((a_nwk_tx_data.TrafficClass & 0x0F) << 4);
+   1361          	phy_pib.currentTxFrm--;
+   1362          	*phy_pib.currentTxFrm = (BYTE)((a_nwk_tx_data.TrafficClass & 0xF0) >> 4) + (BYTE)((a_nwk_tx_data.Version & 0x0F) << 4);
+   1363          
+   1364          	phy_pib.currentTxFlen = phy_pib.currentTxFlen + LOWSN_IPH_LEN;
+   1365          
+   1366          	// 各个信息都已获取，构造伪IP头，计算校验和
+   1367          	//a_nwk_tx_data.IPStartPtr = phy_pib.currentTxFrm;  //记录IP头部位置
+   1368          
+   1369          #if 1
+   1370          	checksum = 0;
+   1371          	if (a_nwk_tx_data.NextHeader == LOWSN_PROTO_UDP)  {
+   1372          
+   1373          		#if LOWSN_CONF_UDP_CHECK
+   1374          		checksum = ~(lowsn_udpchksum(phy_pib.currentTxFrm, a_nwk_tx_data.PayloadLength));
+   1375          		if(checksum == 0) {
+   1376          			checksum = 0xffff;
+   1377          		}
+   1378                        *(phy_pib.currentTxFrm+LOWSN_IPH_LEN+7) = (BYTE)checksum;
+   1379          		*(phy_pib.currentTxFrm+LOWSN_IPH_LEN+6) = (BYTE)(checksum >> 8);
+   1380          		#endif
+   1381          	}
+   1382          
+   1383          	else if  (a_nwk_tx_data.NextHeader == LOWSN_PROTO_ICMP6)  {
+   1384          							
+   1385          		checksum = ~ lowsn_icmp6chksum(phy_pib.currentTxFrm, a_nwk_tx_data.PayloadLength);
+   1386          		*(phy_pib.currentTxFrm+LOWSN_IPH_LEN+3) = (BYTE) checksum;
+   1387          		*(phy_pib.currentTxFrm+LOWSN_IPH_LEN+2) = (BYTE) (checksum >> 8);	
+   1388          	}	
+   1389          
+   1390          	else  {
+   1391          		DEBUG_STRING(DBG_INFO, "nwk: check sum is not supported for current next header. n");
+   1392          							
+   1393          	}
+   1394          
+   1395          #endif	
+   1396          
+   1397          	}
+   1398          
+   1399          	// setup the adaption layer param
+   1400          	// 这部分已经转移到ADP中压缩头部之后处理.
+   1401          
+   1402          	lowsn_len = 0;
+   1403          	a_adp_service.cmd = LOWSN_SVC_ADP_GENERIC_TX;
+   1404          	// 传递参数给适配层
+   1405          
+   1406          	a_adp_service.args.hc_info.HopLimit = a_nwk_tx_data.HopLimit;
+   1407          	a_adp_service.args.hc_info.NextHeader = a_nwk_tx_data.NextHeader;
+   1408          	a_adp_service.args.hc_info.TrafficClass = a_nwk_tx_data.TrafficClass;
+   1409          	a_adp_service.args.hc_info.FlowLabel = a_nwk_tx_data.FlowLabel;
+   1410          	a_adp_service.args.hc_info.SrcAddress = a_nwk_tx_data.SrcAddress;
+   1411          	a_adp_service.args.hc_info.DstAddress = a_nwk_tx_data.DstAddress;
+   1412          	
+   1413          	adpDoService();
+   1414          
+   1415          }
+   1416          
+   1417          #if 0
+   1418          /*---------------------------------------------------------------------------*/
+   1419          /**
+   1420            *return value:
+   1421            *	0	skip over this option and continue processing the header.
+   1422            *	1	discard the packet and do not send any icmp error message.
+   1423            *	2	discard the packet and send an icmp error message.
+   1424          **/
+   1425          uint8_t lowsn_ext_hdr_process(void){
+   1426          	
+   1427           /*
+   1428            * Length field in the extension header: length of the header in units of
+   1429            * 8 bytes, excluding the first 8 bytes
+   1430            * length field in an option : the length of data in the option
+   1431            */
+   1432            uint8_t local;
+   1433            lowsn_ext_opt_offset = 2;
+   1434            while(lowsn_ext_opt_offset < ((LOWSN_EXT_BUF->len << 3) + 8)) {
+   1435              switch(LOWSN_EXT_HDR_OPT_BUF->type) {
+   1436                /*
+   1437                 * for now we do not support any options except padding ones
+   1438                 * PAD1 does not make sense as the header must be 8bytes aligned,
+   1439                 * hence we can only have
+   1440                 */
+   1441                case LOWSN_EXT_HDR_OPT_PAD1:
+   1442                  lowsn_ext_opt_offset += 1;
+   1443                  break;
+   1444                case LOWSN_EXT_HDR_OPT_PADN:
+   1445                  lowsn_ext_opt_offset += LOWSN_EXT_HDR_OPT_PADN_BUF->opt_len + 2;
+   1446                  break;
+   1447                  /*
+   1448                   * check the two highest order bits of the option
+   1449                   * - 00 skip over this option and continue processing the header.
+   1450                   * - 01 discard the packet.
+   1451                   * - 10 discard the packet and, regardless of whether or not the
+   1452                   *   packet's Destination Address was a multicast address, send an
+   1453                   *   ICMP Parameter Problem, Code 2, message to the packet's
+   1454                   *   Source Address, pointing to the unrecognized Option Type.
+   1455                   * - 11 discard the packet and, only if the packet's Destination
+   1456                   *   Address was not a multicast address, send an ICMP Parameter
+   1457                   *   Problem, Code 2, message to the packet's Source Address,
+   1458                   *   pointing to the unrecognized Option Type.
+   1459                   */
+   1460                default:
+   1461                	local = (LOWSN_EXT_HDR_OPT_BUF->type) & 0xC0;
+   1462          		/*skip this option and cotinue processing the header*/
+   1463          		if(local == 0x00){
+   1464          			
+   1465                      lowsn_ext_opt_offset += LOWSN_EXT_HDR_OPT_BUF->len + 2;
+   1466          						
+   1467          			break;
+   1468          		}
+   1469          		/*discard the packet and do not send icmp error message*/
+   1470          		else if(local == 0x40){
+   1471          			return 1;
+   1472          		}
+   1473          		/*discard the packet and send an icmp error message*/
+   1474          		else if(local == 0x80){
+   1475                      lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_OPTION,
+   1476                                       (uint32_t)LOWSN_IPH_LEN + lowsn_ext_len + lowsn_ext_opt_offset);
+   1477                      return 2;
+   1478          		}
+   1479          		/*discard the packet only if the destination address is not a multicast address */
+   1480          		else if(local == 0xc0){
+   1481                      if(lowsn_is_addr_mcast(&LOWSN_IP_BUF->destipaddr)) {
+   1482                        return 1;
+   1483                      }else{
+   1484          				lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_OPTION,
+   1485                                       (uint32_t)LOWSN_IPH_LEN + lowsn_ext_len + lowsn_ext_opt_offset);
+   1486          				return 2;
+   1487                      }
+   1488          		}
+   1489          /*		
+   1490                  switch((LOWSN_EXT_HDR_OPT_BUF->type)&0xC0) {
+   1491                    case 0x00:
+   1492                      break;
+   1493                    case 0x40:
+   1494                      return 1;
+   1495                    case 0xC0:
+   1496                      if(lowsn_is_addr_mcast(&LOWSN_IP_BUF->destipaddr)) {
+   1497                        return 1;
+   1498                      }else{
+   1499          				lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_OPTION,
+   1500                                       (uint32_t)LOWSN_IPH_LEN + lowsn_ext_len + lowsn_ext_opt_offset);
+   1501          				return 2;
+   1502                      }
+   1503                    case 0x80:
+   1504                      lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_OPTION,
+   1505                                       (uint32_t)LOWSN_IPH_LEN + lowsn_ext_len + lowsn_ext_opt_offset);
+   1506                      return 2;
+   1507                  }
+   1508          */
+   1509                  /* in the cases were we did not discard, update ext_opt* */
+   1510            //      lowsn_ext_opt_offset += LOWSN_EXT_HDR_OPT_BUF->len + 2;
+   1511                  break;
+   1512              }
+   1513            }
+   1514            return 0;
+   1515          }
+   1516          
+   1517          /*----------------------------------------------------------*/
+   1518          /*ressemble the fragment packets*/
+   1519          /*
+   1520          	rerurn value:
+   1521          		0	the fragment has been processed, the lowsn_buf is free;
+   1522          		1	the fragment worng and an ICMPv6 error message is in the lowsn_buf;
+   1523          		2	the original packet has been reassembly well and the reassembled packet is in the lowsn_buf;
+   1524          */
+   1525          uint8_t lowsn_reassembly(void){
+   1526          	static uint32_t prefragid = 0;		//the fragment id that has been reassembled successful or timeout right before
+   1527          	static uint8_t preidvalid = 0;
+   1528          	uint16_t len;
+   1529          	uint16_t offset;
+   1530          //	if((lowsn_reassbuf.isused==0) && (lowsn_ntohl(LOWSN_FRAG_BUF->id)!=prefragid && preidvalid ==1)){
+   1531          	if(lowsn_reassbuf.isused==0){
+   1532          		if(lowsn_ntohl(LOWSN_FRAG_BUF->id)==prefragid && preidvalid ==1){
+   1533          			lowsn_len  = 0;
+   1534          			DEBUG_STRING(DBG_INFO, "the reassembling of the fargment has been timeout\r\n");
+   1535          			return 0;
+   1536          		}
+   1537          		DEBUG_STRING(DBG_INFO, "Start reassembly\r\n");
+   1538          		memcpy(lowsn_reassbuf.buf, LOWSN_IP_BUF, lowsn_ext_len + LOWSN_IPH_LEN);
+   1539          		stimer_set(&lowsn_reassbuf.reass_timer, LOWSN_REASS_TIMEROUT);
+   1540          		lowsn_reassbuf.identification = lowsn_ntohl(LOWSN_FRAG_BUF->id);
+   1541          		prefragid = lowsn_ntohl(LOWSN_FRAG_BUF->id);
+   1542          		preidvalid = 1;
+   1543          		lowsn_reassbuf.isused = 1;
+   1544          	}
+   1545          	if(lowsn_ds6_ipcmp(&FBUF->srcipaddr, &LOWSN_IP_BUF->srcipaddr) &&
+   1546          			lowsn_ds6_ipcmp(&FBUF->destipaddr, &LOWSN_IP_BUF->destipaddr) &&
+   1547          			lowsn_ntohl(LOWSN_FRAG_BUF->id) == lowsn_reassbuf.identification){
+   1548          		/*get the lentgh of the pragment paylaod*/
+   1549          		len = lowsn_len - lowsn_ext_len - LOWSN_IPH_LEN - LOWSN_FRAGH_LEN;
+   1550          		/*get the offset of the fragment*/
+   1551          		offset = (lowsn_ntohs(LOWSN_FRAG_BUF->offsetresmore) & 0xfff8);
+   1552          		if(offset > LOWSN_FRAG_BUF_SIZE ||offset + len > LOWSN_FRAG_BUF_SIZE) {
+   1553          			DEBUG_STRING(DBG_INFO, "fragment too bit\r\n");
+   1554          			lowsn_reassbuf.isused = 0;
+   1555          			stimer_set(&lowsn_reassbuf.reass_timer, 0);
+   1556          			return 0;
+   1557          		}
+   1558          		
+   1559          		/*Recieve the first fragment*/
+   1560          		if(offset == 0){
+   1561          			DEBUG_STRING(DBG_INFO, "recieve the first fragment\r\n");
+   1562          			if(len%8!=0 && ((lowsn_ntohs(LOWSN_FRAG_BUF->offsetresmore) & 0x0001) != 0)){
+   1563          				lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_HEADER, 4);
+   1564          				memset(&lowsn_reassbuf, 0, sizeof(lowsn_reassbuf));
+   1565          				stimer_set(&lowsn_reassbuf.reass_timer, 0);
+   1566          				return 1;
+   1567          			}
+   1568          			*lowsn_next_hdr = LOWSN_FRAG_BUF->next;
+   1569          			lowsn_reassbuf.firstfrag = 1;
+   1570          			//get the unfragment len of the original packet
+   1571          			lowsn_reassbuf.unfraglen = lowsn_ext_len + LOWSN_IPH_LEN;
+   1572          			lowsn_reassbuf.reassem_len += lowsn_ext_len + LOWSN_IPH_LEN;
+   1573          			memcpy(FBUF, LOWSN_IP_BUF, lowsn_ext_len + LOWSN_IPH_LEN);
+   1574          			DEBUG_STRING(DBG_INFO, "src ");
+   1575          			PRINT6ADDR(&FBUF->srcipaddr);
+   1576          			DEBUG_STRING(DBG_INFO, "dest ");
+   1577          			PRINT6ADDR(&FBUF->destipaddr);
+   1578          			DEBUG_STRING(DBG_INFO, "next %d\r\n", LOWSN_IP_BUF->proto);
+   1579          		}
+   1580          		
+   1581          		/*Recieve the last fragment*/
+   1582          		if((lowsn_ntohs(LOWSN_FRAG_BUF->offsetresmore) & 0x0001) == 0){
+   1583          			DEBUG_STRING(DBG_INFO, "recieve the last fragment\r\n");
+   1584          			lowsn_reassbuf.fraglen = offset + len;	
+   1585          			lowsn_reassbuf.lastfrag = 1;
+   1586          		}
+   1587          		else{
+   1588          			if(len%8!=0){
+   1589          				lowsn_icmp6_error_output(ICMP6_PARAM_PROB, ICMP6_PARAMPROB_HEADER, 4);
+   1590          				memset(&lowsn_reassbuf, 0, sizeof(lowsn_reassbuf));
+   1591          				stimer_set(&lowsn_reassbuf.reass_timer, 0);
+   1592          				return 1;
+   1593          			}
+   1594          		}
+   1595          		
+   1596          		/*calculate the size of the original packet*/
+   1597          		if((lowsn_reassbuf.orgpktlen == 0)&&(lowsn_reassbuf.lastfrag == 1)&&(lowsn_reassbuf.firstfrag == 1)){
+   1598          			lowsn_reassbuf.orgpktlen = lowsn_reassbuf.unfraglen + lowsn_reassbuf.fraglen;
+   1599          		}
+   1600          		
+   1601          		/* Copy the fragment into the reassembly buffer, at the right  offset. */
+   1602          		memcpy((uint8_t *)FBUF + LOWSN_IPH_LEN + lowsn_ext_len + offset,
+   1603          						(uint8_t *)LOWSN_FRAG_BUF + LOWSN_FRAGH_LEN, len);
+   1604          		lowsn_reassbuf.reassem_len += len;
+   1605          		
+   1606          		/*check if we have a full packet in the buffer*/
+   1607          		if(lowsn_reassbuf.firstfrag && lowsn_reassbuf.lastfrag){
+   1608          			if(lowsn_reassbuf.orgpktlen == lowsn_reassbuf.reassem_len){
+   1609          				memcpy(LOWSN_IP_BUF, FBUF, lowsn_reassbuf.orgpktlen);
+   1610          				LOWSN_IP_BUF->len[0] = ((lowsn_reassbuf.orgpktlen - LOWSN_IPH_LEN) >> 8);
+   1611          				LOWSN_IP_BUF->len[1] = ((lowsn_reassbuf.orgpktlen - LOWSN_IPH_LEN) & 0xff);	
+   1612          				lowsn_len = lowsn_reassbuf.orgpktlen;
+   1613          				memset(&lowsn_reassbuf, 0, sizeof(lowsn_reassbuf));
+   1614          				stimer_set(&lowsn_reassbuf.reass_timer, 0);				
+   1615          				return 2;
+   1616          			}
+   1617          		}
+   1618          		lowsn_len = 0;
+   1619          		return 0;
+   1620          	}
+   1621          	else{
+   1622          		lowsn_len  = 0;
+   1623          		DEBUG_STRING(DBG_INFO, "Already reassembling another packet\r\n");
+   1624          		return 0;
+   1625          	}
+   1626          }
+   1627          
+   1628          
+   1629          
+   1630          void lowsn_reass_timeout(void){
+   1631          
+   1632          			memcpy(LOWSN_IP_BUF, FBUF, LOWSN_IPH_LEN);
+   1633          			lowsn_len = LOWSN_IPH_LEN;
+   1634          			lowsn_ext_len = 0;
+   1635          			if(lowsn_reassbuf.firstfrag==1){
+   1636          				lowsn_icmp6_error_output(ICMP6_TIME_EXCEEDED, ICMP6_TIME_EXCEED_REASSEMBLY, 0);
+   1637          			}
+   1638          			memset(&lowsn_reassbuf, 0, sizeof(lowsn_reassbuf));
+   1639          			stimer_set(&lowsn_reassbuf.reass_timer, 0);
+   1640          
+   1641          }
+   1642          
+   1643          /**
+   1644            * parse the udp header
+   1645            * return value:
+   1646            * 	0		the checksum is error or the destport of the udp packet is zero
+   1647            * 	1		the destination unreachable---port unreachable, and send an icmp error message
+   1648            * 	2 		the udp header is parsed successfully and handoff the udp date to TL layer
+   1649          **/
+   1650          
+   1651          uint8_t lowsn_udp_parse(void){
+   1652          	uint8_t i=0;
+   1653          /*check the checksum in the udp header*/
+   1654          #if LOWSN_UDP_CHECKSUMS
+   1655          	if(LOWSN_UDP_BUF->udpchksum != 0 && lowsn_udpchksum() != 0xffff) {
+   1656          		DEBUG_STRING(DBG_INFO, "udp: bad checksum 0x%04x 0x%04x\r\n", LOWSN_UDP_BUF->udpchksum, lowsn_udpchksum());
+   1657          		return 0;	//the checksum is error
+   1658          	}
+   1659          #endif /* UIP_UDP_CHECKSUMS */
+   1660          
+   1661          	/*make sure that the udp destination port number is not zero*/
+   1662          	if(LOWSN_UDP_BUF->destport == 0){
+   1663          		return 0;
+   1664          	}
+   1665          
+   1666          	 /* Demultiplex this UDP packet between the UDP "connections". */
+   1667          	for(i=0; i<LOWSN_UDP_CONNS; i++){
+   1668          		if((lowsn_udp_conns[i].lport == LOWSN_UDP_BUF->destport)&&
+   1669          			(lowsn_udp_conns[i].rport == 0 ||LOWSN_UDP_BUF->srcport == lowsn_udp_conns[i].rport)&&
+   1670          			(lowsn_is_addr_unspecified(&lowsn_udp_conns[i].ripaddr)||
+   1671          				lowsn_ds6_ipcmp(&LOWSN_IP_BUF->srcipaddr, &lowsn_udp_conns[i].ripaddr))){
+   1672          			//Found the udp connection that recieves the udp packet
+   1673          
+   1674          			//Maybe, we should do some orthers thing at here!!
+   1675          			
+   1676          			return 2;
+   1677          		}
+   1678          	}
+   1679          	lowsn_icmp6_error_output(ICMP6_DST_UNREACH, ICMP6_DST_UNREACH_NOPORT, 0);
+   1680          	return 1;
+   1681          }
+   1682          
+   1683          
+   1684          void lowsn_tx_first_frag(void){
+   1685          	uint8_t* nexthdp;
+   1686          	uint8_t* bufp;
+   1687          //	//set the fragment buffer isused flag
+   1688          //	lowsn_fragbuf.isused = 1;
+   1689          	//copy the original packet to the fragment buffer.
+   1690          	memcpy(lowsn_fragbuf.buf, (uint8_t*)LOWSN_IP_BUF,lowsn_len);
+   1691          	//save the original packet length.
+   1692          	lowsn_fragbuf.origpktlen = lowsn_len;
+   1693          	//get the unfragment part lengh of the original packet and
+   1694          	//the first header of the fargmentable part of the original packet.
+   1695          	lowsn_fragbuf.unfraglen = LOWSN_IPH_LEN;
+   1696          	nexthdp = &((lowsn_ip_hdr_t*)lowsn_fragbuf.buf)->proto;
+   1697          	while(*nexthdp == LOWSN_PROTO_HBHO || *nexthdp == LOWSN_PROTO_ROUTING){
+   1698          		nexthdp = &lowsn_fragbuf.buf[lowsn_fragbuf.unfraglen];
+   1699          		lowsn_fragbuf.unfraglen += *(nexthdp+1)*8+8;
+   1700          	}
+   1701          	lowsn_fragbuf.next = *nexthdp;
+   1702          	*nexthdp = LOWSN_PROTO_FRAG;
+   1703          	//set the fraglen to zero, and generate the identification.
+   1704          	lowsn_fragbuf.fraglen = 0;
+   1705          	lowsn_fragbuf.identification = sysclock_get_ms();
+   1706          	//calculate the max payload length of the fragment packet.
+   1707          	lowsn_fragbuf.maxpayloadlen =(( pmtu.size - 8 - lowsn_fragbuf.unfraglen)/8)*8;
+   1708          
+   1709          	/*construct the first fragment of the original packet*/
+   1710          	//copy the unfragmentable part to the lowsn_buf.
+   1711          	bufp = (uint8_t*)LOWSN_IP_BUF;
+   1712          	memcpy(bufp, lowsn_fragbuf.buf, lowsn_fragbuf.unfraglen);
+   1713          	lowsn_len = lowsn_fragbuf.unfraglen;
+   1714          	//add fragment header
+   1715          	bufp += lowsn_fragbuf.unfraglen;
+   1716          	((lowsn_frag_hdr_t*)bufp)->next = lowsn_fragbuf.next;
+   1717          	((lowsn_frag_hdr_t*)bufp)->res = 0;
+   1718          	((lowsn_frag_hdr_t*)bufp)->offsetresmore = lowsn_htons(lowsn_fragbuf.fraglen);
+   1719          	((lowsn_frag_hdr_t*)bufp)->offsetresmore &= lowsn_htons(~LOWSN_FRAGH_RES_MASK);
+   1720          	((lowsn_frag_hdr_t*)bufp)->offsetresmore |= lowsn_htons(LOWSN_FRAGH_M_MASK);
+   1721          	((lowsn_frag_hdr_t*)bufp)->id = lowsn_htonl(lowsn_fragbuf.identification);
+   1722          	lowsn_len += LOWSN_FRAGH_LEN;
+   1723          	bufp += LOWSN_FRAGH_LEN;
+   1724          	//copy the payload to the first fragment paket.
+   1725          	memcpy(bufp, (uint8_t*)&lowsn_fragbuf.buf[lowsn_fragbuf.unfraglen+lowsn_fragbuf.fraglen], lowsn_fragbuf.maxpayloadlen);	
+   1726          	lowsn_len += lowsn_fragbuf.maxpayloadlen;		
+   1727          	lowsn_fragbuf.fraglen += lowsn_fragbuf.maxpayloadlen;
+   1728          	//change the payload length field of the IPv6 header.
+   1729          	LOWSN_IP_BUF->len[0] = (lowsn_len-LOWSN_IPH_LEN)>>8;
+   1730          	LOWSN_IP_BUF->len[1] = (lowsn_len-LOWSN_IPH_LEN) & 0xff;
+   1731          
+   1732          	//set the fragment flag
+   1733          	nwk_pib.flags.bits.nwktxfragment = 1;
+   1734          	DEBUG_STRING(DBG_INFO, "Send the first fragment packet.\r\n");
+   1735          
+   1736          }
+   1737          
+   1738          void lowsn_tx_other_frag(void){
+   1739          	uint8_t* bufp;
+   1740          	uint16_t lastfpdlen;	//last fragment payload len.
+   1741          	lastfpdlen = lowsn_fragbuf.origpktlen-lowsn_fragbuf.unfraglen-lowsn_fragbuf.fraglen;
+   1742          	/*construct the fragment*/
+   1743          	bufp = (uint8_t*)LOWSN_IP_BUF;
+   1744          	memcpy(bufp, lowsn_fragbuf.buf, lowsn_fragbuf.unfraglen);
+   1745          	lowsn_len = lowsn_fragbuf.unfraglen;
+   1746          	bufp += lowsn_fragbuf.unfraglen;
+   1747          	//add fragment header
+   1748          	((lowsn_frag_hdr_t*)bufp)->next = lowsn_fragbuf.next;
+   1749          	((lowsn_frag_hdr_t*)bufp)->res = 0;
+   1750          	((lowsn_frag_hdr_t*)bufp)->offsetresmore = lowsn_htons(lowsn_fragbuf.fraglen);
+   1751          	((lowsn_frag_hdr_t*)bufp)->offsetresmore &= lowsn_htons(~LOWSN_FRAGH_RES_MASK);
+   1752          	if(lastfpdlen > lowsn_fragbuf.maxpayloadlen){
+   1753          		((lowsn_frag_hdr_t*)bufp)->offsetresmore |= lowsn_htons(LOWSN_FRAGH_M_MASK);
+   1754          	}
+   1755          	else{
+   1756          		((lowsn_frag_hdr_t*)bufp)->offsetresmore &= lowsn_htons(~LOWSN_FRAGH_M_MASK);
+   1757          	}
+   1758          	((lowsn_frag_hdr_t*)bufp)->id = lowsn_htonl(lowsn_fragbuf.identification);
+   1759          	lowsn_len += LOWSN_FRAGH_LEN;
+   1760          	bufp += LOWSN_FRAGH_LEN;
+   1761          	//copy the payload to the fragment.
+   1762          	if(lastfpdlen > lowsn_fragbuf.maxpayloadlen){
+   1763          		memcpy(bufp, (uint8_t*)&lowsn_fragbuf.buf[lowsn_fragbuf.unfraglen+lowsn_fragbuf.fraglen], lowsn_fragbuf.maxpayloadlen);	
+   1764          		lowsn_len += lowsn_fragbuf.maxpayloadlen;		
+   1765          		lowsn_fragbuf.fraglen += lowsn_fragbuf.maxpayloadlen;
+   1766          		DEBUG_STRING(DBG_INFO, "Send another fragment packet.\r\n");
+   1767          	}
+   1768          	else{
+   1769          		/*it is the last fragment of the original packet*/
+   1770          		memcpy(bufp, (uint8_t*)&lowsn_fragbuf.buf[lowsn_fragbuf.unfraglen+lowsn_fragbuf.fraglen], lastfpdlen);	
+   1771          		lowsn_len += lastfpdlen;		
+   1772          		lowsn_fragbuf.fraglen += lastfpdlen;
+   1773          		//reset the fragment flag.
+   1774          		nwk_pib.flags.bits.nwktxfragment = 0;
+   1775          		DEBUG_STRING(DBG_INFO, "Send the last fragment packet.\r\n");
+   1776          	}
+   1777          	//change the payload length field of the IPv6 header.
+   1778          	LOWSN_IP_BUF->len[0] = (lowsn_len-LOWSN_IPH_LEN)>>8;
+   1779          	LOWSN_IP_BUF->len[1] = (lowsn_len-LOWSN_IPH_LEN) & 0xff;
+   1780          
+   1781          }
+   1782          
+   1783          #endif
+   1784          
+   1785          
+   1786          
+   1787          //Callback from ADP Layer
+   1788          //Returns TRUE if nwk is still busy with last RX packet.
+   1789          
+   1790          BOOL nwkRxBusy(void){
+   1791          	return(nwkRxState != NWK_RXSTATE_IDLE);
+   1792          }
+   1793          
+   1794          BOOL nwk_buf_free(void){
+   1795          	return(lowsn_len == 0);
+   1796          }
+   1797          
+   1798          
+   1799          void nwkRxHandoff(void){
+   1800          
+   1801          	// 当适配层传递的是标准IPv6包时，nwkOffset指向IP Header起始位置，pload_offset指向IP Header之后的负载，
+   1802          	// 扩展头部也算负载。
+   1803          	// 当适配层传递的是压缩的IPv6包时，压缩IP Header的全部信息在适配层解析出来并传递给NWK，
+   1804          	// NWK不在负责IP Header的解析，此时nwkOffset和pload_offset都指向IP Header之后的负载部分，也即网络层的
+   1805          	// 负载与适配层的负载此时是一样的。
+   1806          	// 当前假定6lowpan适配层不压缩扩展头，也不支持UDP等负载压缩.
+   1807          	
+   1808          	a_nwk_rx_data.orgpkt.data = a_adp_rx_data.orgpkt.data;
+   1809          	a_nwk_rx_data.orgpkt.rssi = a_adp_rx_data.orgpkt.rssi;
+   1810          	a_nwk_rx_data.nwkOffset = a_adp_rx_data.pload_offset;    // 由于适配层帧头长度不固定，适配层必须告诉网络层起始位置
+   1811          	a_nwk_rx_data.pload_offset = a_adp_rx_data.pload_offset + LOWSN_IPH_LEN;
+   1812          	a_nwk_rx_data.hcflag = a_adp_rx_data.hcflag;
+   1813          	a_nwk_rx_data.srcSADDR = a_adp_rx_data.srcSADDR;
+   1814          
+   1815          	if (a_adp_rx_data.hcflag == ADP_RX_IP_COMPRESS) {
+   1816          		a_nwk_rx_data.TrafficClass = a_adp_rx_data.TrafficClass;
+   1817          		a_nwk_rx_data.FlowLabel = a_adp_rx_data.FlowLabel;
+   1818          		a_nwk_rx_data.PayloadLength = a_adp_rx_data.PayloadLength;
+   1819          		a_nwk_rx_data.NextHeader = a_adp_rx_data.NextHeader;
+   1820          		a_nwk_rx_data.SrcAddress = a_adp_rx_data.SrcAddress;
+   1821          		a_nwk_rx_data.DstAddress = a_adp_rx_data.DstAddress;
+   1822          		a_nwk_rx_data.pload_offset = a_adp_rx_data.pload_offset;   //此时网络层不解析IP Header，适配层的负载就是网络层的负载
+   1823          
+   1824          	#if 0  //for test
+   1825          	DEBUG_STRING(DBG_INFO,"NWK: Handoff information.  a_nwk_rx_data.TrafficClass:");
+   1826          	DEBUG_UINT8(DBG_INFO, a_nwk_rx_data.TrafficClass);
+   1827          	DEBUG_STRING(DBG_INFO,"\n");
+   1828          	DEBUG_STRING(DBG_INFO,"a_nwk_rx_data.FlowLabel:");
+   1829          	DEBUG_UINT32(DBG_INFO, a_nwk_rx_data.FlowLabel);
+   1830          	DEBUG_STRING(DBG_INFO,"\n");
+   1831          	DEBUG_STRING(DBG_INFO,"a_nwk_rx_data.PayloadLength:");
+   1832          	DEBUG_UINT16(DBG_INFO, a_nwk_rx_data.PayloadLength);
+   1833          	DEBUG_STRING(DBG_INFO,"\n");	
+   1834          	DEBUG_STRING(DBG_INFO,"a_nwk_rx_data.NextHeader:");
+   1835          	DEBUG_UINT8(DBG_INFO, a_nwk_rx_data.NextHeader);
+   1836          	DEBUG_STRING(DBG_INFO,"\n");	
+   1837          	DEBUG_STRING(DBG_INFO,"a_nwk_rx_data.SrcAddress:");
+   1838          	DEBUG_IP6ADDR(DBG_INFO, &a_nwk_rx_data.SrcAddress, 1);
+   1839          	DEBUG_STRING(DBG_INFO,"\n");	
+   1840          	DEBUG_STRING(DBG_INFO,"a_nwk_rx_data.DstAddress:");
+   1841          	DEBUG_IP6ADDR(DBG_INFO, &a_nwk_rx_data.DstAddress, 1 );
+   1842          	DEBUG_STRING(DBG_INFO,"\n");	
+   1843          	DEBUG_STRING(DBG_INFO,"a_nwk_rx_data.pload_offset:");
+   1844          	DEBUG_UINT8(DBG_INFO, a_nwk_rx_data.pload_offset);
+   1845          	DEBUG_STRING(DBG_INFO,"\n");
+   1846          	#endif
+   1847          
+   1848          
+   1849          	}	
+   1850          
+   1851          	//lowsn_len = a_nwk_rx_data.adpOffset;
+   1852          		
+   1853          	nwkRxState = NWK_RXSTATE_START;
+   1854          	
+   1855          }
+   1856          
+   1857          
+   1858          void nwkParseHdr(BYTE *ptr) {
+   1859          
+   1860          	BYTE i;
+   1861          
+   1862          	//为了防止存储大小端和网络大小端造成的移植困难和易出错，在操作时尽量不把指针进行类型强制
+   1863          	// 转换，例如(UINT16 *)ptr，否则需考虑CC2430是小端存储格式的问题；而是先用BYTE型的指针把
+   1864          	// char型数据取出来，再做扩展，即(UINT16)*ptr, 扩展后再通过移位操作数据。这种方法不容易出错
+   1865          	// 即总是一个字节一个字节的取出数据，然后用数据本身的移位来拼接多字节数据；而不图
+   1866          	// 省事，不用多字节指针一次性取数据。
+   1867          
+   1868          	// 注意: IETF采用的网络字节序是大端格式，不同于MAC层所用的IEEE 小端网络字节顺序
+   1869          
+   1870          	a_nwk_rx_data.TrafficClass = ((*ptr) & 0x0F) << 4 | ((*(ptr+1)) & 0xF0) >> 4;
+   1871          	ptr++;
+   1872          
+   1873          	a_nwk_rx_data.FlowLabel = (UINT32)((*ptr) & 0x0F) << 16;
+   1874          	ptr++;
+   1875          	a_nwk_rx_data.FlowLabel += (UINT32)(*ptr) << 8;
+   1876          	ptr++;
+   1877          	a_nwk_rx_data.FlowLabel += *ptr;
+   1878          	ptr++;
+   1879          
+   1880          	a_nwk_rx_data.PayloadLength = (UINT16)(*ptr) << 8;
+   1881          	ptr++;
+   1882          	a_nwk_rx_data.PayloadLength += *ptr;
+   1883          	ptr++;
+   1884          
+   1885          	a_nwk_rx_data.NextHeader = *ptr;
+   1886          	ptr++;
+   1887          
+   1888          	a_nwk_rx_data.HopLimit = *ptr;
+   1889          	ptr++;
+   1890          
+   1891          	for(i=0; i<16; i++) {
+   1892                        a_nwk_rx_data.SrcAddress.u8[i] = *ptr;
+   1893          		ptr++;
+   1894                 }
+   1895          
+   1896          	for(i=0; i<16; i++) {
+   1897                        a_nwk_rx_data.DstAddress.u8[i] = *ptr;
+   1898          		ptr++;
+   1899                 }
+   1900          
+   1901          }
+   1902          
+   1903          
+   1904          
+   1905          /*------------------------------------------------------------------------------------*
+   1906          
+   1907          恢复压缩的IP头部，以便发往Host
+   1908          
+   1909          *------------------------------------------------------------------------------------*/
+   1910          #ifdef LOWSN_COORDINATOR
+   1911          #ifdef LOWSN_SLIP_TO_HOST
+   1912          void nwkRestoreCompHeader(void) 
+   1913          {
+   1914          	UINT8 i;
+   1915          
+   1916          	for(i=0; i<LOWSN_IPH_LEN; i++) {
+   1917                        ip_header_buf[i] = 0;
+   1918                 }
+   1919          	
+   1920          	ip_header_buf[0] = (BYTE)((a_nwk_rx_data.TrafficClass & 0xF0) >> 4) + (BYTE)((LOWSN_IP6_VER & 0x0F) << 4);
+   1921          	ip_header_buf[1] = ((BYTE) (a_nwk_rx_data.FlowLabel >> 16)) & 0x0F + (BYTE) ((a_nwk_rx_data.TrafficClass & 0x0F) << 4);
+   1922          	ip_header_buf[2] = (BYTE) (a_nwk_tx_data.FlowLabel >> 8);
+   1923          	ip_header_buf[3] = (BYTE) (a_nwk_tx_data.FlowLabel);
+   1924          	ip_header_buf[4] = (BYTE) (a_nwk_tx_data.PayloadLength >> 8);	
+   1925          	ip_header_buf[5] = (BYTE) (a_nwk_tx_data.PayloadLength);
+   1926          	ip_header_buf[6] = a_nwk_tx_data.NextHeader;
+   1927          	ip_header_buf[7] = a_nwk_tx_data.HopLimit;
+   1928          	
+   1929          	for(i=0; i<16; i++) {
+   1930                        ip_header_buf[8+i] = a_nwk_tx_data.SrcAddress.u8[i];
+   1931          		ip_header_buf[24+i] = a_nwk_tx_data.DstAddress.u8[i];
+   1932                 }
+   1933          	
+   1934          }
+   1935          
+   1936          
+   1937          void nwkParseSlipHdr(BYTE *ptr) 
+   1938          {
+   1939          
+   1940          	BYTE i;
+   1941          
+   1942          	//为了防止存储大小端和网络大小端造成的移植困难和易出错，在操作时尽量不把指针进行类型强制
+   1943          	// 转换，例如(UINT16 *)ptr，否则需考虑CC2430是小端存储格式的问题；而是先用BYTE型的指针把
+   1944          	// char型数据取出来，再做扩展，即(UINT16)*ptr, 扩展后再通过移位操作数据。这种方法不容易出错
+   1945          	// 即总是一个字节一个字节的取出数据，然后用数据本身的移位来拼接多字节数据；而不图
+   1946          	// 省事，不用多字节指针一次性取数据。
+   1947          
+   1948          	// 注意: IETF采用的网络字节序是大端格式，不同于MAC层所用的IEEE 小端网络字节顺序
+   1949          
+   1950          	a_nwk_tx_data.Version = LOWSN_IP6_VER;
+   1951          
+   1952          	a_nwk_tx_data.TrafficClass = ((*ptr) & 0x0F) << 4 | ((*(ptr+1)) & 0xF0) >> 4;
+   1953          	ptr++;
+   1954          
+   1955          	a_nwk_tx_data.FlowLabel = (UINT32)((*ptr) & 0x0F) << 16;
+   1956          	ptr++;
+   1957          	a_nwk_tx_data.FlowLabel += (UINT32)(*ptr) << 8;
+   1958          	ptr++;
+   1959          	a_nwk_tx_data.FlowLabel += *ptr;
+   1960          	ptr++;
+   1961          
+   1962          	a_nwk_tx_data.PayloadLength = (UINT16)(*ptr) << 8;
+   1963          	ptr++;
+   1964          	a_nwk_tx_data.PayloadLength += *ptr;
+   1965          	ptr++;
+   1966          
+   1967          	a_nwk_tx_data.NextHeader = *ptr;
+   1968          	ptr++;
+   1969          
+   1970          	a_nwk_tx_data.HopLimit = *ptr;
+   1971          	ptr++;
+   1972          
+   1973          	for(i=0; i<16; i++) {
+   1974                        a_nwk_tx_data.SrcAddress.u8[i] = *ptr;
+   1975          		ptr++;
+   1976                 }
+   1977          
+   1978          	for(i=0; i<16; i++) {
+   1979                        a_nwk_tx_data.DstAddress.u8[i] = *ptr;
+   1980          		ptr++;
+   1981                 }
+   1982          
+   1983          }
+   1984          
+   1985          
+   1986          // 注意: 未考虑分片问题! 要求主机发来的数据包必须小于128个字节，否则程序会崩溃
+   1987          void nwkInjectSlipTxPacket(void)
+   1988          {
+   1989          
+   1990          	BYTE *src;
+   1991          
+   1992          	// 若Host发来的IP数据是代表协调器发出的，则有可能会需要地址压缩，
+   1993          	// 所以还是解析一下相关的信息，方便压缩.
+   1994          	nwkParseSlipHdr(&slipbuf[0]);
+   1995          
+   1996          	phy_pib.currentTxFrm = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+   1997          	src = &slipbuf[0] + a_nwk_tx_data.PayloadLength+LOWSN_IPH_LEN;
+   1998          	phy_pib.currentTxFlen = a_nwk_tx_data.PayloadLength+LOWSN_IPH_LEN;
+   1999          			
+   2000          	while (phy_pib.currentTxFlen) {
+   2001          		src--;                
+   2002          		phy_pib.currentTxFrm--;     
+   2003          		phy_pib.currentTxFlen--;   
+   2004          		*(phy_pib.currentTxFrm) = *src;
+   2005          	}
+   2006          		
+   2007          	phy_pib.currentTxFlen =a_nwk_tx_data.PayloadLength+LOWSN_IPH_LEN;
+   2008          		
+   2009          
+   2010          }
+   2011          
+   2012          
+   2013          
+   2014          BOOL nwkInjectSlipRxPacket(void)
+   2015          {
+   2016          
+   2017          	int len;
+   2018          	len = ((((UINT16)(slipbuf[4])) << 8) | slipbuf[5]) + LOWSN_IPH_LEN;
+   2019          	
+   2020          	a_nwk_rx_data.orgpkt.data = MemAlloc(len);
+   2021          	
+   2022          	
+   2023          	if (!a_nwk_rx_data.orgpkt.data ) {
+   2024          		//can't even get started, return 
+   2025          		return 1;
+   2026          	}
+   2027          	//copy tx buffer into rx space
+   2028          	halUtilMemCopy(a_nwk_rx_data.orgpkt.data, &slipbuf[0], len);
+   2029          
+   2030          	a_nwk_rx_data.nwkOffset =0;
+   2031          	a_nwk_rx_data.pload_offset = LOWSN_IPH_LEN;
+   2032          	a_nwk_rx_data.hcflag = ADP_RX_IP_UNCOMPRESS;
+   2033          	a_nwk_rx_data.orgpkt.rssi = 0xFF;  //highest value since coming from wired SLIP
+   2034          
+   2035          	return 0;
+   2036          
+   2037          }
+   2038          
+   2039          
+   2040          
+   2041          
+   2042          #endif
+   2043          #endif
+   2044          
+   2045          
+   2046          /*------------------------------------------------------------------------------------*
+   2047          
+   2048          寻找目标IP地址所对应的链路层地址
+   2049          
+   2050          在WSN中，由于采用了mesh under策略，可直接由IPv6地址推出对应的
+   2051          链路层地址，无需再使用NS/NA来寻找，也无需维护IP地址与链路层
+   2052          地址的对应关系表。
+   2053          
+   2054          *------------------------------------------------------------------------------------*/
+   2055          void nwkFindDstDLLAddr(void)
+   2056          {
+   2057          
+   2058          	DEBUG_STRING(DBG_INFO,"nwk: Find Link Addr for dstaddr:  ");
+   2059              	DEBUG_IP6ADDR(DBG_INFO, &a_nwk_tx_data.DstAddress, 0);
+   2060              	DEBUG_STRING(DBG_INFO,"\n");
+   2061          
+   2062          
+   2063          	if(lowsn_is_addr_mcast(&a_nwk_tx_data.DstAddress)){
+   2064          
+   2065          		if (lowsn_is_addr_linklocal_allrouters_mcast(&a_nwk_tx_data.DstAddress))  {
+   2066          			
+   2067          			DEBUG_STRING(DBG_INFO,"NWK: Dest is all-routers multicast address, send to coord. \n");
+   2068          			// mesh under机制下，对路由器的组播统一送往协调器
+   2069          			//a_adp_tx_data.dstSADDR  = 0;
+   2070          			a_adp_tx_data.dstSADDR = LOWSN_BCAST_SADDR;
+   2071          		}
+   2072          
+   2073          		else  {			
+   2074          			DEBUG_STRING(DBG_INFO,"NWK: Dest is multi addr.\n");
+   2075          
+   2076          			//nwkIP2MADDR(&a_nwk_tx_data.DstAddress, a_adp_tx_data.dstSADDR);
+   2077                                      // RFC4944 单独对IEEE 802.15.4的短地址进行了扩展定义，其中100打头的是组播
+   2078                                      // 原始的IEEE 802.15.4并不支持组播，协议栈中的MAC也不支持组播
+   2079                                      // 所以可暂时把组播认为是广播, 虽然组播转换函数工作正确
+   2080          			a_adp_tx_data.dstSADDR = LOWSN_BCAST_SADDR;
+   2081          				
+   2082          		}	
+   2083          	}	
+   2084          
+   2085          	else if (ds6TestOnLink(&a_nwk_tx_data.DstAddress) == 1){
+   2086          				// 同一前缀的地址，包括link-local地址，可以直接推出链路层地址
+   2087          
+   2088          		DEBUG_STRING(DBG_INFO,"Dest addr is ON-LINK.\n");
+   2089          
+   2090          		if (lowsn_is_addr_genfrom_shortaddr(&a_nwk_tx_data.DstAddress)) {
+   2091          
+   2092          			ds6IPtoSAddr(&a_nwk_tx_data.DstAddress, a_adp_tx_data.dstSADDR);
+   2093          					
+   2094          			DEBUG_STRING(DBG_INFO, "\n Dst Short ADDR:   ");
+   2095          			DEBUG_UINT16(DBG_INFO, a_adp_tx_data.dstSADDR);
+   2096          			DEBUG_STRING(DBG_INFO, "\n");
+   2097          
+   2098          					
+   2099          		}
+   2100          		else if (lowsn_is_addr_genfrom_EUI64(&a_nwk_tx_data.DstAddress)) {
+   2101          			
+   2102          			a_adp_tx_data.dstSADDR = LOWSN_SADDR_USE_LADDR;
+   2103          			ds6IPtoLAddr(&a_nwk_tx_data.DstAddress, &a_adp_tx_data.dstLADDRFull);	
+   2104          			a_adp_tx_data.dstLADDR = &a_adp_tx_data.dstLADDRFull.bytes[0];
+   2105          
+   2106          			DEBUG_STRING(DBG_INFO, "\n Dst long ADDR \n");
+   2107          			DEBUG_LADDR(DBG_INFO, &a_adp_tx_data.dstLADDRFull);
+   2108          			DEBUG_STRING(DBG_INFO, "\n");
+   2109          
+   2110          		}
+   2111          
+   2112          		else {
+   2113          			a_adp_tx_data.dstSADDR  = 0;  //送往协调器
+   2114          			DEBUG_STRING(DBG_INFO, "\n Dst on LINK to 0. \n");
+   2115          			
+   2116          		}
+   2117          	}
+   2118          
+   2119          	else {
+   2120          		// 外网地址，或一跳范围外的地址，目标地址都设为协调器，由适配层去路由			
+   2121          
+   2122          		DEBUG_STRING(DBG_INFO,"Dst is not multicast or ON-LINK addr.\n");
+   2123          		a_adp_tx_data.dstSADDR  = 0;
+   2124          
+   2125          	}
+   2126          }
+   2127          
+   2128          
+   2129          
+
+   Maximum stack usage in bytes:
+
+     Function                    ISTACK PSTACK XSTACK
+     --------                    ------ ------ ------
+     chksum                          0      0     24
+     lowsn_chksum                    0      0     12
+       -> chksum                     0      0     24
+       -> lowsn_htons                0      0     20
+     lowsn_icmp6chksum               2      0     12
+       -> upper_layer_chksum         4      0      0
+     lowsn_ipchksum                  0      0     12
+       -> chksum                     0      0     24
+       -> lowsn_htons                0      0     20
+     lowsn_tcpchksum                 2      0      0
+       -> upper_layer_chksum         4      0      0
+     lowsn_udpchksum                 2      0     12
+       -> upper_layer_chksum         4      0      0
+     nwkFSM                          0      0     16
+       -> adpFSM                     0      0     32
+       -> nwkRxFSM                   0      0     32
+       -> icmpFmtEchoReply           0      0     32
+       -> icmpCommonFmt              0      0     32
+       -> nwkFindDstDLLAddr          0      0     32
+       -> nwkTxData                  0      0     32
+       -> ndFmtRA                    0      0     32
+       -> nwkFindDstDLLAddr          0      0     32
+       -> nwkTxData                  0      0     32
+       -> nwkInjectSlipTxPacket      0      0     32
+       -> nwkFindDstDLLAddr          0      0     32
+       -> nwkTxData                  0      0     32
+       -> nwkTxData                  0      0     32
+       -> icmpFmtEchoRequest         0      0     32
+       -> icmpCommonFmt              0      0     32
+       -> nwkFindDstDLLAddr          0      0     32
+       -> nwkTxData                  0      0     32
+       -> ndFmtRS                    0      0     32
+       -> nwkFindDstDLLAddr          0      0     32
+       -> nwkTxData                  0      0     32
+       -> adpFSM                     0      0     32
+       -> halGetMACTimer             0      0     32
+       -> halGetMACTimer             0      0     32
+       -> halGetMACTimer             0      0     32
+       -> halGetMACTimer             0      0     32
+     nwkFindDstDLLAddr               2      0     16
+       -> conPrintIP6ADDR            4      0      0
+       -> ds6TestOnLink              4      0      0
+       -> conPrintUINT16             4      0      0
+       -> conPrintLADDR              4      0      0
+     nwkInit                         2      0      0
+       -> ds6Init                    4      0      0
+     nwkInjectSlipRxPacket           0      0     19
+       -> MemAlloc                   0      0     18
+       -> halUtilMemCopy             0      0     18
+     nwkInjectSlipTxPacket           3      0     16
+       -> nwkParseSlipHdr            4      0      0
+     nwkParseHdr                     1      0     22
+     nwkParseSlipHdr                 1      0     12
+     nwkRestoreCompHeader            1      0     26
+     nwkRxBusy                       2      0      0
+     nwkRxFSM                        0      0     26
+       -> nwkInjectSlipRxPacket      0      0     20
+       -> MemFree                    0      0     20
+       -> nwkParseHdr                0      0     20
+       -> MemFree                    0      0     20
+       -> lowsn_ds6_uaddr_lookup     0      0     20
+       -> lowsn_ds6_maddr_lookup     0      0     20
+       -> lowsn_ds6_aaddr_lookup     0      0     20
+       -> nwkRestoreCompHeader       0      0     20
+       -> halRawPut                  0      0     20
+       -> slipSend                   0      0     20
+       -> slipSend                   0      0     20
+       -> lowsn_udpchksum            0      0     20
+       -> conPrintUINT16             0      0     20
+       -> lowsn_udpchksum            0      0     20
+       -> conPrintUINT16             0      0     20
+       -> MemFree                    0      0     20
+       -> apsRxBusy                  0      0     20
+       -> apsRxHandoff               0      0     20
+       -> lowsn_icmp6chksum          0      0     20
+       -> icmpParseEchoReply         0      0     20
+       -> slipSend                   0      0     20
+     nwkRxHandoff                    0      0     12
+     nwkTxData                       1      0     28
+       -> lowsn_udpchksum            0      0     24
+       -> lowsn_icmp6chksum          0      0     24
+       -> adpFSM                     0      0     24
+     nwk_buf_free                    2      0      0
+     upper_layer_chksum              0      0     14
+       -> chksum                     0      0     28
+       -> chksum                     0      0     28
+
+
+   Segment part sizes:
+
+     Function/Label                       Bytes
+     --------------                       -----
+     nwk_utility_timer                       4
+     lowsn_aligned_buf                     144
+     lowsn_len                               2
+     lowsn_fragbuf                         114
+     lowsn_reassbuf                        151
+     lowsn_swap_buf                        129
+     lowsn_udp_conn                          2
+     lowsn_udp_conns                       126
+     nwkState                                1
+     nwkRxState                              1
+     a_nwk_service                          20
+     nwk_pib                                 8
+     a_nwk_tx_data                          59
+     a_nwk_rx_data                          51
+     ip_header_buf                          40
+     pmtu                                    6
+     lowsn_next_hdr                          2
+     lowsn_ext_bitmap                        1
+     lowsn_ext_len                           1
+     lowsn_ext_opt_offset                    1
+     chksum                                117
+     ?Subroutine37                           5
+     lowsn_chksum                           25
+     ?Subroutine18                           8
+     ??Subroutine45_0                        6
+     lowsn_ipchksum                         39
+     upper_layer_chksum                    110
+     ?Subroutine42                           5
+     lowsn_icmp6chksum                       9
+     ?Subroutine43                           3
+     ??Subroutine47_0                        7
+     lowsn_tcpchksum                         9
+     lowsn_udpchksum                         9
+     nwkInit                                25
+     nwkFSM                                643
+     ?Subroutine44                           5
+     ?Subroutine28                           5
+     ?Subroutine27                          17
+     ?Subroutine24                           3
+     ?Subroutine39                           1
+     ??Subroutine46_0                        5
+     ?Subroutine17                          10
+     ?Subroutine13                          15
+     ?Subroutine11                           8
+     ?Subroutine25                           6
+     ?Subroutine40                           5
+     ?Subroutine12                           5
+     ?Subroutine9                            4
+     ?Subroutine31                          13
+     ?Subroutine26                           1
+     ?Subroutine41                           5
+     ?Subroutine21                          16
+     nwkRxFSM                              575
+     ?Subroutine23                          14
+     ?Subroutine8                           14
+     ?Subroutine7                           11
+     ?Subroutine33                          12
+     ?Subroutine4                           11
+     ?Subroutine34                          12
+     nwkTxData                             354
+     ?Subroutine14                           6
+     ?Subroutine38                           6
+     ?Subroutine6                           21
+     ?Subroutine3                           14
+     ?Subroutine30                          21
+     ?Subroutine1                           15
+     ?Subroutine0                            8
+     ?Subroutine32                           6
+     ?Subroutine2                            4
+     ?Subroutine29                          19
+     nwkRxBusy                              18
+     nwk_buf_free                           22
+     nwkRxHandoff                          142
+     ?Subroutine16                           6
+     nwkParseHdr                           178
+     ?Subroutine22                           9
+     ?Subroutine36                           7
+     ?Subroutine20                           4
+     ??Subroutine48_0                        4
+     ?Subroutine19                          10
+     ?Subroutine15                          19
+     ?Subroutine10                           7
+     ?Subroutine35                          11
+     ?Subroutine5                           30
+     nwkRestoreCompHeader                  215
+     nwkParseSlipHdr                       181
+     nwkInjectSlipTxPacket                  87
+     nwkInjectSlipRxPacket                  89
+     nwkFindDstDLLAddr                     238
+     __Constant_ffffff                       4
+     ?<Initializer for __Constant_ffffff>    4
+     __Constant_f231                         4
+     ?<Initializer for __Constant_f231>      4
+     ??chksum?relay                          6
+     ??lowsn_chksum?relay                    6
+     ??lowsn_ipchksum?relay                  6
+     ??upper_layer_chksum?relay              6
+     ??lowsn_icmp6chksum?relay               6
+     ??lowsn_tcpchksum?relay                 6
+     ??lowsn_udpchksum?relay                 6
+     ??nwkInit?relay                         6
+     ??nwkFSM?relay                          6
+     ??nwkRxFSM?relay                        6
+     ??nwkTxData?relay                       6
+     ??nwkRxBusy?relay                       6
+     ??nwk_buf_free?relay                    6
+     ??nwkRxHandoff?relay                    6
+     ??nwkParseHdr?relay                     6
+     ??nwkRestoreCompHeader?relay            6
+     ??nwkParseSlipHdr?relay                 6
+     ??nwkInjectSlipTxPacket?relay           6
+     ??nwkInjectSlipRxPacket?relay           6
+     ??nwkFindDstDLLAddr?relay               6
+
+ 
+ 3 544 bytes in segment BANKED_CODE
+   120 bytes in segment BANK_RELAYS
+     8 bytes in segment XDATA_I
+     8 bytes in segment XDATA_ID
+   863 bytes in segment XDATA_Z
+ 
+ 3 664 bytes of CODE  memory (+ 8 bytes shared)
+   863 bytes of XDATA memory (+ 8 bytes shared)
+
+Errors: none
+Warnings: 1

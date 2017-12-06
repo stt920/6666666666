@@ -1,0 +1,623 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:37 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\slip.c            #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\slip.c -D         #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_SLIP_TO_HOST -lcN F:\6LoWSN\6lowsn_stack\obj #
+#                          \compiletest\iar51_cc2530\edge_coord\List\ -o      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\ -e --debug --core=plain          #
+#                          --dptr=16,1 --data_model=large                     #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\List\slip.lst                         #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\slip.r51                          #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\slip.c
+      1          
+      2          /******************************************************************************************************
+      3          *
+      4          * 文 件 名：slip.c
+      5          *
+      6          * 文件描述： SLIP驱动及与Host之间的接口
+      7          *
+      8          * 创 建 者：Wang Heng
+      9          *
+     10          * 当前版本：0.50
+     11          *
+     12          * 修 改 者：
+     13          *
+     14          * 修改历史：
+     15          
+     16          
+     17          ********************************************************************************************************/
+     18          
+     19          #include "compiler.h"          
+     20          #include "6lowsn_common_types.h"
+     21          #include "6lowsn_config.h"
+     22          #include "hal.h"
+     23          #include "halStack.h"
+     24          #include "console.h"
+     25          #include "debug.h"
+     26          #include "phy.h"
+     27          #include "mac.h"
+     28          #include "adp.h"
+     29          #include "nwk.h"
+     30          #include "aps.h"
+     31          #include "mp.h"
+     32          #include "neighbor.h"
+     33          #include "ds.h"
+     34          #include "slip.h"
+     35          
+     36          
+     37          #ifdef LOWSN_COORDINATOR
+     38          #ifdef LOWSN_SLIP_TO_HOST
+     39          
+     40          
+     41          #define SERIAL_INPUT_TIMEOUT MSECS_TO_MACTICKS(400)
+     42          
+     43          
+     44          SLIP_PIB slip_pib;
+     45          BYTE slipbuf[MAX_SLIP_BUF_SIZE];
+     46          UINT16 slipbuf_len;
+     47          
+     48          SLIP_STATE_ENUM slipState;
+     49          SLIP_SERVICE a_slip_service;
+     50          
+     51          
+     52          BOOL slipGetchWithTimeOut(BYTE *c)
+     53          {
+     54          	UINT32 my_timer;
+     55          
+     56          	if (halGetchRdy()) {
+     57                      *c = halGetch();
+     58          			return(TRUE);
+     59          	}
+     60          	//now do timeout
+     61          	my_timer= halGetMACTimer();
+     62          	do {
+     63          		if (halGetchRdy()) {
+     64          			*c = halGetch();
+     65          			return(TRUE);
+     66          		}
+     67          	}while ((halMACTimerNowDelta(my_timer))< SERIAL_INPUT_TIMEOUT);
+     68          	*c = 0;  //return reasonable default
+     69              return (FALSE);
+     70          }
+     71          
+     72          
+     73          void slipInit(void)
+     74          {
+     75          	slip_pib.flags.val = 0;
+     76          	//slip_pib.forward_kind = SLIP_FORWARD_NONE;
+     77          	slip_pib.forward_kind = SLIP_FORWARD_IP_PACKET;
+     78          	slip_pib.aps_forward = 1;
+     79          	slipFlushBuf(MAX_SLIP_BUF_SIZE);
+     80          	slipState = SLIP_STATE_IDLE;
+     81          
+     82          }
+     83          
+     84          
+     85          // 
+     86          /*------------------------------------------------------------------------------------*
+     87          
+     88          Slip发送函数
+     89          
+     90          flag用于控制是否发送起始的END和结束的END
+     91          
+     92          
+     93          0  : 有起始END，有结束END
+     94          1  : 无起始END，有结束END
+     95          2  : 有起始END，无结束END
+     96          3  : 无起始END，无结束END
+     97          >=4: 有起始END，有结束END
+     98          
+     99          
+    100          *------------------------------------------------------------------------------------*/
+    101          void slipSend(BYTE *pbuf, UINT16 len, UINT8 flag)
+    102          {
+    103          	if (flag > 3) {
+    104          		flag = 0;
+    105          	}	
+    106          
+    107          	if ((flag == 0) || (flag == 2)) {
+    108          		halRawPut(END);
+    109          	}
+    110          
+    111                 while(len--) {
+    112          	   	
+    113          		switch(*pbuf) {
+    114          			
+    115                             case END:
+    116                                     halRawPut(ESC);
+    117                                     halRawPut(ESC_END);
+    118                                     break;
+    119          
+    120                             case ESC:
+    121                                     halRawPut(ESC);
+    122                                     halRawPut(ESC_ESC);
+    123                                     break;
+    124          						   
+    125                             default:
+    126                                     halRawPut(*pbuf);
+    127                        }
+    128          		
+    129                        pbuf++;
+    130                 }
+    131          
+    132          	if ((flag == 0) || (flag == 1))  {
+    133                		halRawPut(END);
+    134          	}		
+    135          		   
+    136          }
+    137          
+    138          
+    139          
+    140          // 返回接收数据的长度
+    141          
+    142          UINT16 slipRcv(void)
+    143          {
+    144          
+    145          	BYTE c;
+    146          	int received = 0;
+    147          
+    148          	// 注意: 这个while死循环有可能跳不出来，尤其在线路出错的情况下
+    149          	// 应该加入定时器超时控制才更加合理
+    150          	while(1) {
+    151          
+    152                             slipGetchWithTimeOut(&c);
+    153          
+    154                             switch(c) {
+    155          
+    156                             case END:
+    157           
+    158                                     if(received)
+    159                                             return received;
+    160                                     else
+    161                                             break;
+    162          
+    163                             case ESC:
+    164                                     slipGetchWithTimeOut(&c);
+    165          
+    166                                     switch(c) {
+    167                                     case ESC_END:
+    168                                             c = END;
+    169                                             break;
+    170                                     case ESC_ESC:
+    171                                             c = ESC;
+    172                                             break;
+    173                                             }
+    174          						   
+    175                             default:
+    176                                     if(received < MAX_SLIP_BUF_SIZE)
+    177                                             slipbuf[received++] = c;
+    178                             }
+    179                 }
+    180          	
+    181          }
+    182          
+    183          
+    184          void slipRequestPrefix(void)
+    185          {
+    186          	BYTE c;
+    187          
+    188          	c = SLIP_CMD_QUERY_FIRST;
+    189          	slipSend(&c, 1, 2);
+    190          	
+    191          	c = SLIP_CMD_PREFIX_REQ;
+    192          	slipSend(&c, 1, 1);
+    193          
+    194          	return;
+    195          	
+    196          }
+    197          
+    198          BOOL slipParsePrefix(IPADDR *prefix, UINT8 *p_len)
+    199          {
+    200                  BYTE i;
+    201          
+    202          	if ((slipbuf[0] == SLIP_CMD_INFO_FIRST) && (slipbuf[1] == SLIP_CMD_PREFIX_REQ) ) {
+    203          		
+    204          		// 格式: 第3-10个字节为64位前缀，目前限制前缀只能是64位，且只传输前缀，不传输整个IPv6地址
+    205          		for (i=0; i<8; i++)  {
+    206          			// 需审查大小端模式
+    207          			prefix->u8[i] = slipbuf[2+i];
+    208          		}	
+    209          
+    210          		for (i=8; i<16; i++)  {
+    211          			prefix->u8[i] = 0;
+    212          		}	
+    213          
+    214          		*p_len = 64;
+    215          		
+    216          		return 0;
+    217          	}	
+    218          	else  {
+    219          		return 1;
+    220          	}	
+    221          }	
+    222          
+    223          // 处理在网络运行过程中收到的SLIP专用命令帧
+    224          // 因为获取前缀是协调器运行前提，所以将前缀获取独立出来
+    225          // 目前其他命令暂空，包括更改前缀命令
+    226          void slipParseCmd(UINT16 len)
+    227          {
+    228          
+    229          
+    230          }
+    231          
+    232          
+    233          void slipFlushBuf(UINT16 len)
+    234          {
+    235          	UINT16 i;
+    236          	
+    237          	for (i=0;i<len;i++) {
+    238          		slipbuf[i] = 0;
+    239          	}	
+    240          }	
+    241          
+    242          void slipFSM(void)
+    243          {
+    244          
+    245          	UINT16 len;
+    246          	BYTE i;
+    247          	IPADDR SrcAddress, DstAddress;
+    248          	BYTE serviceID; 
+    249          
+    250          adpFSM_start:
+    251          
+    252          	switch (slipState) {
+    253          		
+    254          	case SLIP_STATE_IDLE:
+    255          	 	
+    256          	if (slipReady())  {
+    257          		
+    258          		len = slipRcv();
+    259          		
+    260          		if (slipIsCmdPkt())  {
+    261          			// 专用命令帧
+    262          			slipParseCmd(len);
+    263          		}	
+    264          		
+    265          	 	else if (slipIsIpPkt6())  {
+    266          
+    267          			DEBUG_STRING(DBG_INFO,"SLIP IP: Receive IPv6 packet \n");
+    268          			// IPv6数据包
+    269          
+    270          			// 检查长度是否正确
+    271          			if (  (((((UINT16)(slipbuf[4])) << 8) | slipbuf[5]) + LOWSN_IPH_LEN) != len ) {
+    272          				DEBUG_STRING(DBG_INFO,"SLIP IP: Wrong IP length! \n");
+    273          				slipFlushBuf(len);
+    274          				break;
+    275          			}
+    276          
+    277          			DEBUG_STRING(DBG_INFO,"SLIP IP: IPv6 length OK.  \n");
+    278          
+    279          			// 注意: 未考虑分片问题! 要求主机发来的数据包必须小于100个字节，否则程序会崩溃
+    280          			// 100个字节是大致估计，即总的数据包不能超过127个字节。待网络层IP分片功能重新加入后再考虑更改
+    281          			if ( len > 100) {
+    282          				DEBUG_STRING(DBG_INFO,"SLIP IP: Host IP should smaller than 100, current limitation. \n");
+    283          				slipFlushBuf(len);
+    284          				break;
+    285          			}
+    286          
+    287          			
+    288          			// 获取地址进行以便进行比对
+    289          			for(i=0; i<16; i++) {
+    290                        		SrcAddress.u8[i] = slipbuf[8+i];
+    291          				DstAddress.u8[i] = slipbuf[24+i];
+    292                 		}
+    293          
+    294          		
+    295          			if(lowsn_is_addr_mcast(&SrcAddress)){
+    296          				DEBUG_STRING(DBG_INFO,"SLIP IP: Discard the packet : Muliticast src IP Addr.\n");
+    297          				slipFlushBuf(len);
+    298          				break;
+    299          			}
+    300          
+    301          			if(!lowsn_ds6_is_my_uaddr(&DstAddress)&&
+    302          		   	!lowsn_ds6_is_my_maddr(&DstAddress)&&
+    303                          	 !lowsn_ds6_is_my_aaddr(&DstAddress)) {
+    304                           	//目标节点不是协调器，inject到发送队列中，转往MESH子网.
+    305                           	// 目前地址识别过于简单，虽然不是转给协调器的，但应判断是否应该转入子网,
+    306                           	// 若不是转入子网的，应丢弃。以后添加.
+    307                           	
+    308          				DEBUG_STRING(DBG_INFO,"SLIP IP: Dst is a node in the subnet. Inject to nwk tx buf. \n");
+    309          				nwk_pib.flags.bits.slipforwardPending = 1;
+    310          				slipState = SLIP_STATE_INJECT_NWK_TX_WAIT;
+    311          				break;
+    312          
+    313          					
+    314          			
+    315          			}
+    316          			else  {
+    317          			// 目标地址就是协调器
+    318          				DEBUG_STRING(DBG_INFO,"SLIP IP: Dst is the coord. Inject to nwk RxFSM. \n");
+    319          				nwk_pib.flags.bits.slipRxPending = 1;
+    320          				slipState = SLIP_STATE_INJECT_NWK_RX_WAIT;
+    321          				goto adpFSM_start;
+    322          
+    323          
+    324          			}	
+    325          
+    326          
+    327          	
+    328          	 	}	
+    329          		else  if (slipIsApsPkt())  {
+    330          			// 应用层数据包
+    331          
+    332          			// 检查方向是否Host-Coord
+    333          			if (slipbuf[2] != SLIP_APS_HOST_TO_COORD) {
+    334          				DEBUG_STRING(DBG_INFO,"SLIP APS: Not a valid Host to Coord Packet.\n");
+    335          				slipFlushBuf(len);
+    336          				break;
+    337          			}	
+    338          
+    339          			// 校验数据长度是否正确
+    340          			if (  (((((UINT16)(slipbuf[31])) << 8) | slipbuf[32]) + SLIP_APS_TO_HOST_HEADER_LEN) != len) {
+    341          				DEBUG_STRING(DBG_INFO,"SLIP APS: Wrong APS packet length! \n");
+    342          				slipFlushBuf(len);
+    343          				break;
+    344          			}
+    345          			
+    346          			if (slipbuf[3] == SLIP_APS_DATA_FRAME)  {
+    347          				
+    348          				slipState = SLIP_STATE_INJECT_APS_TX;
+    349          				goto adpFSM_start;
+    350          			
+    351          			}
+    352          
+    353          			else if (slipbuf[3] == SLIP_APS_MP_FRAME)  {
+    354          
+    355          				// 暂时采用Host实现管理进程的方式, 协调器只是透传
+    356          				// 将来完善协调器端管理进程+ Host端管理命令的方式
+    357          				slipState = SLIP_STATE_INJECT_APS_TX;
+    358          				goto adpFSM_start;
+    359          
+    360          			}
+    361          
+    362          			else  {
+    363          				
+    364          				DEBUG_STRING(DBG_INFO,"SLIP APS: Wrong frame kind. \n");
+    365          				slipFlushBuf(len);
+    366          				break;
+    367          
+    368          			}	
+    369          						
+    370          		}	
+    371          
+    372          		else if (slipIsMacPkt())  {
+    373          			// 注入的IEEE 802.15.4数据包
+    374          			DEBUG_STRING(DBG_INFO,"SLIP: Not support inject MAC packets now. \n");
+    375          			slipFlushBuf(len);
+    376          
+    377          		}	
+    378          
+    379          		else  {
+    380          			
+    381          			DEBUG_STRING(DBG_INFO,"SLIP: Invalid frame kind. \n");
+    382          			slipFlushBuf(len);
+    383          		}	
+    384          		
+    385          	}	
+    386          
+    387          	break;
+    388          
+    389          	case SLIP_STATE_INJECT_APS_TX:
+    390          		
+    391          		if (apsBusy())  break;
+    392          		
+    393          		// 判断是否需自动产生service ID
+    394          		
+    395          		if (slipbuf[27] == 0xFF) {
+    396          			serviceID = apsGenServiceID();
+    397          		}
+    398          		else  {
+    399          
+    400          			serviceID = slipbuf[27];
+    401          		}	
+    402          
+    403          		switch (slipbuf[4]) {
+    404          					
+    405          	 		case APS_SERVICE_TYPE_PUBLISH:
+    406          			aplSendPublishDataNoFSM(*((IPADDR *)(&slipbuf[5])), ((UINT16)(slipbuf[21])) << 8 | ((UINT16)(slipbuf[22])), slipbuf[23], ((UINT16)(slipbuf[24])) << 8 | ((UINT16)(slipbuf[25])), slipbuf[26], 
+    407          						                            serviceID, slipbuf[28], &(slipbuf[33]), ((UINT16)(slipbuf[31])) << 8 | ((UINT16)(slipbuf[32])));
+    408          			slipState = SLIP_STATE_INJECT_APS_DATA_WAIT;
+    409          		        goto adpFSM_start;
+    410           
+    411          			case APS_SERVICE_TYPE_REPORT:
+    412          			aplSendReportDataNoFSM(*((IPADDR *)(&slipbuf[5])), ((UINT16)(slipbuf[21])) << 8 | ((UINT16)(slipbuf[22])), slipbuf[23], ((UINT16)(slipbuf[24])) << 8 | ((UINT16)(slipbuf[25])), slipbuf[26], 
+    413          						                              serviceID, slipbuf[28], &(slipbuf[33]), ((UINT16)(slipbuf[31])) << 8 | ((UINT16)(slipbuf[32])));
+    414          		        slipState = SLIP_STATE_INJECT_APS_DATA_WAIT;
+    415          		        goto adpFSM_start;
+    416          
+    417          	 		case APS_SERVICE_TYPE_CS:
+    418          			aplSendCSDataNoFSM(*((IPADDR *)(&slipbuf[5])), ((UINT16)(slipbuf[21])) << 8 | ((UINT16)(slipbuf[22])), slipbuf[23], ((UINT16)(slipbuf[24])) << 8 | ((UINT16)(slipbuf[25])), slipbuf[26], 
+    419          						                           serviceID, slipbuf[28], &(slipbuf[33]), ((UINT16)(slipbuf[31])) << 8 | ((UINT16)(slipbuf[32])), slipbuf[29], slipbuf[30]);
+    420          			slipState = SLIP_STATE_INJECT_APS_DATA_WAIT;
+    421          		        goto adpFSM_start;
+    422          
+    423          			default:
+    424          				DEBUG_STRING(DBG_INFO,"SLIP APS: Not a vailid APS kind.\n");
+    425          				slipFlushBuf(len);
+    426          			break;
+    427          						
+    428          		}
+    429          	
+    430          	break;
+    431          
+    432          	case SLIP_STATE_INJECT_APS_DATA_WAIT:
+    433          
+    434          		if (apsBusy()) break; 
+    435          		
+    436          		if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    437          			slipState = SLIP_STATE_IDLE;
+    438          		}
+    439          		else {
+    440          			DEBUG_STRING(DBG_INFO,"SLIP APS: Send Failed. \n");
+    441          			// 重传, 将来完善
+    442          			slipState = SLIP_STATE_IDLE;
+    443          		}
+    444          		
+    445          	break;
+    446          
+    447          	case SLIP_STATE_INJECT_NWK_RX_WAIT:
+    448          		
+    449          		if (nwk_pib.flags.bits.slipRxPending)   break;
+    450          		
+    451          		if (a_slip_service.status == LOWSN_STATUS_SUCCESS)  {
+    452          			// 状态成功仅表明正确放入NWK RX接收流程中了,
+    453          			// 无法确保应用层及其以上能够正常收到
+    454          			slipState = SLIP_STATE_IDLE;
+    455          		}
+    456          		else {
+    457          			// 进入网络层接收状态机失败，将来考虑失败处理
+    458          			slipState = SLIP_STATE_IDLE;
+    459          		}	
+    460          	 	
+    461          	break;
+    462          
+    463          	case SLIP_STATE_INJECT_NWK_TX_WAIT:
+    464          
+    465          		if (nwk_pib.flags.bits.slipforwardPending)   break;
+    466          		 //inject packet into TX FSM
+    467          		if (a_slip_service.status == LOWSN_STATUS_SUCCESS)  {
+    468          			slipState = SLIP_STATE_IDLE;
+    469          		}
+    470          		else {
+    471          			// 重传或告诉Host发不出去     TODO
+    472          			slipState = SLIP_STATE_IDLE;
+    473          		}	
+    474          		 	
+    475          	break;
+    476          	
+    477          
+    478          	default:  break;
+    479          	} 
+    480          
+    481          }
+    482          
+    483          
+    484          
+    485          #endif
+    486          #endif
+    487          
+    488          
+
+   Maximum stack usage in bytes:
+
+     Function                    ISTACK PSTACK XSTACK
+     --------                    ------ ------ ------
+     slipFSM                         1      0     68
+       -> halGetchRdy                0      0     88
+       -> slipRcv                    0      0     88
+       -> slipFlushBuf               0      0     88
+       -> lowsn_ds6_uaddr_lookup     0      0     88
+       -> lowsn_ds6_maddr_lookup     0      0     88
+       -> lowsn_ds6_aaddr_lookup     0      0     88
+       -> aplFmtSendPublishData      0      0    132
+       -> aplFmtSendReportData       0      0    132
+       -> aplFmtSendCSData           0      0    136
+     slipFlushBuf                    3      0     44
+     slipGetchWithTimeOut            1      0     30
+       -> halGetchRdy                0      0     40
+       -> halGetch                   0      0     40
+       -> halGetMACTimer             0      0     40
+       -> halGetchRdy                0      0     40
+       -> halGetch                   0      0     40
+       -> halGetMACTimer             0      0     40
+     slipInit                        2      0      0
+       -> slipFlushBuf               4      0      0
+     slipParseCmd                    0      0      0
+     slipParsePrefix                 1      0     10
+     slipRcv                         1      0     54
+       -> slipGetchWithTimeOut       0      0     20
+       -> slipGetchWithTimeOut       0      0     20
+     slipRequestPrefix               3      0      1
+       -> slipSend                   4      0      2
+       -> slipSend                   4      0      2
+     slipSend                        0      0     12
+       -> halRawPut                  0      0     22
+       -> halRawPut                  0      0     22
+       -> halRawPut                  0      0     22
+       -> halRawPut                  0      0     22
+       -> halRawPut                  0      0     22
+       -> halRawPut                  0      0     22
+       -> halRawPut                  0      0     22
+
+
+   Segment part sizes:
+
+     Function/Label                       Bytes
+     --------------                       -----
+     slip_pib                                5
+     slipbuf                              1300
+     slipbuf_len                             2
+     slipState                               1
+     a_slip_service                          4
+     slipGetchWithTimeOut                  125
+     slipInit                               33
+     ?Subroutine2                            7
+     slipSend                              131
+     slipRcv                               123
+     ?Subroutine0                           21
+     slipRequestPrefix                      61
+     slipParsePrefix                       100
+     slipParseCmd                            3
+     slipFlushBuf                           40
+     slipFSM                               735
+     ?Subroutine1                           12
+     __Constant_ffffff                       4
+     ?<Initializer for __Constant_ffffff>    4
+     __Constant_60e0                         4
+     ?<Initializer for __Constant_60e0>      4
+     ??slipGetchWithTimeOut?relay            6
+     ??slipInit?relay                        6
+     ??slipSend?relay                        6
+     ??slipRcv?relay                         6
+     ??slipRequestPrefix?relay               6
+     ??slipParsePrefix?relay                 6
+     ??slipParseCmd?relay                    6
+     ??slipFlushBuf?relay                    6
+     ??slipFSM?relay                         6
+
+ 
+ 1 391 bytes in segment BANKED_CODE
+    54 bytes in segment BANK_RELAYS
+     8 bytes in segment XDATA_I
+     8 bytes in segment XDATA_ID
+ 1 312 bytes in segment XDATA_Z
+ 
+ 1 445 bytes of CODE  memory (+ 8 bytes shared)
+ 1 312 bytes of XDATA memory (+ 8 bytes shared)
+
+Errors: none
+Warnings: none

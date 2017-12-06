@@ -1,0 +1,396 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:28 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\console.c         #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\console.c -D      #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\console.lst                           #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\console.r51                            #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\console.c
+      1          
+      2          
+      3          
+      4          
+      5          #include "compiler.h"               //compiler specific
+      6          #include "hal.h"
+      7          #include "6lowsn_config.h"
+      8          #include "halStack.h"
+      9          #include "console.h"
+     10          #include "6lowsn.h"
+     11          
+     12          //utility print functions that do not use printf and expect ROM strings
+     13          //these assume that constants and strings are stored in code memory
+     14          
+     15          
+     16          
+     17          
+     18          
+     19          #ifdef LOWSN_SLIP_COM_QUIET
+     20          
+     21          void conPrintROMString_func (ROMCHAR *s)  {  } 
+     22          void conPrintString (char *s)  {  }
+     23          void conPrintUINT8_noleader (UINT8 x) {  }
+     24          
+     25          #else
+     26          
+     27          void conPrintROMString_func (ROMCHAR *s) {
+     28            while(*s) {
+     29              if (*s == '\n') halPutch('\r');
+     30              halPutch(*s);
+     31              s++;
+     32            }
+     33          }
+     34          
+     35          void conPrintString (char *s) {
+     36            while(*s) {
+     37              if (*s == '\n') halPutch('\r');
+     38              halPutch(*s);
+     39              s++;
+     40            }
+     41          }
+     42          
+     43          void conPrintUINT8_noleader (UINT8 x) {
+     44            BYTE c;
+     45            c = (x>>4)& 0xf;
+     46            if (c > 9) halPutch('A'+c-10);
+     47             else halPutch('0'+c);
+     48            //LSDigit
+     49            c = x & 0xf;
+     50            if (c > 9) halPutch('A'+c-10);
+     51             else halPutch('0'+c);
+     52          }
+     53          
+     54          #endif
+     55          
+     56          void conPCRLF(void){
+     57          	conPrintROMString("\n");
+     58          }
+     59          
+     60          
+     61          void conPrintUINT8 (UINT8 x) {
+     62            conPrintROMString("0x");
+     63            conPrintUINT8_noleader(x);
+     64          }
+     65          
+     66          void conPrintUINT16 (UINT16 x) {
+     67           BYTE c;
+     68          
+     69           conPrintROMString("0x");
+     70           c = (x >> 8);
+     71           conPrintUINT8_noleader(c);
+     72           c = (BYTE) x;
+     73           conPrintUINT8_noleader(c);
+     74          }
+     75          
+     76          
+     77          void conPrintUINT32 (UINT32 x) {
+     78           BYTE c;
+     79           conPrintROMString("0x");
+     80           c = (x >> 24);
+     81           conPrintUINT8_noleader(c);
+     82           c = (x >> 16);
+     83           conPrintUINT8_noleader(c);
+     84           c = (x >> 8);
+     85           conPrintUINT8_noleader(c);
+     86           c = x;
+     87           conPrintUINT8_noleader(c);
+     88          }
+     89          
+     90          
+     91          #if 0
+     92          //assumed little endian
+     93          void conPrintLADDR_bytes(BYTE *ptr) {
+     94          char i;
+     95           conPrintROMString("0x");
+     96           for (i=8;i!=0;i--){
+     97             conPrintUINT8_noleader(*(ptr+i-1));
+     98          
+     99            }
+    100          }
+    101          #endif
+    102          
+    103          
+    104          void conPrintLADDR_bytes(BYTE *ptr)
+    105          {
+    106          char i;
+    107           for (i=0; i < 8; i++){
+    108             conPrintUINT8_noleader(*(ptr+i));
+    109             conPrintROMString(" : ");
+    110          
+    111            }
+    112          }
+    113          
+    114          
+    115          /*---------------------------------------------------------------------*
+    116          
+    117          打印EUI64长地址
+    118          存储顺序: 把EUI64当做类似字符数组按照阅读顺序从低向高存储
+    119          
+    120          *---------------------------------------------------------------------*/
+    121          
+    122          void conPrintLADDR(LADDR *laddr)
+    123          {
+    124           BYTE *ptr;
+    125          
+    126           ptr = &laddr->bytes[0];
+    127           conPrintLADDR_bytes(ptr);
+    128          }
+    129          
+    130          
+    131          void conPrintIP6ADDR_bytes(BYTE *ptr)
+    132          {
+    133          	char i;
+    134          	for (i=0; i < 16; i++){
+    135             		conPrintUINT8_noleader(*(ptr+i));
+    136             		conPrintROMString(" : ");
+    137            	}
+    138          
+    139          }
+    140          
+    141          
+    142          void conPrintIP6ADDR_dbytes(BYTE *ptr)
+    143          {
+    144          	char i;
+    145          	for (i=0; i < 16; i=i+2){
+    146             		conPrintUINT8_noleader(*(ptr+i));
+    147             		conPrintUINT8_noleader(*(ptr+i+1));
+    148             		conPrintROMString(" : ");
+    149            	}
+    150          }
+    151          
+    152          
+    153          /*---------------------------------------------------------------------*
+    154          
+    155          打印IPv6地址
+    156          type: 0:按字节逐一打印; 1或其他值: 按两个字节逐一打印
+    157          
+    158          
+    159          *---------------------------------------------------------------------*/
+    160          
+    161          void conPrintIP6ADDR(IPADDR *ipaddr, UINT8 type)
+    162          {
+    163          	BYTE *ptr;
+    164          
+    165          	ptr = &ipaddr->u8[0];
+    166          
+    167          	if (type == 0)  {
+    168           		conPrintIP6ADDR_bytes(ptr);
+    169           	}	
+    170          	else
+    171          	{
+    172          		conPrintIP6ADDR_dbytes(ptr);
+    173          	}	
+    174          }
+    175          
+    176          
+    177          
+    178          void conPrintConfig(void){
+    179            BYTE b[8];
+    180          
+    181            conPrintROMString("\n*************************\n");
+    182            conPrintROMString("     6LoWSN Stack \n");
+    183            conPrintROMString("        CQUPT       \n");
+    184            conPrintROMString("     Version  ");
+    185            conPrintROMString(LOWSN_VERSION)
+    186            conPCRLF();
+    187              conPrintROMString("*************************\n");
+    188          #ifdef LOWSN_COORDINATOR
+    189            conPrintROMString("Coordinator, ");
+    190          #endif
+    191          #ifdef LOWSN_ROUTER
+    192            conPrintROMString("Router, ");
+    193          #endif
+    194          #ifdef LOWSN_RFD
+    195            conPrintROMString("RFD, ");
+    196          #endif
+    197            conPrintROMString("Address: ");
+    198            halGetProcessorIEEEAddress(b);
+    199            conPrintLADDR_bytes(b);
+    200          
+    201            conPCRLF();
+    202            conPrintROMString("Default PAN: ");
+    203            conPrintUINT32(LOWSN_DEFAULT_PANID);
+    204          
+    205            conPrintROMString(",Default Channel: ");
+    206            conPrintUINT8(LOWSN_DEFAULT_START_CHANNEL);
+    207          
+    208            conPCRLF();
+    209            conPCRLF();
+    210          }
+    211          
+
+   Maximum stack usage in bytes:
+
+     Function                       ISTACK PSTACK XSTACK
+     --------                       ------ ------ ------
+     conPCRLF                           2      0      0
+       -> conPrintROMString_func        4      0      0
+     conPrintConfig                     0      0     20
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> halGetProcessorIEEEAddress
+                                        0      0     40
+       -> conPrintLADDR_bytes           0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintUINT32                0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintUINT8                 0      0     40
+       -> conPrintROMString_func        0      0     40
+       -> conPrintROMString_func        0      0     40
+     conPrintIP6ADDR                    2      0      0
+       -> conPrintIP6ADDR_bytes         4      0      0
+       -> conPrintIP6ADDR_dbytes        4      0      0
+     conPrintIP6ADDR_bytes              0      0     12
+       -> conPrintUINT8_noleader        0      0     24
+       -> conPrintROMString_func        0      0     24
+     conPrintIP6ADDR_dbytes             0      0     11
+       -> conPrintUINT8_noleader        0      0     22
+       -> conPrintUINT8_noleader        0      0     22
+       -> conPrintROMString_func        0      0     22
+     conPrintLADDR                      2      0      0
+       -> conPrintLADDR_bytes           4      0      0
+     conPrintLADDR_bytes                0      0     32
+       -> conPrintUINT8_noleader        0      0     24
+       -> conPrintROMString_func        0      0     24
+     conPrintROMString_func             0      0     29
+       -> halPutch                      0      0     18
+       -> halPutch                      0      0     18
+     conPrintString                     0      0      9
+       -> halPutch                      0      0     18
+       -> halPutch                      0      0     18
+     conPrintUINT16                     0      0      9
+       -> conPrintROMString_func        0      0     18
+       -> conPrintUINT8_noleader        0      0     18
+       -> conPrintUINT8_noleader        0      0     18
+     conPrintUINT32                     0      0     36
+       -> conPrintROMString_func        0      0     32
+       -> conPrintUINT8_noleader        0      0     32
+       -> conPrintUINT8_noleader        0      0     32
+       -> conPrintUINT8_noleader        0      0     32
+       -> conPrintUINT8_noleader        0      0     32
+     conPrintUINT8                      0      0     29
+       -> conPrintROMString_func        0      0     18
+       -> conPrintUINT8_noleader        0      0     18
+     conPrintUINT8_noleader             0      0     25
+       -> halPutch                      0      0     18
+       -> halPutch                      0      0     18
+       -> halPutch                      0      0     18
+       -> halPutch                      0      0     18
+
+
+   Segment part sizes:
+
+     Function/Label                     Bytes
+     --------------                     -----
+     conPrintROMString_func               41
+     ??Subroutine8_0                       5
+     ?Subroutine1                         14
+     conPrintString                       39
+     conPrintUINT8_noleader               49
+     conPCRLF                             11
+     ?Subroutine6                          7
+     xxxxromstr                            2
+     ?Subroutine5                          5
+     conPrintUINT8                        17
+     xxxxromstr                            3
+     conPrintUINT16                       24
+     xxxxromstr                            3
+     conPrintUINT32                       89
+     xxxxromstr                            3
+     conPrintLADDR_bytes                  26
+     ?Subroutine7                          5
+     ?Subroutine3                          9
+     ?Subroutine0                         15
+     ?Subroutine4                          2
+     ??Subroutine9_0                       6
+     xxxxromstr                            4
+     conPrintLADDR                        10
+     conPrintIP6ADDR_bytes                28
+     xxxxromstr                            4
+     conPrintIP6ADDR_dbytes               64
+     xxxxromstr                            4
+     conPrintIP6ADDR                      18
+     conPrintConfig                      146
+     ?Subroutine2                         11
+     xxxxromstr                           28
+     xxxxromstr                           20
+     xxxxromstr                           22
+     xxxxromstr                           15
+     xxxxromstr                            5
+     xxxxromstr                           27
+     xxxxromstr                           14
+     xxxxromstr                           10
+     xxxxromstr                           14
+     xxxxromstr                           19
+     __Constant_1347                       4
+     ?<Initializer for __Constant_1347>    4
+     ??conPrintROMString_func?relay        6
+     ??conPrintString?relay                6
+     ??conPrintUINT8_noleader?relay        6
+     ??conPCRLF?relay                      6
+     ??conPrintUINT8?relay                 6
+     ??conPrintUINT16?relay                6
+     ??conPrintUINT32?relay                6
+     ??conPrintLADDR_bytes?relay           6
+     ??conPrintLADDR?relay                 6
+     ??conPrintIP6ADDR_bytes?relay         6
+     ??conPrintIP6ADDR_dbytes?relay        6
+     ??conPrintIP6ADDR?relay               6
+     ??conPrintConfig?relay                6
+
+ 
+ 641 bytes in segment BANKED_CODE
+  78 bytes in segment BANK_RELAYS
+ 197 bytes in segment CODE_C
+   4 bytes in segment XDATA_I
+   4 bytes in segment XDATA_ID
+ 
+ 916 bytes of CODE  memory (+ 4 bytes shared)
+   0 bytes of XDATA memory (+ 4 bytes shared)
+
+Errors: none
+Warnings: none

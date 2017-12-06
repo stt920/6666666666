@@ -1,0 +1,156 @@
+
+#ifndef LOWSN_COMMON_TYPES_H
+#define LOWSN_COMMON_TYPES_H
+
+#include "compiler.h"               //compiler specific
+#include "6lowsn_config.h"
+
+
+//types common across stack or multiple stack layers
+
+//common macros
+#define BITSET(var,bitno) ((var) |= (1 << (bitno)))
+#define BITCLR(var,bitno) ((var) &= ~(1 << (bitno)))
+#define BITTST(var,bitno) (var & (1 << (bitno)))
+
+
+
+typedef enum _LOWSN_SVC_ENUM {
+  LOWSN_SVC_NONE,
+  LOWSN_SVC_PHY_INIT_RADIO,
+  LOWSN_SVC_PHY_TX_DATA,
+  LOWSN_SVC_MAC_GENERIC_TX,
+  LOWSN_SVC_MAC_RETRANSMIT,
+  LOWSN_SVC_MAC_ASSOC_REQ,
+  LOWSN_SVC_MAC_BEACON_REQ,
+  LOWSN_SVC_MAC_ORPHAN_NOTIFY,
+  LOWSN_SVC_MAC_ERROR,
+  LOWSN_SVC_ADP_GENERIC_TX,
+  LOWSN_SVC_ADP_FORM_NETWORK,
+  LOWSN_SVC_ADP_JOIN_NETWORK,
+
+  LOWSN_SVC_NWK_GENERIC_TX,	//used@
+  LOWSN_SVC_NWK_PING6_TX,
+  LOWSN_SVC_NWK_ADP_PASSTHRU,
+  LOWSN_SVC_NWK_GET_RA, 
+
+  LOWSN_SVC_TL_GENERIC_TX,	
+  LOWSN_SVC_TL_PING6_TX,
+
+  LOWSN_SVC_APS_GENERIC_TX,
+  LOWSN_SVC_APS_NWK_PASSTHRU,
+  LOWSN_SVC_APS_MP_TX,
+} LOWSN_SVC_ENUM;
+
+
+
+typedef enum _LOWSN_STATUSENUM {
+  LOWSN_STATUS_SUCCESS = 0,
+  LOWSN_STATUS_PHY_FAILED,
+  LOWSN_STATUS_PHY_INPROGRESS,  //still working for splitphase operations
+  LOWSN_STATUS_PHY_RADIO_INIT_FAILED,
+  LOWSN_STATUS_PHY_TX_PKT_TOO_BIG,
+  LOWSN_STATUS_PHY_TX_START_FAILED,
+  LOWSN_STATUS_PHY_TX_FINISH_FAILED,
+  LOWSN_STATUS_PHY_CHANNEL_BUSY,
+  LOWSN_STATUS_MAC_FAILED,
+  LOWSN_STATUS_MAC_NOT_ASSOCIATED,
+  LOWSN_STATUS_MAC_INPROGRESS,  //still working for splitphase operations
+  LOWSN_STATUS_MAC_MAX_RETRIES_EXCEEDED,  //exceeded max retries
+  LOWSN_STATUS_MAC_TX_FAILED,    //MAC Tx Failed, retry count exceeded
+  LOWSN_STATUS_MAC_ASSOCIATION_TIMEOUT,  //association request timedout
+  LOWSN_STATUS_MAC_ORPHAN_TIMEOUT,       //ophan notify timedout
+  LOWSN_STATUS_ADP_INPROGRESS,
+  LOWSN_STATUS_ADP_JOIN_TIMEOUT,
+  LOWSN_STATUS_ADP_PACKET_UNROUTABLE,
+  LOWSN_STATUS_ADP_RADIUS_EXCEEDED,
+
+  LOWSN_STATUS_NWK_INPROGRESS,//@
+  //LOWSN_STATUS_NWK_JOIN_TIMEOUT,
+  //LOWSN_STATUS_NWK_PACKET_UNROUTABLE,
+  LOWSN_STATUS_NWK_NO_DEFRT,
+  LOWSN_STATUS_NWK_PACKET_EXCEEDED,//used@
+  LOWSN_STATUS_NWK_PING_OVERLEN,
+  LOWSN_STATUS_NWK_PING_TIMEOUT,
+    LOWSN_STATUS_NWK_RS_TIMEOUT,
+
+  LOWSN_STATUS_APS_INPROGRESS,
+  LOWSN_STATUS_APS_MAX_RETRIES_EXCEEDED,
+  LOWSN_STATUS_APS_ILLEGAL_ENDPOINT,
+  LOWSN_STATUS_APS_MAX_ENDPOINTS_EXCEEDED,
+  LOWSN_STATUS_APS_CS_RESPONSE_TIMEOUT, 
+
+  LOWSN_STATUS_SLIP_NWK_RX_HEAP_ERROR,
+  
+  LOWSN_STATUS_INDIRECT_BUFFER_FULL,
+  LOWSN_STATUS_ZEP_FAILED,
+  LOWSN_STATUS_ZEPCALLBACK_FAILED,
+  LOWSN_STATUS_USRCALLBACK_FAILED,
+  LOWSN_STATUS_HEAPFULL,
+}LOWSN_STATUS_ENUM;
+
+
+
+typedef UINT16 SADDR;
+//typedef UINT16 PANID;
+
+//these bytes ALWAYS stored in little-endian order
+typedef struct _LADDR {
+  BYTE bytes[8];
+}LADDR;
+
+//only used to store IEEE Long Address or PAN short address
+typedef union _LADDR_UNION {
+  LADDR laddr;
+  SADDR saddr;
+}LADDR_UNION;
+
+
+typedef enum _PHY_FREQ_ENUM {
+  PHY_FREQ_868M=0,
+  PHY_FREQ_433M,
+  PHY_FREQ_780M,
+  PHY_FREQ_915M,
+  PHY_FREQ_2405M
+}PHY_FREQ_ENUM;
+
+typedef enum _NODE_TYPE_ENUM {
+  NODE_TYPE_COORD=0,
+  NODE_TYPE_ROUTER,
+  NODE_TYPE_ENDDEVICE
+}NODE_TYPE_ENUM;
+
+//used for radio initialization
+typedef union _RADIO_FLAGS {
+	BYTE val;
+	struct _RADIO_FLAGS_bits {
+      unsigned listen_mode:1;       //if true, then put radio in listen mode, which
+                                //is non-auto ack, no address decoding
+       unsigned pan_coordinator:1;   //set the pan coordinator bit
+	}bits;
+ }RADIO_FLAGS;
+
+typedef struct _MACPKT {
+	BYTE *data;
+	BYTE rssi;
+}MACPKT;
+
+
+#ifdef LOWSN_COMPILER_BIG_ENDIAN
+#define UINT32_LOWORD_LSB 3
+#define UINT32_LOWORD_MSB 2
+#define UINT32_HIWORD_LSB 1
+#define UINT32_HIWORD_MSB 0
+#define UINT16_LSB 1
+#define UINT16_MSB 0
+#else
+#define UINT32_LOWORD_LSB 0
+#define UINT32_LOWORD_MSB 1
+#define UINT32_HIWORD_LSB 2
+#define UINT32_HIWORD_MSB 3
+#define UINT16_LSB 0
+#define UINT16_MSB 1
+#endif
+
+
+#endif

@@ -1,0 +1,5 @@
+---- //2017 Matches (4 in 4 files) ----
+Adp.c (src\stack):                //2017.04.19
+Hal.h (src\stack\target\stm32\common):#define PACKET_FOOTER_SIZE 2//2    //负载之后的位数   //2017.4
+halStack.c (src\stack\target\stm32\common):  //  *ptr = rxBytes+2; //2017.4.24
+Nwk.c (src\stack):        a_nwk_rx_data.HopLimit = a_adp_rx_data.HopLimit;//2017.05.5

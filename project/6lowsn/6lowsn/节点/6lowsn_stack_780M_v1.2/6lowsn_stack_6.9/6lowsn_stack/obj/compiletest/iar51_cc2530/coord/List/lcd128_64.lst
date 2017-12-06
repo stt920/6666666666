@@ -1,0 +1,970 @@
+##############################################################################
+#                                                                            #
+# IAR 8051 C/C++ Compiler V7.20H/W32                   21/May/2013  16:12:22 #
+# Copyright 2004-2006 IAR Systems. All rights reserved.                      #
+#                                                                            #
+#    Core               =  plain                                             #
+#    Code model         =  near                                              #
+#    Data model         =  large                                             #
+#    Calling convention =  xdata reentrant                                   #
+#    Constant location  =  data                                              #
+#    Dptr setup         =  1,16                                              #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\lcd128_64.c      #
+#    Command line       =  -I "C:\Program Files\IAR Systems\Embedded         #
+#                          Workbench 4.05 Evaluation version\8051\INC\" -I   #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench  #
+#                          4.05 Evaluation version\8051\INC\CLIB\" -I        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc24 #
+#                          30\..\..\..\src\stack\ -I                         #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc24 #
+#                          30\..\..\..\src\stack\target\iar51\cc2430_31\ -D  #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D        #
+#                          aExtendedAddress_B6=0x51 -D                       #
+#                          aExtendedAddress_B5=0x50 -D                       #
+#                          aExtendedAddress_B4=0x40 -D                       #
+#                          aExtendedAddress_B3=0x30 -D                       #
+#                          aExtendedAddress_B2=0x20 -D                       #
+#                          aExtendedAddress_B1=0x10 -D                       #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D  #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                   #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc24 #
+#                          30\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\comp #
+#                          iletest\iar51_cc2430\coord\Obj\ -e -z9 --debug    #
+#                          --core=plain --dptr=16,1 --data_model=large       #
+#                          --code_model=near --calling_convention=xdata_reen #
+#                          trant --place_constants=data --nr_virtual_regs 8  #
+#                          F:\6LoWSN\6lowsn_stack\src\stack\lcd128_64.c      #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc24 #
+#                          30\coord\List\lcd128_64.lst                       #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc24 #
+#                          30\coord\Obj\lcd128_64.r51                        #
+#                                                                            #
+#                                                                            #
+##############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\lcd128_64.c
+      1          #include "6lowsn.h"
+      2          
+      3          
+      4          #define RECALIB_TIMEOUT     12000 // Every 2 minutes
+      5          #define MSG_PING           0x00
+      6          #define MSG_SEND           0x10
+      7          #define MSG_RECIVE         0x20
+      8          #define MSG_NEEDSEND       0x30
+      9          
+     10          
+     11          /****************************************************
+     12          * B) Command Table per device *
+     13          ****************************************************/
+     14          #define 	DisplayOff 	0xAE
+     15          #define 	DisplayOn 	0xAF
+     16          #define 	DisplayStart 	0x40
+     17          #define 	PageAddr 	0xB0
+     18          #define 	ColAddrHi 	0x10
+     19          #define 	ColAddrLo 	0x00
+     20          #define 	SegRemapOff 	0xA0
+     21          #define 	SegRemapOn 	0xA1
+     22          #define 	NormalDisp 	0xA6
+     23          #define 	ReverseDisp 	0xA7
+     24          #define 	ExitEntireD 	0xA4
+     25          #define 	EntEntireD 	0xA5
+     26          #define 	EnterRMW 	0xE0
+     27          #define 	ExitRMW 	0xEE
+     28          #define 	SWRest 		0xE2
+     29          #define 	ComRemapOff 	0xC0
+     30          #define 	ComRemapOn 	0xC8
+     31          #define 	PwrCtrlReg 	0x28
+     32          #define 	OPampBuffer 	0x01
+     33          #define 	IntReg 		0x02
+     34          #define 	IntVolBstr 	0x04
+     35          #define 	IntRegRatio 	0x20
+     36          #define 	ContCtrlReg 	0x81
+     37          #define 	CmdMuxRatio 	0x48
+     38          #define 	CmdBiasRatio 	0x50
+     39          #define 	DispOffset 	0x44
+     40          #define 	IconModeOn 	0xA3
+     41          #define 	IconModeOff 	0xA2
+     42          #define 	NlineInver 	0x4C
+     43          #define 	DCDCconver 	0x64
+     44          #define 	PowersavStandby 0xA8
+     45          #define 	PowersavSleep 	0xA9
+     46          #define 	PowersavOff 	0xE1
+     47          #define 	InterOsc 	0xAB
+     48          #define 	Device SSD1821 			/* device under demo */
+     49          #define 	ColNo 		132 		/* number of Column/Seg on LCD glass*/
+     50          #define 	RowNo 		64		/* number of Row/Com/Mux */
+     51          #define 	PS 		1 		/* fixed to Parallel mode */
+     52          #define 	PageNo 		10 		/* Total no of RAM pages */
+     53          #define 	IconPage 	10 		/* Icon Page number */
+     54          #define 	All0 		6 		/* 3 for all 0, 4 for all 1 */
+     55          #define 	All1 		4
+     56          #define 	iIntRegValue 	1 		/*Internal Regulator Resistor Ratio Value */
+     57          #define 	iContCtrlRegValue 16 		/* Contrast Control Register Value */
+     58          #define 	iIntRegValuea 	1 		/*Internal Regulator Resistor Ratio Value */
+     59          #define 	iContCtrlRegValuea 16 		/* Contrast Control Register Value */
+     60          #define 	iIntRegValueb 	1 		/*Internal Regulator Resistor Ratio Value */
+     61          #define 	iContCtrlRegValueb 16 		/* Contrast Control Register Value */
+     62          #define 	MSGNo 		16
+     63          #define 	MSGLength 	22
+     64          #define 	SSLNameNo 	4
+     65          #define 	DevicePg 	0 		//RAM page for showing device name
+     66          #define 	FeaturePg 	1 		//RAM page for showing feature
+     67          #define 	GRAPHICNo 	13
+     68          #define 	xlogo 		38
+     69          #define 	ylogo 		5
+     70          #define 	xsolomon 	91
+     71          #define 	ysolomon 	2
+     72          #define 	xsystech 	81
+     73          #define 	ysystech 	2
+     74          #define 	xlimited 	70
+     75          #define 	ylimited 	2
+     76          #define 	xcc 		16
+     77          #define 	ycc 		2
+     78          #define 	xpageq 		128
+     79          #define 	ypageq 		4
+     80          #define 	horizonal 	0
+     81          #define 	d_time 		60
+     82          ////////////////////////////////////////////////////////////////////////////////////////////
+     83          
+     84          
+     85          INT8U ContrastValue = 8;
+     86          INT8U BT_State;
+     87          
+     88          void Print(INT8U y, INT8U x, INT8U ch[], INT16U yn);
+     89          void Print6(INT8U xx,INT8U  yy,INT8U ch1[],INT8U yn);
+     90          //void LoadICO(INT8U y , INT8U x , INT8U n);
+     91          
+     92          
+     93          /*******************************************************************************
+     94          //函数名：void delaylcd (int16u x)
+     95          //功能：廷时
+     96          //输入：时间
+     97          //输出：无
+     98          ********************************************************************************/
+     99          void delaylcd (INT16U x)
+    100          {
+    101          	INT8U j;
+    102          	while (x--)
+    103          	{
+    104          		for (j=0;j<115;j++);
+    105          	}
+    106          }
+    107          /*******************************************************************************
+    108          //函数名：void fdelay(unsigned int n)
+    109          //功能：廷时
+    110          //输入：时间
+    111          //输出：无
+    112          ********************************************************************************/
+    113          void fdelay(unsigned int n) /* wait n seconds*/
+    114          {
+    115          	INT16U i;
+    116          	INT16U j;
+    117          	for (i=0;i<5;i++)
+    118          	for (j=0;j<n*2;j++) ;
+    119          }
+    120          
+    121          
+    122          /*******************************************************************************
+    123          //函数名：void Lcdwritecom(int8u com)
+    124          //功能：lcd写指令
+    125          //输入：com指令
+    126          //输出：无
+    127          ********************************************************************************/
+    128          void Lcdwritecom(INT8U com)
+    129          {
+    130          	INT8U i, temp;
+    131          	LCD_CLK = 0;
+    132          	LCD_CS = 0;
+    133          	LCD_RS = 0;
+    134          	temp = com;
+    135          
+    136          	for(i=0; i<8; i++)
+    137          	{
+    138          		if(temp & 0x80)
+    139          		{
+    140          			LCD_SDO = 1;
+    141          		}
+    142          		else LCD_SDO = 0;
+    143          		temp <<= 1;
+    144          		LCD_CLK = 1;
+    145          //                asm("nop");
+    146          		LCD_CLK = 0;
+    147          //                asm("nop");
+    148          	}
+    149          	LCD_CS = 1;
+    150          //        asm("nop");	
+    151          }
+    152          
+    153          /*******************************************************************************
+    154          //函数名：void Lcdwritedata(int8u dat)
+    155          //功能：lcd写数据
+    156          //输入：dat数据
+    157          //输出：无
+    158          ********************************************************************************/
+    159          void Lcdwritedata(INT8U dat)
+    160          {
+    161          	INT8U i, temp;
+    162          	LCD_CS = 0;
+    163          	LCD_RS = 1;
+    164          	temp = dat;
+    165          
+    166          	for(i=0; i<8; i++)
+    167          	{
+    168          		if(temp & 0x80)
+    169          		{
+    170          			LCD_SDO = 1;
+    171          		}
+    172          		else LCD_SDO = 0;
+    173          		temp <<= 1;
+    174          		LCD_CLK = 1;
+    175          		LCD_CLK = 0;
+    176          	}
+    177          	LCD_CS = 1;
+    178          }
+    179          
+    180          /*******************************************************************************
+    181          //函数名：void Prog_Reset(void)
+    182          //功能：lcd复位
+    183          //输入：无
+    184          //输出：无
+    185          ********************************************************************************/
+    186          void Prog_Reset(void)
+    187          {
+    188          	LCD_RST = 0;
+    189          	delaylcd(100);
+    190          	LCD_RST = 1;
+    191          }
+    192          /*******************************************************************************
+    193          //函数名：void Resetchip(void)
+    194          //功能：lcd软件复位
+    195          //输入：无
+    196          //输出：无
+    197          ********************************************************************************/
+    198          void Resetchip(void)
+    199          {
+    200          	Prog_Reset();
+    201          	Lcdwritecom(0xe2);
+    202          }
+    203          
+    204          /*******************************************************************************
+    205          //函数名：void SetRamAddr (INT8U Page, INT8U Col)
+    206          //功能：lcd位置选择
+    207          //输入：Page-页，Col-列
+    208          //输出：无
+    209          ********************************************************************************/
+    210          void SetRamAddr (INT8U Page, INT8U Col)
+    211          {
+    212          	INT8U temp;
+    213          	temp = 0x0f & Page;
+    214          	Lcdwritecom(PageAddr | temp);
+    215          	temp = 0x0f & (Col >> 4);
+    216          	Lcdwritecom(ColAddrHi | temp);			//高位
+    217          	temp = 0x0f & Col;
+    218          	Lcdwritecom(ColAddrLo | temp);			//低位
+    219          }
+    220          /*******************************************************************************
+    221          //函数名：void SetContrast(INT8U Gain, INT8U Step)
+    222          //功能：lcd对比度设定
+    223          //输入：Page-页，Col-列
+    224          //输出：无
+    225          ********************************************************************************/
+    226          void SetContrast(INT8U Gain, INT8U Step)
+    227          {
+    228          	Lcdwritecom(IntRegRatio | (0x0f & Gain)); 	//设定内部电阻
+    229          	Lcdwritecom(ContCtrlReg); 			//设定内部对比控制器
+    230          	Lcdwritecom((0x3f & Step));
+    231          }
+    232          /*******************************************************************************
+    233          //函数名：void InitDisplay(void)
+    234          //功能：lcd设定为正常显示状态
+    235          //输入：无
+    236          //输出：无
+    237          ********************************************************************************/
+    238          void InitDisplay(void)
+    239          {
+    240          	Lcdwritecom(DisplayOff);			//关显示
+    241          	Lcdwritecom(SegRemapOn);    			//ks0713/ssd1815
+    242          	Lcdwritecom(ComRemapOn);    			//ssd1815
+    243          	SetContrast(iIntRegValue, iContCtrlRegValue); 	//设定缺省对比度
+    244          	Lcdwritecom(PwrCtrlReg | IntVolBstr | IntReg | OPampBuffer); //turn on booster, regulator & divider
+    245          	Lcdwritecom(DisplayOn);				//开显示
+    246          }
+    247          
+    248          
+    249          /*******************************************************************************
+    250          //函数名：void contrastctrl(INT8U start,stop)
+    251          //功能：lcd对比度调整
+    252          //输入：无
+    253          //输出：无
+    254          ********************************************************************************/
+    255          void contrastctrl(INT8U start, INT8U stop)
+    256          {
+    257          	INT8U i;
+    258          	if (start < stop)
+    259          	{
+    260          		for (i=start; i<stop; i+=1)
+    261          		{
+    262          			SetContrast(iIntRegValue, i); //slowly turn on display
+    263          			fdelay(80);
+    264          		}
+    265          	}
+    266          	else
+    267          	{
+    268          		for (i=start; i>stop; i-=1)
+    269          		{
+    270          			SetContrast(iIntRegValue, i); //slowly turn off display
+    271          			fdelay(120);
+    272          		}
+    273          	}
+    274          }
+    275          
+    276          void LcdPortInit(void)
+    277          {
+    278            IO_DIR_PORT_PIN(1, 4, IO_OUT);
+    279            IO_DIR_PORT_PIN(2, 0, IO_OUT);
+    280            IO_DIR_PORT_PIN(1, 1, IO_OUT);
+    281            IO_DIR_PORT_PIN(1, 5, IO_OUT);
+    282            IO_DIR_PORT_PIN(1, 6, IO_OUT);
+    283          }
+    284          
+    285          
+    286          /*******************************************************************************
+    287          //函数名：void InitLcd(void)
+    288          //功能：lcd初始化
+    289          //输入：无
+    290          //输出：无
+    291          ********************************************************************************/
+    292          void InitLcd(void)
+    293          {
+    294          	LcdPortInit();
+    295                  LCD_CS = 1;
+    296          	LCD_RS = 1;
+    297          	LCD_RST = 1;
+    298          	Resetchip();
+    299          	Lcdwritecom(InterOsc);
+    300          	Lcdwritecom(0x67);
+    301          
+    302          	InitDisplay();       // initialize normal display environment
+    303          	Lcdwritecom(DisplayOff);
+    304          	Lcdwritecom(0x40);
+    305          	contrastctrl(10,iContCtrlRegValue);
+    306          	Lcdwritecom(0x24);
+    307          //	iDispStLn=0;
+    308          	Lcdwritecom(DisplayOn);   // blank display update RAM
+    309          
+    310          	Lcdwritecom(0xa6);
+    311          	SetContrast(iIntRegValuea,ContrastValue);
+    312          
+    313          	delaylcd(20);
+    314          	SetRamAddr(1,15);
+    315          }
+    316          /*******************************************************************************
+    317          //函数名：void LoadICO(INT8U y , INT8U x , INT8U Ico[])
+    318          //功能：打开一个指定指针的图标
+    319          //输入：x,y坐标      Ico[]图片
+    320          //输出：无
+    321          ********************************************************************************
+    322          void LoadICO(INT8U y , INT8U x , INT8U n)
+    323          {
+    324          
+    325          	INT8U adder = 0;
+    326          	INT8U wm;
+    327          
+    328          	SetRamAddr(y , x);
+    329          	for(wm = 0;wm < 16;wm++)
+    330          	{
+    331          		Lcdwritedata(ICOBattery[n][adder]);
+    332          		adder += 1;
+    333          	}
+    334          }
+    335          */
+    336          
+    337          /*******************************************************************************
+    338          //函数名：void LoadICO(INT8U y , INT8U x , INT8U Ico[])
+    339          //功能：打开一个指定指针的图标
+    340          //输入：x,y坐标      Ico[]图片
+    341          //输出：无
+    342          ********************************************************************************/
+    343          void LoadICO(void)
+    344          {
+    345          
+    346          	INT8U i,j;
+    347                  for(i=0; i<8; i++)
+    348                  {
+    349                          SetRamAddr(i , 0);
+    350          	        for(j = 0;j < 112;j++)
+    351          	        {
+    352          		        Lcdwritedata(WXL112X64[j+i*112]);
+    353          	        }
+    354                  }
+    355          }
+    356          /*******************************************************************************
+    357          //函数名：void ClearScreen(void)
+    358          //功能：清屏
+    359          //输入：无
+    360          //输出：无
+    361          ********************************************************************************/
+    362          void ClearScreen(void)
+    363          {
+    364          	INT8U i , j;
+    365          	
+    366          	for (i = 0 ; i < PageNo ; i++)
+    367          	{
+    368          		SetRamAddr(i,0);
+    369          		for (j=0;j<ColNo; j++) Lcdwritedata(0x00);
+    370          	}
+    371          }
+    372          
+    373          
+    374          /*******************************************************************************
+    375          //函数名：void Printn(INT8U xx ,INT8U yy , INT32U no,INT8U yn,INT8U le)
+    376          //功能：显示一个6*8无符号数据
+    377          //输入：xx , yy屏幕当中位置,no待显示数据 yn=0正常显示 yn=1反黑显示  le有效位
+    378          //输出：无
+    379          ********************************************************************************/
+    380          void Printn(INT8U xx ,INT8U yy , INT32U no,INT8U yn,INT8U le)
+    381          {
+    382          	INT8U ch2[6];
+    383          	INT8U ii;
+    384          
+    385          	for(ii = 1 ; ii <= le ;)
+    386          	{
+    387          		ch2[le - ii] = no % 10 + 0x30;
+    388          		no /= 10;
+    389          		ii += 1;
+    390          	}
+    391          	ch2[le] = '\0';
+    392          	Print6(xx ,yy ,ch2 ,yn);
+    393          }
+    394          
+    395          
+    396          
+    397          
+    398          /*******************************************************************************
+    399          //函数名：void Printn8(INT8U xx ,INT8U yy , INT32U no,INT8U yn,INT8U le)
+    400          //功能：显示8*8一个无符号数据
+    401          //输入：xx , yy屏幕当中位置,no待显示数据 yn=0正常显示 yn=1反黑显示  le有效位
+    402          //输出：无
+    403          ********************************************************************************/
+    404          void Printn8(INT8U xx ,INT8U yy , INT32U no,INT8U yn,INT8U le)
+    405          {
+    406          	INT8U ch2[6];
+    407          	INT8U ii;
+    408          
+    409          	for(ii = 1 ; ii <= le ;){
+    410          		ch2[le - ii] = no % 10 + 0x30;
+    411          		no /= 10;
+    412          		ii += 1;
+    413          	}
+    414          	ch2[le] = '\0';
+    415          	Print(xx ,yy ,ch2 ,yn);
+    416          }
+    417          
+    418          
+    419          
+    420          /*******************************************************************************
+    421          //函数名：void Print6(INT8U xx, INT8U yy, INT8U ch1[], INT8U yn)
+    422          //功能：显示6*8字符串
+    423          //输入：xx ,yy 坐标,ch1待显示的字符串,yn是否反黑
+    424          //输出：无
+    425          ********************************************************************************/
+    426          void Print6(INT8U xx, INT8U yy, INT8U ch1[], INT8U yn)		
+    427          {
+    428          	INT8U ii = 0;
+    429          	INT8U bb = 0;
+    430          	unsigned int index = 0 ;	
+    431          
+    432          	SetRamAddr(xx , yy);		
+    433          	while(ch1[bb] != '\0')
+    434          	{
+    435                          index = (unsigned int)(ch1[bb] - 0x20);
+    436          		index = (unsigned int)index*6;		
+    437          		for(ii=0;ii<6;ii++)
+    438          		{
+    439          			if(yn)
+    440          			{
+    441          				Lcdwritedata(FontSystem6x8[index]);
+    442          			}
+    443          			else
+    444          			{
+    445          				Lcdwritedata(~FontSystem6x8[index]);
+    446          			}		
+    447          			index += 1;
+    448          		}		
+    449          		bb += 1;
+    450          	}
+    451          }
+    452          
+    453          
+    454          /*******************************************************************************
+    455          //函数名：void PrintCh(INT8U xx, INT8U yy, INT8U ch1[], INT8U yn)
+    456          //功能：显示6*8字符
+    457          //输入：xx ,yy 坐标,ch1待显示的字符,yn是否反黑
+    458          //输出：无
+    459          ********************************************************************************/
+    460          void PrintCh(INT8U xx, INT8U yy, INT8U ch, INT8U yn)		
+    461          {
+    462          	INT8U ii = 0;
+    463          	unsigned int index = 0 ;	
+    464          
+    465          	SetRamAddr(xx , yy);		
+    466                  index = (unsigned int)(ch - 0x20);
+    467          	index = (unsigned int)index*6;		
+    468          	for(ii=0;ii<6;ii++)
+    469          	{
+    470          	        if(yn)
+    471          		{
+    472          			Lcdwritedata(FontSystem6x8[index]);
+    473          		}
+    474          		else
+    475          		{
+    476          			Lcdwritedata(~FontSystem6x8[index]);
+    477          		}		
+    478          		index += 1;
+    479          	}		
+    480          }
+    481          
+    482          /*******************************************************************************
+    483          //函数名：void Print8(INT16U y,INT16U x, INT8U ch[],INT16U yn)
+    484          //功能：显示8*8字符串
+    485          //输入：xx ,yy 坐标,ch1待显示的字符串,yn是否反黑
+    486          //输出：无
+    487          ********************************************************************************/
+    488          void Print8(INT16U y,INT16U x, INT8U ch[],INT16U yn)
+    489          {
+    490          	INT8U wm ,ii = 0;
+    491          	INT16U adder;
+    492          
+    493          	while(ch[ii] != '\0')
+    494          	{
+    495          		adder = (ch[ii] - 0x20) * 16;
+    496          
+    497          		SetRamAddr(y , x);
+    498          		for(wm = 0;wm < 8;wm++)
+    499          		{
+    500          			if(yn == 0)
+    501          			{
+    502          				Lcdwritedata(~Font8X8[adder]);
+    503          			}
+    504          			else
+    505          			{
+    506          				Lcdwritedata(Font8X8[adder]);
+    507          			}
+    508          			adder += 1;
+    509          		}
+    510          		SetRamAddr(y + 1 , x);
+    511          		for(wm = 0;wm < 8;wm++)
+    512          		{
+    513          			if(yn == 0)
+    514          			{
+    515          				Lcdwritedata(~Font8X8[adder]);	
+    516          			}
+    517          			else
+    518          			{
+    519          				Lcdwritedata(Font8X8[adder]);	
+    520          			}
+    521          			adder += 1;
+    522          		}
+    523          		ii += 1;
+    524          		x += 8;
+    525          	}
+    526          
+    527          }
+    528          
+    529          
+    530          /*******************************************************************************
+    531          //函数名：void Print16(INT16U y,INT16U x,INT8U ch[],INT16U yn)
+    532          //功能：在屏幕上显示汉字
+    533          //输入：x ,y 坐标,ch[]待显示的汉字,yn是否反黑
+    534          //输出：无
+    535          ********************************************************************************/
+    536          void Print16(INT16U y,INT16U x,INT8U ch[],INT16U yn)
+    537          {
+    538          	INT8U wm ,ii = 0;
+    539          	INT16U adder;
+    540          
+    541          	wm = 0;
+    542          	adder = 1;
+    543          	while(FontNew8X16_Index[wm] > 100)
+    544          	{
+    545          		if(FontNew8X16_Index[wm] == ch[ii])
+    546          		{
+    547          			if(FontNew8X16_Index[wm + 1] == ch[ii + 1])
+    548          			{
+    549          				adder = wm * 14;
+    550          				break;
+    551          			}
+    552          		}
+    553          		wm += 2;				//找到汉字在索引中的位置
+    554          	}
+    555          	SetRamAddr(y , x);
+    556          
+    557          	if(adder != 1)					//找到汉字，显示出来	
+    558          	{
+    559          		SetRamAddr(y , x);
+    560          		for(wm = 0;wm < 14;wm++)
+    561          		{
+    562          			if(yn == 0)
+    563          			{
+    564          				Lcdwritedata(~FontNew16X16[adder]);
+    565          			}
+    566          			else
+    567          			{
+    568          				Lcdwritedata(FontNew16X16[adder]);
+    569          			}
+    570          			adder += 1;
+    571          		}
+    572                          for(wm = 0;wm < 2;wm++)
+    573          		{
+    574          			if(yn == 0)
+    575          			{
+    576          				Lcdwritedata(0xff);
+    577          			}
+    578          			else
+    579          			{
+    580          				Lcdwritedata(0x00);
+    581          			}
+    582          		}
+    583          		SetRamAddr(y + 1 , x);
+    584          
+    585          		for(wm = 0;wm < 14;wm++)
+    586          		{
+    587          			if(yn == 0)
+    588          			{
+    589          				Lcdwritedata(~FontNew16X16[adder]);
+    590          			}
+    591          			else
+    592          			{
+    593          				Lcdwritedata(FontNew16X16[adder]);
+    594          			}
+    595          			adder += 1;
+    596          		}
+    597                          for(wm = 0;wm < 2;wm++)
+    598          		{
+    599          			if(yn == 0)
+    600          			{
+    601          				Lcdwritedata(0xff);
+    602          			}
+    603          			else
+    604          			{
+    605          				Lcdwritedata(0x00);
+    606          			}
+    607          		}
+    608          
+    609          
+    610          	}
+    611          	else						//找不到字显示空格			
+    612          	{
+    613          		ii += 1;SetRamAddr(y , x);
+    614          		for(wm = 0;wm < 16;wm++)
+    615          		{
+    616          			if(yn == 0)
+    617          			{
+    618          				Lcdwritedata(0xff);
+    619          			}
+    620          			else
+    621          			{
+    622          				Lcdwritedata(0x00);
+    623          			}
+    624          		}
+    625          		SetRamAddr(y + 1 , x);
+    626          		for(wm = 0;wm < 16;wm++)
+    627          		{
+    628          			if(yn == 0)
+    629          			{
+    630          				Lcdwritedata(0xff);
+    631          			}
+    632          			else
+    633          			{
+    634          				Lcdwritedata(0x00);
+    635          			}
+    636          		}
+    637          	}
+    638          }
+    639          /*******************************************************************************
+    640          //函数名：void Print(INT8U y, INT8U x, INT8U ch[], INT16U yn)
+    641          //功能：实现汉字及字母混合显示
+    642          //输入：x ,y 坐标,ch[]待显示的汉字或字母,yn是否反黑
+    643          //输出：无
+    644          ********************************************************************************/
+    645          void Print(INT8U y, INT8U x, INT8U ch[], INT16U yn)
+    646          {
+    647          	INT8U ch2[3];
+    648          	INT8U ii;
+    649                  ii = 0;
+    650          	while(ch[ii] != '\0')
+    651          	{
+    652          		if(ch[ii] > 120)
+    653          		{
+    654          			ch2[0] = ch[ii];
+    655          	 		ch2[1] = ch[ii + 1];
+    656          			ch2[2] = '\0';			//汉字为两个字节
+    657          			Print16(y , x , ch2 , yn);	//显示汉字
+    658          			x += 16;
+    659          			ii += 2;
+    660          		}
+    661          		else
+    662          		{
+    663          			ch2[0] = ch[ii];	
+    664          			ch2[1] = '\0';			//字母占一个字节
+    665          			Print8(y , x , ch2 , yn);	//显示字母
+    666          			x += 8;
+    667          			ii += 1;
+    668          		}
+    669          	}
+    670          }
+    671          
+    672          /*******************************************************************************
+    673          //函数名：void ClearCol(INT8U Begin , INT8U End)
+    674          //功能：清除列
+    675          //输入：Begin开始处   End结束处
+    676          //输出：无
+    677          ********************************************************************************
+    678          void ClearCol(INT8U Begin , INT8U End)
+    679          {
+    680          	INT8U i;
+    681          	for(i=Begin;i <= End ; i++)
+    682          	{
+    683          		Print6(Begin , 0 ,"                   ", 1);
+    684          	}
+    685          }*/
+    686          
+    687          /*******************************************************************************
+    688          //函数名：void Rectangle(INT8U x1,INT8U y1,INT8U x2,INT8U y2)
+    689          //功能：画直线函数，本函数目前只能画水平和垂直线
+    690          //输入：x1,y1(第一个点)   x2,y2第二个点
+    691          //输出：无
+    692          ********************************************************************************/
+    693          void Rectangle(INT8U x1,INT8U y1,INT8U x2,INT8U y2)
+    694          {
+    695          
+    696          	INT8U ii;
+    697          
+    698          	for(ii=x1; ii<x2; ii++)
+    699          	{		
+    700          		SetRamAddr(y1,ii);
+    701          		Lcdwritedata(0x08);
+    702          		SetRamAddr(y2,ii);
+    703          		Lcdwritedata(0x08);		//画横线
+    704          	}
+    705          	SetRamAddr(y1,x1);
+    706          	Lcdwritedata(0xF0);
+    707          	SetRamAddr(y1,x2);
+    708          	Lcdwritedata(0xF0);
+    709          
+    710          	for(ii = y1+1;ii<y2;ii++)
+    711          	{		
+    712          	 	SetRamAddr(ii,x1);
+    713          		Lcdwritedata(0xff);
+    714          	 	SetRamAddr(ii,x2);
+    715          		Lcdwritedata(0xff);		//画竖线
+    716          	}
+    717          
+    718          	SetRamAddr(y2,x1);
+    719          	Lcdwritedata(0x0F);
+    720          	SetRamAddr(y2,x2);
+    721          	Lcdwritedata(0x0F);
+    722          }
+    723          
+    724          //*********************************************************************************
+    725          //函数名:void TurnOnDisp(void)
+    726          //功能:开机画面显示
+    727          //输入：无
+    728          //输出：无
+    729          //*********************************************************************************
+    730          void TurnOnDisp(void)
+    731          {
+    732                  INT8U i;
+    733                  LoadICO();
+    734                  for(i=0; i<12; i++)
+    735                  halWait(200);
+    736          }
+    737          	
+
+   Maximum stack usage in bytes:
+
+     Function          ISTACK PSTACK XSTACK
+     --------          ------ ------ ------
+     ClearScreen           0      0      8
+       -> SetRamAddr       0      0     16
+       -> Lcdwritedata     0      0     16
+     InitDisplay           2      0      0
+       -> Lcdwritecom      0      0      0
+       -> Lcdwritecom      0      0      0
+       -> Lcdwritecom      0      0      0
+       -> SetContrast      0      0      0
+       -> Lcdwritecom      0      0      0
+       -> Lcdwritecom      0      0      0
+     InitLcd               2      0      0
+       -> LcdPortInit      4      0      0
+       -> Resetchip        4      0      0
+       -> Lcdwritecom      4      0      0
+       -> Lcdwritecom      4      0      0
+       -> InitDisplay      4      0      0
+       -> Lcdwritecom      4      0      0
+       -> Lcdwritecom      4      0      0
+       -> contrastctrl     4      0      0
+       -> Lcdwritecom      4      0      0
+       -> Lcdwritecom      4      0      0
+       -> Lcdwritecom      4      0      0
+       -> SetContrast      4      0      0
+       -> delaylcd         4      0      0
+       -> SetRamAddr       4      0      0
+     LcdPortInit           2      0      0
+     Lcdwritecom           2      0      0
+     Lcdwritedata          0      0     15
+     LoadICO               1      0      9
+       -> SetRamAddr       0      0     18
+       -> Lcdwritedata     0      0     18
+     Print                 1      0     48
+       -> Print16          0      0     44
+       -> Print8           0      0     44
+     Print16               0      0     37
+       -> SetRamAddr       0      0     30
+       -> SetRamAddr       0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+       -> SetRamAddr       0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+       -> SetRamAddr       0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+       -> SetRamAddr       0      0     30
+       -> Lcdwritedata     0      0     30
+       -> Lcdwritedata     0      0     30
+     Print6                0      0     36
+       -> SetRamAddr       0      0     24
+       -> Lcdwritedata     0      0     24
+       -> Lcdwritedata     0      0     24
+     Print8                0      0     36
+       -> Lcdwritedata     0      0     28
+       -> SetRamAddr       0      0     28
+       -> Lcdwritedata     0      0     28
+       -> Lcdwritedata     0      0     28
+       -> SetRamAddr       0      0     28
+       -> Lcdwritedata     0      0     28
+     PrintCh               0      0     10
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> Lcdwritedata     0      0     20
+     Printn                1      0     28
+       -> Print6           0      0     48
+     Printn8               1      0     30
+       -> Print            0      0     52
+     Prog_Reset            0      0      0
+       -> delaylcd         0      0      0
+     Rectangle             0      0     10
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+       -> SetRamAddr       0      0     20
+       -> Lcdwritedata     0      0     20
+     Resetchip             2      0      0
+       -> Prog_Reset       0      0      0
+       -> Lcdwritecom      0      0      0
+     SetContrast           3      0      8
+       -> Lcdwritecom      2      0      0
+       -> Lcdwritecom      2      0      0
+       -> Lcdwritecom      2      0      0
+     SetRamAddr            3      0     15
+       -> Lcdwritecom      2      0      0
+       -> Lcdwritecom      2      0      0
+       -> Lcdwritecom      2      0      0
+     TurnOnDisp            1      0      0
+       -> LoadICO          2      0      0
+       -> halWait          2      0      0
+     contrastctrl          2      0      8
+       -> SetContrast      0      0     16
+       -> fdelay           0      0     16
+       -> SetContrast      0      0     16
+       -> fdelay           0      0     16
+     delaylcd              2      0      0
+     fdelay                1      0      8
+
+
+   Segment part sizes:
+
+     Function/Label                 Bytes
+     --------------                 -----
+     P1DIR                             1
+     P2DIR                             1
+     ContrastValue                     1
+     BT_State                          1
+     ??delaylcd_0                     19
+     fdelay                           45
+     Lcdwritecom                      35
+     Lcdwritedata                     33
+     Prog_Reset                       12
+     Resetchip                         9
+     SetRamAddr                       26
+     ?Subroutine14                     9
+     SetContrast                      23
+     InitDisplay                      28
+     ?Subroutine2                      9
+     contrastctrl                     56
+     ?Subroutine15                     5
+     LcdPortInit                      16
+     InitLcd                          85
+     LoadICO                          66
+     ClearScreen                      35
+     Printn                          162
+     ?Subroutine13                    14
+     ?Subroutine12                    17
+     ?Subroutine5                     16
+     ?Subroutine3                     11
+     ?Subroutine16                    10
+     Printn8                         175
+     Print6                          109
+     ?Subroutine0                     16
+     PrintCh                          77
+     ?Subroutine17                     5
+     Print8                          134
+     ?Subroutine10                    18
+     ?Subroutine1                     20
+     ?Subroutine4                      9
+     Print16                         309
+     ?Subroutine11                    18
+     Print                           195
+     Rectangle                        82
+     ?Subroutine9                     11
+     ?Subroutine8                     11
+     ?Subroutine7                     11
+     ?Subroutine6                      9
+     TurnOnDisp                       21
+     __Constant_a                      4
+     ?<Initializer for ContrastValue>
+                                       1
+     ?<Initializer for __Constant_a>
+                                       4
+     _A_P1                             1
+     _A_P2                             1
+
+ 
+ 1 971 bytes in segment NEAR_CODE
+     4 bytes in segment SFR_AN
+     5 bytes in segment XDATA_I
+     5 bytes in segment XDATA_ID
+     1 byte  in segment XDATA_Z
+ 
+ 1 972 bytes of CODE  memory (+ 4 bytes shared)
+     0 bytes of DATA  memory (+ 4 bytes shared)
+     2 bytes of XDATA memory (+ 4 bytes shared)
+
+Errors: none
+Warnings: none

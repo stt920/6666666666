@@ -1,0 +1,136 @@
+[DebugChecksum]
+Checksum=402819755
+[DisAssemblyWindow]
+NumStates=_ 1
+State 1=_ 1
+[InstructionProfiling]
+Enabled=_ 0
+[CodeCoverage]
+Enabled=_ 0
+[Profiling]
+Enabled=0
+[StackPlugin]
+Enabled=1
+OverflowWarningsEnabled=1
+WarningThreshold=90
+SpWarningsEnabled=1
+WarnHow=0
+UseTrigger=1
+TriggerName=main
+LimitSize=0
+ByteLimit=50
+[SWOTraceHWSettings]
+CpuClock=72000000
+ClockAutoDetect=0
+ClockWanted=2000000
+JtagSpeed=2000000
+Prescaler=36
+TimeStampPrescIndex=0
+TimeStampPrescData=0
+PcSampCYCTAP=1
+PcSampPOSTCNT=15
+DataLogMode=0
+ITMportsEnable=0
+ITMportsTermIO=0
+ITMportsLogFile=0
+ITMlogFile=$PROJ_DIR$\ITM.log
+PcSampIndex=0
+[Exceptions]
+StopOnUncaught=_ 0
+StopOnThrow=_ 0
+[DataLog]
+LogEnabled=0
+SumEnabled=0
+GraphEnabled=0
+ShowTimeLog=1
+ShowTimeSum=1
+[InterruptLog]
+LogEnabled=0
+SumEnabled=0
+GraphEnabled=0
+ShowTimeLog=1
+ShowTimeSum=1
+SumSortOrder=0
+[PowerLog]
+LogEnabled=0
+GraphEnabled=0
+ShowTimeLog=1
+ShowTimeSum=0
+Title0=Power [mA]
+Setup0=0 1 0 500 2 0 4 1 0
+[Log file]
+LoggingEnabled=_ 0
+LogFile=_ ""
+Category=_ 0
+[TermIOLog]
+LoggingEnabled=_ 0
+LogFile=_ ""
+[SWOTraceWindow]
+PcSampling=0
+InterruptLogs=0
+ForcedTimeStamps=0
+EventCPI=0
+EventEXC=0
+EventFOLD=0
+EventLSU=0
+EventSLEEP=0
+[TraceHelperExtra]
+Enabled=0
+ShowSource=1
+[CallStackLog]
+Enabled=0
+[DriverProfiling]
+Enabled=0
+Mode=3
+Graph=0
+Symbiont=0
+[Disassemble mode]
+mode=0
+[Breakpoints]
+Bp0=_ "STD_CODE" "{F:\IPv6_780M\6lowsn_stack_a0.3_add_780_5.29\6lowsn_stack\src\stack\mac.c}.246.5@1" 0 0 0 0 "" 0 "" 0
+Bp1=_ "STD_CODE" "{F:\IPv6_780M\6lowsn_stack_a0.3_add_780_5.29\6lowsn_stack\src\apps\test_demo.c}.509.2@1" 0 0 0 0 "" 0 "" 0
+Bp2=_ "STD_CODE" "{F:\IPv6_780M\6lowsn_stack_a0.3_add_780_5.29\6lowsn_stack\src\stack\target\stm32\stm32f103_evb\AT86RF212.c}.658.5@1" 0 0 0 0 "" 0 "" 0
+Bp3=_ "STD_CODE" "{C:\Users\Administrator\Desktop\6lowsn_stack_780M_v0.3\6lowsn_stack_780_2\6lowsn_stack_6.9\6lowsn_stack\src\apps\test_demo.c}.612.2@1" 0 0 0 0 "" 0 "" 0
+Bp4=_ "STD_CODE" "{C:\Users\aqui\Desktop\6LoWSN\780\6lowsn_stack_780M_v0.8\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\stm32f10x_it.c}.220.11@1" 0 0 0 0 "" 0 "" 0
+Bp5=_ "STD_CODE" "{C:\Users\Administrator\Desktop\6lowsn_stack_780M_v0.8\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\halStack.c}.1360.9@1" 0 0 0 0 "" 0 "" 0
+Bp6=_ "STD_CODE" "{C:\Users\Administrator\Desktop\6lowsn_stack_780M_v0.8\6lowsn_stack_6.9\6lowsn_stack\src\stack\aps.c}.790.2@1" 0 0 0 0 "" 0 "" 0
+Bp7=_ "STD_CODE" "{$PROJ_DIR$}.814.5@1" 0 0 0 0 "" 0 "" 0
+Bp8=_ "STD_CODE" "{$PROJ_DIR$}.645.5@1" 0 0 0 0 "" 0 "" 0
+Bp9=_ "STD_CODE" "{$PROJ_DIR$}.1016.14@1" 0 0 0 0 "" 0 "" 0
+Bp10=_ "STD_CODE" "{$PROJ_DIR$}.238.2@1" 0 0 0 0 "" 0 "" 0
+Bp11=_ "STD_CODE" "{$PROJ_DIR$}.1104.3@1" 0 0 0 0 "" 0 "" 0
+Bp12=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\slip.c}.103.1@1" 0 0 0 0 "" 0 "" 0
+Bp13=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\nwk.c}.648.6@1" 0 0 0 0 "" 0 "" 0
+Bp14=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\nwk.c}.1263.8@1" 0 0 0 0 "" 0 "" 0
+Bp15=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\nwk.c}.1128.4@1" 0 0 0 0 "" 0 "" 0
+Bp16=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\icmpv6.c}.374.4@1" 0 0 0 0 "" 0 "" 0
+Bp17=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\icmpv6.c}.413.4@1" 0 0 0 0 "" 0 "" 0
+Bp18=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\icmpv6.c}.364.2@1" 0 0 0 0 "" 0 "" 0
+Bp19=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\nwk.c}.1016.14@1" 0 0 0 0 "" 0 "" 0
+Bp20=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\nwk.c}.2208.2@1" 0 0 0 0 "" 0 "" 0
+Bp21=_ "STD_CODE" "{C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\halStack.c}.1379.5@1" 0 0 0 0 "" 0 "" 0
+Bp22=_ "STD_CODE" "{C:\Users\stt\Desktop\节点 - 副本\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\apps\test_demo.c}.394.2@1" 0 0 0 0 "" 0 "" 0
+Bp23=_ "STD_CODE" "{C:\Users\stt\Desktop\节点 - 副本\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\aps.c}.960.23@1" 0 0 0 0 "" 0 "" 0
+Bp24=_ "STD_CODE" "{C:\Users\stt\Desktop\节点 - 副本\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\aps.c}.814.5@1" 0 0 0 0 "" 0 "" 0
+Bp25=_ "STD_CODE" "{C:\Users\stt\Desktop\节点 - 副本\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\apps\test_demo.c}.632.2@1" 0 0 0 0 "" 0 "" 0
+Count=26
+[Aliases]
+A0=_ "C:\Documents and Settings\Administrator\桌面\6lowsn_stack_a1.1\6lowsn_stack\src\stack\target\stm32\driver\src\stm32f10x_spi.c" ""
+A1=_ "C:\Documents and Settings\Administrator\桌面\6lowsn_stack_a1.1\6lowsn_stack\src\stack\target\stm32\driver\src\stm32f10x_usart.c" ""
+A2=_ "C:\Documents and Settings\Administrator\桌面\6lowsn_stack_s0.34\6lowsn_stack_s0.34_test2\6lowsn_stack\src\stack\target\stm32\driver\src\stm32f10x_tim.c" ""
+A3=_ "C:\Documents and Settings\Administrator\桌面\stm32+cc1101+test\6lowsn_stack\src\stack\target\stm32\driver\src\misc.c" ""
+A4=_ "C:\Documents and Settings\Administrator\桌面\stm32+cc1101+test\6lowsn_stack\src\stack\target\stm32\driver\src\stm32f10x_spi.c" ""
+A5=_ "C:\Users\Administrator\Desktop\6lowsn_stack_780M_v0.3\6lowsn_stack_780_2\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\stm32f10x_it.c" ""
+A6=_ "C:\Users\Administrator\Desktop\6lowsn_stack_780M_v0.5\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\stm32f10x_it.c" "C:\Users\aqui\Desktop\6LoWSN\780\6lowsn_stack_780M_v0.7\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\stm32f10x_it.c"
+A7=_ "C:\Users\Administrator\Desktop\6lowsn_stack_780M_v0.8\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\halStack.c" ""
+A8=_ "C:\Users\Song\Desktop\新建文件夹\6lowsn_stack\src\stack\target\stm32\driver\src\stm32f10x_usart.c" ""
+A9=_ "C:\Users\aqui\Desktop\6LoWSN\780\6lowsn_stack_780M_v0.7\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\stm32f10x_it.c" "C:\Users\aqui\Desktop\6LoWSN\780\6lowsn_stack_780M_v0.8\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\stm32f10x_it.c"
+A10=_ "C:\Users\aqui\Desktop\6LoWSN\780\6lowsn_stack_780M_v0.8\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\driver\src\stm32f10x_tim.c" ""
+A11=_ "C:\Users\aqui\Desktop\6lowsn_stack_780_2\6lowsn_stack_6.9\6lowsn_stack\src\stack\target\stm32\common\startup_stm32f10x_md.s" ""
+A12=_ "C:\Users\stt\Desktop\节点\6lowsn_stack_780M_v1.2\6lowsn_stack_6.9\6lowsn_stack\src\stack\nwk.c" ""
+A13=_ "E:\6LowPan\移植780射频\5.21_实验室板子\6lowsn_stack_a0.3\6lowsn_stack\src\stack\target\stm32\stm32f103_evb\_STM32F107_Console.c" ""
+A14=_ "F:\IPv6_780M\6lowsn_stack_a0.3_add_780_5.29\6lowsn_stack\src\src\stack\target\stm32\stm32f103_evb\AT86RF212.c" ""
+A15=_ "F:\IPv6_780M\6lowsn_stack_a0.3_add_780_5.29\6lowsn_stack\src\stack\target\stm32\common\system_stm32f10x.c" ""
+A16=_ "I:\6lowsn_stack_780_2 - 副本\6lowsn_stack_6.9\6lowsn_stack\src\apps\test_demo.c" ""
+Count=17
+SuppressDialog=1

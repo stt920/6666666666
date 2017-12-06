@@ -1,0 +1,816 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:10 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\mp.c              #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\mp.c -D           #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x53 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_SENSOR_TYPE=1    #
+#                          -lcN F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\rfd\List\ -o F:\6LoWSN\6lowsn_stack\obj\com #
+#                          piletest\iar51_cc2530\rfd\Obj\ -e --no_cse         #
+#                          --no_unroll --no_inline --no_code_motion           #
+#                          --no_tbaa --debug --core=plain --dptr=16,1         #
+#                          --data_model=large --code_model=banked             #
+#                          --calling_convention=xdata_reentrant               #
+#                          --place_constants=data --nr_virtual_regs 8 -I      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\ -I                           #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ol             #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\List\mp.lst                                  #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\Obj\mp.r51                                   #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\mp.c
+      1          
+      2          /******************************************************************************************************
+      3          *
+      4          * 文 件 名：mp.c
+      5          *
+      6          * 文件描述：网络管理进程
+      7          *
+      8          * 创 建 者：Wang Heng
+      9          *
+     10          * 当前版本：0.50
+     11          *
+     12          * 修 改 者：
+     13          *
+     14          * 修改历史：
+     15          
+     16          
+     17          
+     18          ********************************************************************************************************/
+     19          
+     20          #include "compiler.h"               //compiler specific
+     21          #include "6lowsn_common_types.h"
+     22          #include "6lowsn_config.h"
+     23          #include "ieee_lrwpan_defs.h"
+     24          #include "hal.h"
+     25          #include "halStack.h"
+     26          #include "console.h"
+     27          #include "debug.h"
+     28          #include "phy.h"
+     29          #include "mac.h"
+     30          #include "adp.h"
+     31          #include "nwk.h"
+     32          #include "aps.h"
+     33          #include "mp.h"
+     34          #include "neighbor.h"
+     35          #include "evboard.h"
+     36          #ifdef LOWSN_COORDINATOR
+     37          #ifdef LOWSN_SLIP_TO_HOST
+     38          #include "slip.h"
+     39          #endif
+     40          #endif
+     41          
+     42          
+     43          MP_PIB mp_pib;
+     44          MP_RESPONSE_PARAM mp_rsp_param;
+     45          
+     46          static void mpCommonFmt(IPADDR dst_saddr, BYTE command_id, BYTE aps_fcf, BYTE len);
+     47          
+     48          
+     49          void mpInit(void)
+     50          {
+     51          	mp_pib.flags.val = 0;
+     52          	mp_pib.eventType = MP_EVENT_NONE; 
+     53          	mp_pib.sensorType = LOWSN_SENSOR_TYPE;
+     54          	// 设置协调器为默认的管理信息发送地址, 依然会根据具体的数据包选择目标地址
+     55          	aplSetLinkLocalAddr16(&mp_pib.dstAddr, aplGetPanID(), 0);
+     56          	
+     57          	return;
+     58          }
+     59          
+     60          
+     61          LOWSN_STATUS_ENUM mpHandleRxReport(void) 
+     62          {
+     63          	LOWSN_STATUS_ENUM rstatus;
+     64                  BYTE *ptr;
+     65          
+     66          	rstatus = LOWSN_STATUS_SUCCESS;
+     67          	ptr = aplGetRxMsgData();
+     68          
+     69          	if (a_aps_rx_data.dstObjID >= APS_SHORTCUT_BASE)  {
+     70          
+     71          		// 采用了SHORTCUT 机制
+     72          		DEBUG_STRING(DBG_INFO,"MP: Find Shortcut. \n");
+     73          		switch (a_aps_rx_data.srcObjID) {
+     74          			
+     75          			case MP_COMMAND_DEVICE_INFORMATION:
+     76          				   rstatus = mpHandleDeviceInfo();
+     77          				   break;
+     78          
+     79          			case MP_COMMAND_TREE_NEIGHBOR_INFORMATION:
+     80          				   rstatus = mpHandleTreeNeighborInfo();
+     81          				   break;
+     82          
+     83          		       default:
+     84          				   DEBUG_STRING(DBG_INFO,"MP: Unhandled MP Command, discarding.\n");
+     85          		}
+     86          
+     87          
+     88          	}
+     89          	else  {
+     90          
+     91          		//普通对象读写
+     92          
+     93          		DEBUG_STRING(DBG_INFO,"MP: Not support common object read/wirte now. \n");
+     94          
+     95          	}
+     96          	 
+     97          	return(rstatus);
+     98          	
+     99          }
+    100          
+    101          
+    102          // 若是后台管理，则暂时不作动作
+    103          LOWSN_STATUS_ENUM mpHandleDeviceInfo(void)
+    104          {
+    105          	BYTE *ptr;
+    106          	SADDR saddr;
+    107          
+    108          	ptr = aplGetRxMsgData();  
+    109          
+    110          	return(LOWSN_STATUS_SUCCESS);
+    111          }
+    112          
+    113          
+    114          // 若是后台管理，则暂时不作动作
+    115          LOWSN_STATUS_ENUM mpHandleTreeNeighborInfo(void)
+    116          {
+    117          	BYTE *ptr;
+    118          	SADDR saddr;
+    119          
+    120          	ptr = aplGetRxMsgData();  
+    121          
+    122          	return(LOWSN_STATUS_SUCCESS);
+    123          }
+    124          
+    125          
+    126          
+    127          /*---------------------------------------------------------------------*
+    128          
+    129          构造管理进程命令帧信息
+    130          
+    131          注意: FCF域要求各命令帧自己构造好直接传递过来
+    132          
+    133          *---------------------------------------------------------------------*/
+    134          static void mpCommonFmt(IPADDR dst_saddr, BYTE command_id, BYTE aps_fcf, BYTE len)
+    135          {
+    136          
+    137          	a_aps_tx_data.flags.val = 0;
+    138          	a_aps_tx_data.srcObjID = command_id;
+    139          	a_aps_tx_data.usrPlen = len;
+    140          	a_aps_tx_data.serviceID = apsGenServiceID();
+    141          	a_aps_tx_data.seqNum= aps_pib.apsSeqNum++;
+    142          	a_aps_tx_data.dstObjID = APS_SHORTCUT_BASE;
+    143          	
+    144          	a_aps_tx_data.dstPort = LOWSN_BASE_PORT;
+    145          	a_aps_tx_data.dstIPADDR = dst_saddr;
+    146          	a_aps_tx_data.srcPort = LOWSN_BASE_PORT;
+    147          	
+    148          	a_aps_tx_data.fcf = aps_fcf;
+    149          	a_aps_tx_data.flags.bits.loopback = 0; 
+    150          
+    151          }
+    152          
+    153          /*---------------------------------------------------------------------*
+    154          
+    155          构造C/S 响应帧信息
+    156          
+    157          *---------------------------------------------------------------------*/
+    158          static void mpRspCommonFmt(BYTE len)
+    159          {
+    160          
+    161          	a_aps_tx_data.flags.val = 0;
+    162          	a_aps_tx_data.srcObjID = aplGetRxDstObjectID();
+    163          	a_aps_tx_data.usrPlen = len;
+    164          	a_aps_tx_data.serviceID = aplGetRxServiceID();
+    165          	a_aps_tx_data.seqNum= aps_pib.apsSeqNum++;
+    166          	a_aps_tx_data.dstObjID = aplGetRxSrcObjectID();
+    167          	
+    168          	a_aps_tx_data.dstPort = LOWSN_BASE_PORT;
+    169          	a_aps_tx_data.dstIPADDR = aplGetRxSrcIPAddr();
+    170          	a_aps_tx_data.srcPort = LOWSN_BASE_PORT;
+    171          
+    172          	a_aps_tx_data.fcf = 0;
+    173          	APS_SET_SERVICE_TYPE(a_aps_tx_data.fcf, APS_SERVICE_TYPE_CS);
+    174          	APS_SET_ACTION_TYPE(a_aps_tx_data.fcf, aplGetRxActType());
+    175          	APS_SET_ACTION_RESPONSE(a_aps_tx_data.fcf);
+    176          
+    177          	//APS_SET_FCF_ACK_FLAG(a_aps_tx_data.fcf);  
+    178          
+    179          	a_aps_tx_data.flags.bits.loopback = 0; 
+    180          
+    181          }
+    182          
+    183          
+    184          /*---------------------------------------------------------------------*
+    185          
+    186          发送设备信息
+    187          
+    188          格式为:  应反向填写
+    189          
+    190          节点短地址：2 Bytes
+    191          节点深度：1 Byte
+    192          节点父节点短地址：2 Bytes
+    193          节点EUI64地址： 8 Bytes
+    194          节点能力：1 Byte  （内含节点角色，FFD/RFD，是否安全，是否电池供电等）
+    195          节点种类代号：用户自定义  1 Byte
+    196          
+    197          
+    198          *---------------------------------------------------------------------*/
+    199          void mpFmtDeviceInfo(IPADDR dst_ipaddr)
+    200          {
+    201          	BYTE *ptr;
+    202          	BYTE len=0, fcf=0;
+    203          
+    204          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];	
+    205          
+    206          	// 节点前缀列表
+    207          	// TO DO.
+    208          
+    209          	// 节点应用序列号
+    210          
+    211          	// 节点种类代号
+    212          	ptr--;
+    213          	*ptr = LOWSN_SENSOR_TYPE;
+    214          	len++;
+    215          
+    216          	//节点能力
+    217          	ptr--;
+    218          	*ptr = mac_pib.macCapInfo;
+    219          	len++;
+    220          
+    221          	// 节点长地址
+    222          	ptr = ptr - 8;
+    223          	halGetProcessorIEEEAddress(ptr);
+    224          	len = len + 8;
+    225          
+    226          	// 节点父节点短地址
+    227          	ptr--;
+    228          	*ptr = (BYTE) (aplGetParentShortAddress());
+    229          	ptr--;
+    230          	*ptr = (BYTE) (aplGetParentShortAddress()>>8);
+    231          	len = len + 2;
+    232          
+    233          	//节点深度
+    234          	ptr--;
+    235          	*ptr = aplGetMyDepth();
+    236          	len++;
+    237          	
+    238          
+    239          	// 节点短地址
+    240          	ptr--;
+    241          	*ptr = (BYTE) (macGetShortAddr());
+    242          	ptr--;
+    243          	*ptr = (BYTE) (macGetShortAddr()>>8);
+    244          	len = len + 2;
+    245          
+    246          
+    247          	// 过早限制了服务类型，以后考虑改进
+    248          	APS_SET_SERVICE_TYPE(fcf, APS_SERVICE_TYPE_REPORT);
+    249          	//APS_SET_FCF_ACK_FLAG(fcf);  
+    250          
+    251          	mpCommonFmt(dst_ipaddr, MP_COMMAND_DEVICE_INFORMATION, fcf, len);
+    252          		
+    253          }
+    254          
+    255          
+    256          /*---------------------------------------------------------------------*
+    257          
+    258          发送拓扑信息(邻居节点信息)
+    259          
+    260          格式为:  应反向填写
+    261          
+    262          节点自身短地址：2 Bytes
+    263          节点深度：1 Bytes
+    264          节点EUI64地址： 8 Bytes
+    265          节点能力：1 Bytes （主要用于判断节点是路由器还是终端设备）
+    266          节点父节点短地址：2 Bytes
+    267          节点父节点EUI64地址：8 Bytes
+    268          节点子节点个数：2 Bytes
+    269          节点子节点短地址： 2 Bytes*个数
+    270          节点子节点长地址：8 Bytes*个数
+    271          
+    272          
+    273          
+    274          
+    275          
+    276          *---------------------------------------------------------------------*/
+    277          void mpFmtTreeNeighborInfo(IPADDR dst_ipaddr)
+    278          {
+    279          	BYTE *ptr;
+    280          	BYTE len=0, fcf=0;
+    281          	BYTE i;
+    282          
+    283          	
+    284          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];	
+    285          
+    286          	#if 0  //暂不汇报子节点
+    287          	#ifdef LOWSN_RFD
+    288          	ptr--;
+    289          	*ptr = 0;
+    290          	len++;
+    291          
+    292          	#else
+    293          
+    294          
+    295          
+    296          	#endif
+    297          	#endif
+    298          
+    299          	// 节点父节点长地址
+    300          	for (i=0; i<8; i++) {
+    301          		ptr--;
+    302          		*ptr = mac_pib.macCoordExtendedAddress.bytes[7-i];
+    303          	}	
+    304          	len = len + 8;
+    305          
+    306          	// 节点父节点短地址
+    307          	ptr--;
+    308          	*ptr = (BYTE) (aplGetParentShortAddress());
+    309          	ptr--;
+    310          	*ptr = (BYTE) (aplGetParentShortAddress()>>8);
+    311          	len = len + 2;
+    312          
+    313          	//节点能力
+    314          	ptr--;
+    315          	*ptr = mac_pib.macCapInfo;
+    316          	len++;
+    317          
+    318          	// 节点长地址
+    319          	ptr = ptr - 8;
+    320          	halGetProcessorIEEEAddress(ptr);
+    321          	len = len + 8;
+    322          	
+    323          	//节点深度
+    324          	ptr--;
+    325          	*ptr = aplGetMyDepth();
+    326          	len++;
+    327          	
+    328          	// 节点短地址
+    329          	ptr--;
+    330          	*ptr = (BYTE) (macGetShortAddr());
+    331          	ptr--;
+    332          	*ptr = (BYTE) (macGetShortAddr()>>8);
+    333          	len = len + 2;
+    334          
+    335          	
+    336          	// 过早限制了服务类型，以后考虑改进
+    337          	APS_SET_SERVICE_TYPE(fcf, APS_SERVICE_TYPE_REPORT);
+    338          	//APS_SET_FCF_ACK_FLAG(fcf);  
+    339          
+    340          	mpCommonFmt(dst_ipaddr, MP_COMMAND_TREE_NEIGHBOR_INFORMATION, fcf, len);
+    341          		
+    342          }
+    343          
+    344          
+    345          
+    346          // 检查发来读取管理信息的指令是否有效
+    347          // TRUE: 有效;  FALSE: 无效
+    348          BOOL mpReadCheck(void)
+    349          {
+    350          	BYTE *ptr;
+    351          	ptr = aplGetRxMsgData();
+    352          
+    353          	// 暂时只支持单个变量的操作
+    354          	if (*ptr != 1)  {
+    355          		
+    356          		DEBUG_STRING(DBG_INFO,"MP: Only support single value opertion. \n");
+    357          		return FALSE;
+    358          	}
+    359          
+    360          	// 可在此对支持的管理对象ID进行进一步的限制 
+    361          
+    362          	
+    363          	return TRUE;
+    364          }
+    365          
+    366          
+    367          // 检查发来写管理信息的指令是否有效
+    368          // TRUE: 有效;  FALSE: 无效
+    369          BOOL mpWriteCheck(void)
+    370          {
+    371          	BYTE *ptr;
+    372          	ptr = aplGetRxMsgData();
+    373          
+    374          	// 暂时只支持单个变量的操作
+    375          	if (*ptr != 1)  {
+    376          		
+    377          		DEBUG_STRING(DBG_INFO,"MP: Only support single value opertion. \n");
+    378          		return FALSE;
+    379          	}
+    380          
+    381          	// 可在此对支持的管理对象ID进行进一步的限制 
+    382          
+    383          	
+    384          	return TRUE;
+    385          }
+    386          
+    387          
+    388          // 检查发来的执行指令是否有效
+    389          // TRUE: 有效;  FALSE: 无效
+    390          BOOL mpExecuteCheck(void)
+    391          {
+    392          	BYTE *ptr;
+    393          	ptr = aplGetRxMsgData();
+    394          
+    395          	// 暂时只支持单个操作
+    396          	if (*ptr != 1)  {
+    397          		
+    398          		DEBUG_STRING(DBG_INFO,"MP: Only support single value opertion. \n");
+    399          		return FALSE;
+    400          	}
+    401          
+    402          	// 可在此对支持的管理对象ID进行进一步的限制 
+    403          
+    404          	
+    405          	return TRUE;
+    406          }
+    407          
+    408          
+    409          
+    410          UINT8 mpFmtCurrentVoltageResponsePayload(void)
+    411          {
+    412          
+    413          	BYTE *ptr;
+    414          	BYTE len=0;
+    415          	UINT16 voltage;
+    416          
+    417          	voltage = getVoltageValue();
+    418          
+    419          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];	
+    420          
+    421          	// 填写电池电压值
+    422          	ptr--;
+    423          	*ptr = (BYTE) (voltage);
+    424          	ptr--;
+    425          	*ptr = (BYTE) (voltage >> 8);
+    426          	len = len + 2;
+    427          
+    428          	//填写属性值长度
+    429          	ptr--;
+    430          	*ptr = 2;
+    431          	len++;
+    432          
+    433          	// 填写二级属性ID和属性ID
+    434          	ptr--;
+    435          	*ptr = 0;
+    436          	ptr--;
+    437          	*ptr = MP_ATTRIBUTE_ID_CURRENT_VOLTAGE;
+    438          	len = len + 2;
+    439          
+    440          	// 填写执行成功的结果和执行结果个数
+    441          	ptr--;
+    442          	*ptr = APS_RESULT_OK;
+    443          	ptr--;
+    444          	*ptr = 1;
+    445          	len = len + 2;
+    446          
+    447          	return len;
+    448          
+    449          }
+    450          
+    451          void mpFmtReadResponse(void)
+    452          {
+    453          	BYTE *ptr;
+    454          	UINT8 plen;
+    455          
+    456          	ptr = aplGetRxMsgData();
+    457          	
+    458          	if  (aplGetRxDstObjectID() ==  MP_OBJECT_ID_POWER)   {
+    459          
+    460          		if (*(ptr+1) == MP_ATTRIBUTE_ID_CURRENT_VOLTAGE) {
+    461          					
+    462          			plen = mpFmtCurrentVoltageResponsePayload();
+    463          		}	
+    464          
+    465          		else
+    466          		{
+    467          			// 不应该执行该语句，对系统暂时不支持的对象和属性，
+    468          			// mpReadCheck()函数应该已经负责检查了
+    469          			// 应通知系统出错了
+    470          			DEBUG_STRING(DBG_INFO,"MP: Sytem Error, Invalid attribute ID for  power management. \n");
+    471          			plen = 0;
+    472          			
+    473          
+    474          		}
+    475          	}	
+    476          
+    477          	else  {
+    478          		
+    479          			DEBUG_STRING(DBG_INFO,"MP: Sytem Error, Invalid object ID for READ. \n");
+    480          			plen = 0;
+    481          	}
+    482          					
+    483          	if (plen > 0)  {
+    484          		
+    485          		mpRspCommonFmt(plen);
+    486          		
+    487          	} 
+    488          	else  {
+    489          
+    490          		// 不应该出现的分支，以后进行系统出错处理
+    491          	}	
+    492          		
+    493          	return;
+    494          	
+    495          }
+    496          
+    497          
+    498          // 与mpFmtReadResponse()写法类似
+    499          void mpFmtWriteResponse(void)
+    500          {
+    501          	BYTE *ptr;
+    502          
+    503          	ptr = aplGetRxMsgData();
+    504          	
+    505          	return;
+    506          
+    507          }
+    508          
+    509          // 与mpFmtReadResponse()写法类似
+    510          void mpExcuteMethod(void)
+    511          {
+    512          
+    513          	BYTE *ptr;
+    514          
+    515          	ptr = aplGetRxMsgData();
+    516          		
+    517          	return;
+    518          
+    519          }
+    520          
+    521          
+    522          #if 0
+    523          
+    524          void zepFSM(void) {
+    525          	//does not do much right now
+    526          
+    527          	if (zep_pib.flags.bits.Alarm) {
+    528          		//flash LED1 at 200ms rate
+    529          		if ((halMACTimerNowDelta(zep_pib.alarm_timer)) > MSECS_TO_MACTICKS(200)) {
+    530          			//toggle LED1
+    531          			if (EVB_LED1_STATE()) {
+    532          		     EVB_LED1_OFF();
+    533          			 } else {
+    534                            EVB_LED1_ON();
+    535          				 }
+    536                      zep_pib.alarm_timer = halGetMACTimer();
+    537          		}
+    538          
+    539          
+    540          	}
+    541          
+    542          }
+    543          
+    544          
+    545          //send a payload that has our short address, so that a ping
+    546          //can be used to send our short address to somebody
+    547          //The main goal is to the APS ACK back
+    548          //as verification that this was delivered
+    549          //this ping packet is also forwarded to the PC client
+    550          //if PC binding is being used.
+    551          
+    552          void zepFmtPing(SADDR dst_saddr) {
+    553          	BYTE *ptr;
+    554             	a_aps_tx_data.usrPlen = 3;
+    555          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+    556              *ptr = (BYTE) (macGetShortAddr()>>8);
+    557              --ptr;
+    558              *ptr = (BYTE) (macGetShortAddr());
+    559              --ptr;
+    560          	*ptr = ZEP_EXT_PING;
+    561          	zepCommonFmt(dst_saddr,ZEP_EXTENDED_CMD);
+    562          }
+    563          
+    564          //turns an alarm on at the node
+    565          //if mode is nonzero, turn on the alarm
+    566          //if mode is zero, turn off the alarm
+    567          void zepFmtAlarm(SADDR dst_saddr, BYTE mode) {
+    568          	BYTE *ptr;
+    569             	a_aps_tx_data.usrPlen = 2;
+    570          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE-1];
+    571              *ptr = mode;
+    572              --ptr;
+    573          	*ptr = ZEP_EXT_SEND_ALARM;
+    574          	zepCommonFmt(dst_saddr,ZEP_EXTENDED_CMD);
+    575          }
+    576          
+    577          
+    578          
+    579          //put our long address, short address into the tmpTxBuffer
+    580          //so that it can be sent to the coordinator.
+    581          void zepFmtEndDeviceAnnounce(SADDR dst_saddr){
+    582          	BYTE *ptr;
+    583          
+    584          	//first, do the payload
+    585          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE] - 8;	
+    586          	//copy in the long address
+    587          	halGetProcessorIEEEAddress(ptr);
+    588          	//now put our short address
+    589          	--ptr;
+    590              *ptr = (BYTE) (macGetShortAddr()>>8);
+    591          
+    592              --ptr;
+    593              *ptr = (BYTE) (macGetShortAddr());
+    594          	
+    595              a_aps_tx_data.usrPlen = ZEP_PLEN_END_DEVICE_ANNOUNCE;
+    596          
+    597          	//now, the rest
+    598          	zepCommonFmt(dst_saddr,ZEP_END_DEVICE_ANNOUNCE);
+    599          		
+    600          }
+    601          
+    602          /* this is a custom Zero End point command that sends data that is spread
+    603          across several different Zigbee response commands into one. This info
+    604          is needed by the PC client in the binding demo
+    605          */
+    606          void zepFmtNodeInfoRsp(SADDR dst_saddr){
+    607          
+    608          	BYTE *ptr;
+    609          	BYTE i;
+    610          
+    611          	//endpoints first
+    612          	ptr = &tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+    613          	//do the endpoints first.
+    614          	for (i=0;i<aps_pib.activeEPs;i++){
+    615          		--ptr;
+    616          		*ptr = apsEndPoints[i].epNum;
+    617          	}
+    618              --ptr;
+    619          	*ptr = aps_pib.activeEPs;
+    620          	
+    621          	//MAC capability code
+    622              --ptr;
+    623          	*ptr = mac_pib.macCapInfo;
+    624          
+    625          	//Node type
+    626              --ptr;
+    627          #if defined(LOWSN_COORDINATOR)
+    628          	*ptr = NODE_TYPE_COORD;
+    629          #elif defined(LOWSN_FFD)
+    630          	*ptr = NODE_TYPE_ROUTER;
+    631          #else
+    632              *ptr = NODE_TYPE_ENDDEVICE;
+    633          #endif
+    634              //my parent
+    635          	  --ptr;
+    636          	*ptr = (mac_pib.macCoordShortAddress >> 8) & 0xFF;
+    637          	
+    638          
+    639          	--ptr;	
+    640              *ptr = mac_pib.macCoordShortAddress & 0xFF;
+    641          
+    642          
+    643          	//my short address
+    644              --ptr;
+    645          	*ptr = (macGetShortAddr() >> 8) & 0xFF;
+    646          	
+    647          
+    648          	--ptr;	
+    649              *ptr = macGetShortAddr() & 0xFF;
+    650          
+    651          	//copy in the long address
+    652          	ptr = ptr - 8;
+    653          	halGetProcessorIEEEAddress(ptr);
+    654          
+    655          	//indentify this extended command
+    656          	--ptr;
+    657          	*ptr = ZEP_EXT_NODE_INFO_RSP;
+    658          
+    659          	a_aps_tx_data.usrPlen = aps_pib.activeEPs + ZEP_PLEN_NODE_INFO_RSP ;
+    660          
+    661          	//now, the rest
+    662          	zepCommonFmt(dst_saddr,ZEP_EXTENDED_CMD);
+    663          
+    664          }
+    665          
+    666          #endif
+    667          
+    668          
+    669          
+
+   Maximum stack usage in bytes:
+
+     Function                       ISTACK PSTACK XSTACK
+     --------                       ------ ------ ------
+     mpCommonFmt                        2      0     26
+     mpExcuteMethod                     2      0      0
+     mpExecuteCheck                     2      0      0
+       -> conPrintROMString_func        4      0      0
+     mpFmtCurrentVoltageResponsePayload
+                                        1      0     10
+       -> getVoltageValue               0      0     20
+     mpFmtDeviceInfo                    1      0     42
+       -> halGetProcessorIEEEAddress
+                                        0      0     20
+       -> mpCommonFmt                   0      0     52
+     mpFmtReadResponse                  2      0      0
+       -> mpFmtCurrentVoltageResponsePayload
+                                        4      0      0
+       -> conPrintROMString_func        4      0      0
+       -> conPrintROMString_func        4      0      0
+       -> mpRspCommonFmt                4      0      0
+     mpFmtTreeNeighborInfo              1      0     42
+       -> halGetProcessorIEEEAddress
+                                        0      0     20
+       -> mpCommonFmt                   0      0     52
+     mpFmtWriteResponse                 2      0      0
+     mpHandleDeviceInfo                 2      0      9
+     mpHandleRxReport                   0      0      9
+       -> conPrintROMString_func        0      0     18
+       -> mpHandleDeviceInfo            0      0     18
+       -> mpHandleTreeNeighborInfo      0      0     18
+       -> conPrintROMString_func        0      0     18
+       -> conPrintROMString_func        0      0     18
+     mpHandleTreeNeighborInfo           2      0      9
+     mpInit                             0      0     12
+       -> ds6GenInterfaceID16           0      0     24
+     mpReadCheck                        2      0      0
+       -> conPrintROMString_func        4      0      0
+     mpRspCommonFmt                     2      0      0
+     mpWriteCheck                       2      0      0
+       -> conPrintROMString_func        4      0      0
+
+
+   Segment part sizes:
+
+     Function/Label                             Bytes
+     --------------                             -----
+     mp_pib                                       20
+     mp_rsp_param                                 24
+     mpInit                                       99
+     mpHandleRxReport                            102
+     xxxxromstr                                   21
+     xxxxromstr                                   39
+     xxxxromstr                                   48
+     mpHandleDeviceInfo                            5
+     mpHandleTreeNeighborInfo                      5
+     mpCommonFmt                                 115
+     mpRspCommonFmt                              139
+     mpFmtDeviceInfo                             209
+     mpFmtTreeNeighborInfo                       244
+     mpReadCheck                                  50
+     xxxxromstr                                   42
+     mpWriteCheck                                 50
+     xxxxromstr                                   42
+     mpExecuteCheck                               50
+     xxxxromstr                                   42
+     mpFmtCurrentVoltageResponsePayload
+                                                 140
+     mpFmtReadResponse                            91
+     xxxxromstr                                   63
+     xxxxromstr                                   47
+     mpFmtWriteResponse                            3
+     mpExcuteMethod                                3
+     ??mpInit?relay                                6
+     ??mpHandleRxReport?relay                      6
+     ??mpHandleDeviceInfo?relay                    6
+     ??mpHandleTreeNeighborInfo?relay              6
+     ??mpCommonFmt?relay                           6
+     ??mpRspCommonFmt?relay                        6
+     ??mpFmtDeviceInfo?relay                       6
+     ??mpFmtTreeNeighborInfo?relay                 6
+     ??mpReadCheck?relay                           6
+     ??mpWriteCheck?relay                          6
+     ??mpExecuteCheck?relay                        6
+     ??mpFmtCurrentVoltageResponsePayload?relay    6
+     ??mpFmtReadResponse?relay                     6
+     ??mpFmtWriteResponse?relay                    6
+     ??mpExcuteMethod?relay                        6
+
+ 
+ 1 305 bytes in segment BANKED_CODE
+    90 bytes in segment BANK_RELAYS
+   344 bytes in segment CODE_C
+    44 bytes in segment XDATA_Z
+ 
+ 1 739 bytes of CODE  memory
+    44 bytes of XDATA memory
+
+Errors: none
+Warnings: 8

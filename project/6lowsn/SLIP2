@@ -1,0 +1,6 @@
+#!/bin/sh
+slattach -F -p slip -s 115200 /dev/s3c2410_serial2 &
+ifconfig sl1 mtu 1500
+ifconfig sl1 10.10.10.1
+ifconfig sl1 add fe80::1234:5678/64
+echo 1> /proc/sys/net/ipv6/conf/all/forwarding

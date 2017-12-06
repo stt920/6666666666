@@ -1,0 +1,7 @@
+---- aps_pib.flags.bits.ackPending Matches (6 in 1 files) ----
+Aps.c (src\stack):							aps_pib.flags.bits.ackPending = 1;
+Aps.c (src\stack):						else aps_pib.flags.bits.ackPending = 0;
+Aps.c (src\stack):			  if (!aps_pib.flags.bits.ackPending) {
+Aps.c (src\stack):					  aps_pib.flags.bits.ackPending = 0;
+Aps.c (src\stack):				aps_pib.flags.bits.ackPending = 0;
+Aps.c (src\stack):			} else if (!aps_pib.flags.bits.ackPending) {

@@ -1,0 +1,435 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:31 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\memalloc.c        #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\memalloc.c -D     #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\memalloc.lst                          #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\memalloc.r51                           #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\memalloc.c
+      1          
+      2          
+      3          #include "compiler.h"               //compiler specific
+      4          #include <string.h>                 // has memset function
+      5          #include "6lowsn_config.h"
+      6          #include "hal.h"        //for global interrupt enable/disable
+      7          #include "halStack.h"
+      8          #include "console.h"
+      9          #include "debug.h"
+     10          #include "memalloc.h"
+     11          
+     12          
+     13          
+     14          
+     15          //LOWSN_HEAPSIZE must be < 64K, can allocate blocks up to this size
+     16          // format of block is
+     17          // free bit/15 bit size block_UINT8s | free bit/15 bit size block_UINT8s | etc..
+     18          // heap merging done on FREE, free adjacent blocks are merged.
+     19          
+     20          
+     21          
+     22          //static UINT8 mem_heap[LOWSN_HEAPSIZE];
+     23          #include "halHeapSpace.h"
+     24          
+     25          typedef UINT16 MEMHDR;
+     26          
+     27          #define MEMHDR_FREE_MASK 0x80
+     28          #define MEMHDR_SIZE_MASK 0x7FFF
+     29          
+     30          #define MEMHDR_GET_FREE(x) (*(x+1)&MEMHDR_FREE_MASK)
+     31          #define MEMHDR_CLR_FREE(x)  *(x+1) = *(x+1)&(~MEMHDR_FREE_MASK)
+     32          #define MEMHDR_SET_FREE(x)  *(x+1) = *(x+1)|MEMHDR_FREE_MASK
+     33          
+     34          
+     35          UINT16 memhdr_get_size (UINT8 *ptr) {
+     36          	UINT16 x;
+     37          
+     38          	x = (UINT8) *ptr;
+     39          	x += ((UINT16) *(ptr+1)<< 8);
+     40          	x = x & 0x7FFF;
+     41          	return(x);
+     42          }
+     43          
+     44          void memhdr_set_size (UINT8 *ptr, UINT16 size) {
+     45          
+     46          	*ptr = (UINT8) size;
+     47          	ptr++;
+     48          	*ptr = *ptr & 0x80;  //clear size field
+     49          	*(ptr) += (size >> 8);  //add in size.
+     50          }
+     51          
+     52          
+     53          #if 0
+     54          typedef struct _MEMHDR {
+     55              UINT16 val;
+     56          
+     57              unsigned int free:1;
+     58          	unsigned int size:15;	
+     59          }MEMHDR;
+     60          #endif
+     61          
+     62          
+     63          #define MINSIZE 16+sizeof(MEMHDR)
+     64          
+     65          
+     66          void MemInit (void) {
+     67          	memset(mem_heap,0,LOWSN_HEAPSIZE);
+     68          	MEMHDR_SET_FREE(((UINT8 *)&mem_heap[0]));
+     69              memhdr_set_size(((UINT8 *)&mem_heap[0]),(LOWSN_HEAPSIZE - sizeof(MEMHDR)));
+     70          }
+     71          
+     72          UINT8 * MemAlloc (UINT16 size) {
+     73          
+     74          	UINT8 *free_blk, *next_blk;
+     75          	UINT16 offset;
+     76          	UINT16 remainder;
+     77                  BOOL  gie_status;
+     78          
+     79          
+     80          
+     81              if (!size) return(NULL);      //illegal size
+     82          	if (size < MINSIZE) size = MINSIZE;
+     83          
+     84                  SAVE_AND_DISABLE_GLOBAL_INTERRUPT(gie_status);
+     85          	free_blk = mem_heap;
+     86          	offset = 0;
+     87          	while (1) {
+     88          		if (MEMHDR_GET_FREE(((UINT8 *)free_blk)) &&
+     89          			(memhdr_get_size((UINT8 *)free_blk) >= size)) break; //found block
+     90          		//advance to next block
+     91          		offset = offset + memhdr_get_size((UINT8 *)free_blk) + sizeof(MEMHDR);
+     92                          if (offset >= LOWSN_HEAPSIZE) {
+     93                            DEBUG_CHAR( DBG_ERR,DBG_CHAR_MEMFULL  );
+     94                            RESTORE_GLOBAL_INTERRUPT(gie_status);
+     95                            return(NULL); // no free blocks
+     96                          }
+     97          		free_blk = mem_heap + offset;
+     98          	}
+     99          	remainder =  memhdr_get_size((UINT8 *)free_blk) - size;
+    100          	if (remainder < MINSIZE) {
+    101          		//found block, mark as not-free
+    102          		MEMHDR_CLR_FREE((UINT8 *)free_blk);
+    103                  RESTORE_GLOBAL_INTERRUPT(gie_status);
+    104          		return(free_blk + sizeof(MEMHDR));
+    105          	}
+    106          	//remainder is large enough to support a new block
+    107          	//adjust allocated block to requested size
+    108          	memhdr_set_size(((UINT8 *)free_blk),size);
+    109          	//format next blk
+    110          	next_blk = free_blk+size+sizeof(MEMHDR);
+    111          	MEMHDR_SET_FREE((UINT8 *) next_blk);
+    112          	memhdr_set_size(((UINT8 *) next_blk), (remainder - sizeof(MEMHDR)));
+    113          
+    114          	MEMHDR_CLR_FREE((UINT8 *)free_blk); //mark allocated block as non-free
+    115              RESTORE_GLOBAL_INTERRUPT(gie_status);
+    116          	return(free_blk + sizeof(MEMHDR));      //return new block
+    117          }
+    118          
+    119          void MemFree(UINT8 *ptr) {
+    120          	UINT8 *hdr;
+    121          	UINT16 offset, tmp;
+    122                  BOOL  gie_status;
+    123          
+    124          
+    125              if (ptr == NULL) return;
+    126              SAVE_AND_DISABLE_GLOBAL_INTERRUPT(gie_status);
+    127          	hdr = ptr - sizeof(MEMHDR);
+    128          	//free this block
+    129          	MEMHDR_SET_FREE((UINT8 *)hdr);
+    130          	//now merge
+    131          	offset = 0;
+    132          	hdr = mem_heap;
+    133          	//loop until blocks that can be merged are merged
+    134          	while (1) {
+    135          		if (MEMHDR_GET_FREE((UINT8 *)hdr)) {
+    136          			//found a free block, see if we can merge with next block
+    137          			tmp = offset +  memhdr_get_size((UINT8 *)hdr) + sizeof(MEMHDR);
+    138          			if (tmp >= LOWSN_HEAPSIZE) break; //at end of heap, exit loop
+    139          			ptr = mem_heap + tmp; //point at next block
+    140          			if (MEMHDR_GET_FREE((UINT8 *)ptr)) {
+    141          				//next block is free, do merge by adding size of next block
+    142          	            memhdr_set_size(((UINT8 *)hdr),(memhdr_get_size((UINT8 *)hdr)+ memhdr_get_size((UINT8 *)ptr)
+    143          					                            + sizeof(MEMHDR)));
+    144          				// after merge, do not change offset, try to merge again
+    145          				//next time through loop
+    146          				continue; //back to top of loop
+    147          			}			
+    148          		}
+    149          		// next block
+    150          		offset = offset + memhdr_get_size((UINT8 *)hdr) + sizeof(MEMHDR);
+    151          		if (offset >= LOWSN_HEAPSIZE) break;  //at end of heap, exit loop
+    152          		hdr = mem_heap + offset;
+    153          	}
+    154          	 RESTORE_GLOBAL_INTERRUPT(gie_status);
+    155          }
+    156          
+    157          #ifdef LOWSN_COMPILER_NO_RECURSION
+    158          
+    159          //this supports the HI-TECH compiler, which does not support recursion
+    160          
+    161          UINT16 ISR_memhdr_get_size (UINT8 *ptr) {
+    162          	UINT16 x;
+    163          
+    164          	x = (UINT8) *ptr;
+    165          	x += ((UINT16) *(ptr+1)<< 8);
+    166          	x = x & 0x7FFF;
+    167          	return(x);
+    168          }
+    169          
+    170          void ISR_memhdr_set_size (UINT8 *ptr, UINT16 size) {
+    171          
+    172          	*ptr = (UINT8) size;
+    173          	ptr++;
+    174          	*ptr = *ptr & 0x80;  //clear size field
+    175          	*(ptr) += (size >> 8);  //add in size.
+    176          }
+    177          
+    178          
+    179          
+    180          UINT8 * ISRMemAlloc (UINT16 size) {
+    181          
+    182          	UINT8 *free_blk, *next_blk;
+    183          	UINT16 offset;
+    184          	UINT16 remainder;
+    185                  BOOL  gie_status;
+    186          
+    187          
+    188          
+    189                  if (!size) return(NULL);      //illegal size
+    190          	if (size < MINSIZE) size = MINSIZE;
+    191          
+    192                  SAVE_AND_DISABLE_GLOBAL_INTERRUPT(gie_status);
+    193          	free_blk = mem_heap;
+    194          	offset = 0;
+    195          	while (1) {
+    196          		if (MEMHDR_GET_FREE(((UINT8 *)free_blk)) &&
+    197          			(ISR_memhdr_get_size((UINT8 *)free_blk) >= size)) break; //found block
+    198          		//advance to next block
+    199          		offset = offset + ISR_memhdr_get_size((UINT8 *)free_blk) + sizeof(MEMHDR);
+    200                          if (offset >= LOWSN_HEAPSIZE) {
+    201                            DEBUG_CHAR( DBG_ERR,DBG_CHAR_MEMFULL  );
+    202                            RESTORE_GLOBAL_INTERRUPT(gie_status);
+    203                            return(NULL); // no free blocks
+    204                          }
+    205          		free_blk = mem_heap + offset;
+    206          	}
+    207          	remainder =  ISR_memhdr_get_size((UINT8 *)free_blk) - size;
+    208          	if (remainder < MINSIZE) {
+    209          		//found block, mark as not-free
+    210          		MEMHDR_CLR_FREE((UINT8 *)free_blk);
+    211                  RESTORE_GLOBAL_INTERRUPT(gie_status);
+    212          		return(free_blk + sizeof(MEMHDR));
+    213          	}
+    214          	//remainder is large enough to support a new block
+    215          	//adjust allocated block to requested size
+    216          	ISR_memhdr_set_size(((UINT8 *)free_blk),size);
+    217          	//format next blk
+    218          	next_blk = free_blk+size+sizeof(MEMHDR);
+    219          	MEMHDR_SET_FREE((UINT8 *) next_blk);
+    220          	ISR_memhdr_set_size(((UINT8 *) next_blk), (remainder - sizeof(MEMHDR)));
+    221          
+    222          	MEMHDR_CLR_FREE((UINT8 *)free_blk); //mark allocated block as non-free
+    223              RESTORE_GLOBAL_INTERRUPT(gie_status);
+    224          	return(free_blk + sizeof(MEMHDR));      //return new block
+    225          }
+    226          
+    227          void ISRMemFree(UINT8 *ptr) {
+    228          	UINT8 *hdr;
+    229          	UINT16 offset, tmp;
+    230                  BOOL  gie_status;
+    231          
+    232          
+    233                  SAVE_AND_DISABLE_GLOBAL_INTERRUPT(gie_status);
+    234          	hdr = ptr - sizeof(MEMHDR);
+    235          	//free this block
+    236          	MEMHDR_SET_FREE((UINT8 *)hdr);
+    237          	//now merge
+    238          	offset = 0;
+    239          	hdr = mem_heap;
+    240          	//loop until blocks that can be merged are merged
+    241          	while (1) {
+    242          		if (MEMHDR_GET_FREE((UINT8 *)hdr)) {
+    243          			//found a free block, see if we can merge with next block
+    244          			tmp = offset +  ISR_memhdr_get_size((UINT8 *)hdr) + sizeof(MEMHDR);
+    245          			if (tmp >= LOWSN_HEAPSIZE) break; //at end of heap, exit loop
+    246          			ptr = mem_heap + tmp; //point at next block
+    247          			if (MEMHDR_GET_FREE((UINT8 *)ptr)) {
+    248          				//next block is free, do merge by adding size of next block
+    249          	            ISR_memhdr_set_size(((UINT8 *)hdr),(ISR_memhdr_get_size((UINT8 *)hdr)+ ISR_memhdr_get_size((UINT8 *)ptr)
+    250          					                            + sizeof(MEMHDR)));
+    251          				// after merge, do not change offset, try to merge again
+    252          				//next time through loop
+    253          				continue; //back to top of loop
+    254          			}			
+    255          		}
+    256          		// next block
+    257          		offset = offset + ISR_memhdr_get_size((UINT8 *)hdr) + sizeof(MEMHDR);
+    258          		if (offset >= LOWSN_HEAPSIZE) break;  //at end of heap, exit loop
+    259          		hdr = mem_heap + offset;
+    260          	}
+    261          	 RESTORE_GLOBAL_INTERRUPT(gie_status);
+    262          }
+    263          
+    264          
+    265          
+    266          
+    267          #endif
+    268          
+    269          
+    270          
+    271          
+    272          
+    273          #ifdef LOWSN_DEBUG
+    274          //Dump Memory to see what it looks like
+    275          void MemDump(void) {
+    276          	UINT8 *hdr;
+    277          	UINT16 offset,j;
+    278          
+    279          	offset = 0;
+    280          	j = 1;
+    281          	while (offset < LOWSN_HEAPSIZE) {
+    282          		hdr = mem_heap+offset;
+    283                          conPrintROMString("Blk: ");
+    284                          conPrintUINT16(j);
+    285                          conPrintROMString("; offset: ");
+    286                          conPrintUINT16(offset);
+    287                          conPrintROMString(", Free:");
+    288          				if (MEMHDR_GET_FREE((UINT8 *)hdr)) {
+    289                           conPrintROMString("Y ");
+    290          				}
+    291          				else {conPrintROMString("N ");
+    292          				}
+    293                          conPrintROMString(", Size: ");
+    294                          conPrintUINT16(memhdr_get_size((UINT8 *)hdr));
+    295                          conPrintROMString("\n");
+    296          		offset = offset + memhdr_get_size((UINT8 *)hdr)+ sizeof(MEMHDR);
+    297          		j++;
+    298          
+    299          	}
+    300          }
+    301          
+    302          #endif
+    303          
+    304          
+    305          
+    306          
+    307          
+
+   Maximum stack usage in bytes:
+
+     Function                    ISTACK PSTACK XSTACK
+     --------                    ------ ------ ------
+     MemAlloc                        0      0     15
+       -> memhdr_get_size            0      0     30
+       -> memhdr_get_size            0      0     30
+       -> memhdr_get_size            0      0     30
+       -> halPutch                   0      0     30
+       -> memhdr_set_size            0      0     30
+       -> memhdr_set_size            0      0     30
+     MemDump                         0      0     12
+       -> conPrintROMString_func     0      0     24
+       -> conPrintUINT16             0      0     24
+       -> conPrintROMString_func     0      0     24
+       -> conPrintUINT16             0      0     24
+       -> conPrintROMString_func     0      0     24
+       -> conPrintROMString_func     0      0     24
+       -> conPrintROMString_func     0      0     24
+       -> conPrintROMString_func     0      0     24
+       -> memhdr_get_size            0      0     24
+       -> conPrintUINT16             0      0     24
+       -> conPrintROMString_func     0      0     24
+       -> memhdr_get_size            0      0     24
+     MemFree                         0      0     15
+       -> memhdr_get_size            0      0     30
+       -> memhdr_get_size            0      0     30
+       -> memhdr_set_size            0      0     30
+       -> memhdr_get_size            0      0     30
+       -> memhdr_get_size            0      0     30
+     MemInit                         0      0     12
+       -> memset                     0      0     24
+       -> memhdr_set_size            0      0     20
+     memhdr_get_size                 0      0     24
+     memhdr_set_size                 1      0     24
+
+
+   Segment part sizes:
+
+     Function/Label          Bytes
+     --------------          -----
+     _A_IEN0                    1
+     mem_heap                2048
+     memhdr_get_size           24
+     ?Subroutine4               5
+     memhdr_set_size           21
+     MemInit                   55
+     MemAlloc                 220
+     ?Subroutine2              14
+     ?Subroutine3              11
+     ?Subroutine0              27
+     MemFree                  213
+     ?Subroutine1               4
+     ??Subroutine5_0            8
+     MemDump                  127
+     xxxxromstr                 6
+     xxxxromstr                11
+     xxxxromstr                 8
+     xxxxromstr                 3
+     xxxxromstr                 3
+     xxxxromstr                 9
+     xxxxromstr                 2
+     ??memhdr_get_size?relay    6
+     ??memhdr_set_size?relay    6
+     ??MemInit?relay            6
+     ??MemAlloc?relay           6
+     ??MemFree?relay            6
+     ??MemDump?relay            6
+
+ 
+   729 bytes in segment BANKED_CODE
+    36 bytes in segment BANK_RELAYS
+    42 bytes in segment CODE_C
+     1 byte  in segment SFR_AN
+ 2 048 bytes in segment XDATA_Z
+ 
+   807 bytes of CODE  memory
+     0 bytes of DATA  memory (+ 1 byte shared)
+ 2 048 bytes of XDATA memory
+
+Errors: none
+Warnings: none

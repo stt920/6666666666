@@ -1,0 +1,232 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:29 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc24 #
+#                          30_evb\evboard.c                                   #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc24 #
+#                          30_evb\evboard.c -D LOWSN_DEBUG -D                 #
+#                          aExtendedAddress_B7=0x00 -D                        #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\evboard.lst                           #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\evboard.r51                            #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\target\iar51\cc2430_evb\evboard.c
+      1          
+      2          #include "hal.h"
+      3          #include "halStack.h"
+      4          #include "evboard.h"
+      5          #include "evbConfig.h"
+      6          
+      7          
+      8          /******************************************************************************
+      9          * Joystick
+     10          *
+     11          ******************************************************************************/
+     12          #define JOYSTICK_PUSH         P2_0
+     13          #define JOYSTICK_PRESSED()    JOYSTICK_PUSH
+     14          #define INIT_JOYSTICK_PUSH() \
+     15              do {                     \
+     16                  P2DIR &= ~0x01;      \
+     17                  P2INP |= 0x01;       \
+     18              } while (0)
+     19          
+     20          BOOL joystickPushed( void );
+     21          
+     22          typedef enum {CENTRED, LEFT, RIGHT, UP, DOWN} JOYSTICK_DIRECTION;
+     23          
+     24          #define JOYSTICK              P0_6
+     25          #define INIT_JOYSTICK()       IO_DIR_PORT_PIN(0, 6, IO_IN)
+     26          #define ADC_INPUT_JOYSTICK    0x06
+     27          
+     28          JOYSTICK_DIRECTION getJoystickDirection( void );
+     29          
+     30          
+     31          EVB_SW_STATE sw_state;
+     32          
+     33          
+     34          
+     35          JOYSTICK_DIRECTION getJoystickDirection( void ) {
+     36              INT8 adcValue, i;
+     37              JOYSTICK_DIRECTION direction[2];
+     38          
+     39          
+     40              for(i = 0; i < 2; i++){
+     41                 adcValue = halAdcSampleSingle(ADC_REF_AVDD, ADC_8_BIT, ADC_INPUT_JOYSTICK);
+     42          
+     43                 if (adcValue < 0x29) {
+     44                    direction[i] = DOWN;  // Measured 0x01
+     45                 } else if (adcValue < 0x50) {
+     46                    direction[i] = LEFT;  // Measured 0x30
+     47          
+     48                    //Not supporting 45 degrees positions (UP-RIGTH)
+     49                 } else if (adcValue < 0x45) {
+     50                    direction[i] = CENTRED;  // Measured 0x40
+     51                 } else if (adcValue < 0x35) {
+     52                    direction[i] = RIGHT; // Measured 0x4D
+     53                 } else if (adcValue < 0x20) {
+     54                    direction[i] = UP;    // Measured 0x5C
+     55                 } else {
+     56                    direction[i] = CENTRED; // Measured 0x69
+     57                 }
+     58              }
+     59          
+     60              if(direction[0] == direction[1]){
+     61                 return direction[0];
+     62              }
+     63              else{
+     64                 return CENTRED;
+     65              }
+     66          }
+     67          
+     68          #define SW_POLL_TIME   MSECS_TO_MACTICKS(100)
+     69          
+     70          UINT32 last_switch_poll;
+     71          //poll the switches
+     72          void evbPoll(void){
+     73          
+     74          //only do this if the slow timer not enabled as reading
+     75          //the joystick takes a while. If the slowtimer is enabled,
+     76          //then that interrupt is handing polling
+     77          #ifndef LOWSN_ENABLE_SLOW_TIMER
+     78            if ( halMACTimerNowDelta(last_switch_poll) > SW_POLL_TIME) {
+     79             evbIntCallback();
+     80             last_switch_poll = halGetMACTimer();
+     81            }
+     82          #endif
+     83          
+     84          }
+     85          
+     86          //init the board
+     87          void evbInit(void){
+     88            halInit();
+     89            INIT_JOYSTICK();
+     90            sw_state.val = 0;
+     91            INIT_LED1();
+     92            INIT_LED2();
+     93          }
+     94          
+     95          void evbLedSet(BYTE lednum, BOOL state) {
+     96              switch(lednum) {
+     97                 case 1:    if (state) LED1_ON(); else LED1_OFF(); break;
+     98                 case 2:    if (state) LED2_ON(); else LED2_OFF(); break;
+     99              }
+    100          }
+    101          
+    102          BOOL evbLedGet(BYTE lednum){
+    103            switch(lednum) {
+    104                 case 1:    return(LED1_STATE());
+    105                 case 2:    return(LED2_STATE());
+    106              }
+    107            return(FALSE);
+    108          }
+    109          
+    110          
+    111          //if joystick pushed up, consider this a S1 button press
+    112          //if joystick pushed down, consider this a S2 button press
+    113          //does not allow for both buttons to be pressed at once
+    114          //tgl bits are set if the state bits become different
+    115          
+    116          void evbIntCallback(void){
+    117          
+    118            JOYSTICK_DIRECTION x;
+    119            x = getJoystickDirection();
+    120            if (x == CENTRED) {
+    121              sw_state.bits.s1_val = 0;
+    122              sw_state.bits.s2_val = 0;
+    123            }
+    124            else  if (x == UP) sw_state.bits.s1_val = 1;
+    125            else if (x == DOWN) sw_state.bits.s2_val = 1;
+    126            if (sw_state.bits.s1_val != sw_state.bits.s1_last_val) sw_state.bits.s1_tgl = 1;
+    127            if (sw_state.bits.s2_val != sw_state.bits.s2_last_val) sw_state.bits.s2_tgl = 1;
+    128            sw_state.bits.s1_last_val = sw_state.bits.s1_val;
+    129            sw_state.bits.s2_last_val = sw_state.bits.s2_val;
+    130          }
+    131          
+
+   Maximum stack usage in bytes:
+
+     Function                  ISTACK PSTACK XSTACK
+     --------                  ------ ------ ------
+     evbInit                       2      0      0
+       -> halInit                  4      0      0
+     evbIntCallback                0      0     10
+       -> getJoystickDirection     0      0     20
+     evbLedGet                     2      0      0
+     evbLedSet                     2      0      0
+     evbPoll                       0      0      0
+     getJoystickDirection          1      0     21
+       -> halAdcSampleSingle       0      0     22
+
+
+   Segment part sizes:
+
+     Function/Label               Bytes
+     --------------               -----
+     _A_P1                           1
+     P1SEL                           1
+     P2SEL                           1
+     P0DIR                           1
+     P1DIR                           1
+     sw_state                        2
+     getJoystickDirection          116
+     ?Subroutine0                   17
+     last_switch_poll                4
+     evbPoll                         3
+     evbInit                        31
+     ?Subroutine1                    7
+     evbLedSet                      38
+     evbLedGet                      33
+     evbIntCallback                173
+     ??getJoystickDirection?relay    6
+     ??evbPoll?relay                 6
+     ??evbInit?relay                 6
+     ??evbLedSet?relay               6
+     ??evbLedGet?relay               6
+     ??evbIntCallback?relay          6
+
+ 
+ 418 bytes in segment BANKED_CODE
+  36 bytes in segment BANK_RELAYS
+   5 bytes in segment SFR_AN
+   6 bytes in segment XDATA_Z
+ 
+ 454 bytes of CODE  memory
+   0 bytes of DATA  memory (+ 5 bytes shared)
+   6 bytes of XDATA memory
+
+Errors: none
+Warnings: none

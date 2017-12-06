@@ -1,0 +1,8 @@
+---- LOCAL_PORT Matches (7 in 2 files) ----
+Aps.c (src\stack):#define Local_Port 0xF0B3
+Aps.c (src\stack):		  	Nwk_Forward_Outside(0x82, SrcIpAddr_G1, DstIpAddr_G1, Remote_Port, Local_Port, buffer_tmp, i, 17);	
+Test_demo.c (src\apps):#define LOCAL_PORT      0xF0B3
+Test_demo.c (src\apps):  			//			aplSendReportData(dstIPADDR, REMOTE_PORT, REMOTE_OBJECT_ID, LOCAL_PORT, OBJECT_ID_TEMP, 
+Test_demo.c (src\apps):  					//	aplSendPublishData(dstIPADDR, REMOTE_PORT, REMOTE_OBJECT_ID, LOCAL_PORT, OBJECT_ID_TEMP, 
+Test_demo.c (src\apps):	//if ((aplGetRxSrcPort() != REMOTE_PORT) || (aplGetRxDstPort() != LOCAL_PORT)) {
+Test_demo.c (src\apps):	ResponseParam.srcPort = LOCAL_PORT;

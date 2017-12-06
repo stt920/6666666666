@@ -1,0 +1,2349 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<project>
+  <fileVersion>2</fileVersion>
+  <fileChecksum>1212802120</fileChecksum>
+  <configuration>
+    <name>coord</name>
+    <outputs>
+      <file>$PROJ_DIR$\coord\Obj\slip.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\test_demo.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\debug.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\evboard.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\console.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\nwk.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\icmpv6.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\compiletest.pbd</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evbConfig.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\compiler.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_board_cfg.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdarg.h</file>
+      <file>$PROJ_DIR$\coord\Obj\aps.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\nd.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\memalloc.pbi</file>
+      <file>$TOOLKIT_DIR$\inc\ioCC2530.h</file>
+      <file>$PROJ_DIR$\coord\Obj\neighbor.pbi</file>
+      <file>$TOOLKIT_DIR$\inc\clib\sysmac.h</file>
+      <file>$PROJ_DIR$\coord\Obj\hal_dma.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\phy.pbi</file>
+      <file>$PROJ_DIR$\coord\Exe\compiletest.hex</file>
+      <file>$PROJ_DIR$\coord\Obj\mac.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\ds.pbi</file>
+      <file>$TOOLKIT_DIR$\inc\clib\string.h</file>
+      <file>$PROJ_DIR$\coord\Obj\mp.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\halStack.r51</file>
+      <file>$TOOLKIT_DIR$\config\lnk_base.xcl</file>
+      <file>$PROJ_DIR$\coord\Obj\console.r51</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdio.h</file>
+      <file>$PROJ_DIR$\coord\Obj\aps.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\adp.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\debug.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\halNeighbor.r51</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdlib.h</file>
+      <file>$TOOLKIT_DIR$\config\lnk51ew_cc2530b.xcl</file>
+      <file>$TOOLKIT_DIR$\lib\clib\cl-pli-blxd-1e16x01.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\ds.r51</file>
+      <file>$PROJ_DIR$\coord\List\halNeighbor.lst</file>
+      <file>$PROJ_DIR$\coord\Obj\icmpv6.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\mac.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\memalloc.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\mp.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\nd.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\neighbor.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\nwk.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\phy.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\slip.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\test_demo.r51</file>
+      <file>$PROJ_DIR$\coord\Obj\evboard.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\halNeighbor.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\hal_dma.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\halStack.pbi</file>
+      <file>$PROJ_DIR$\coord\Obj\adp.pbi</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stddef.h</file>
+      <file>$PROJ_DIR$\coord\List\test_demo.lst</file>
+      <file>$PROJ_DIR$\coord\List\ds.lst</file>
+      <file>$PROJ_DIR$\coord\List\nwk.lst</file>
+      <file>$PROJ_DIR$\coord\List\debug.lst</file>
+      <file>$PROJ_DIR$\coord\List\aps.lst</file>
+      <file>$PROJ_DIR$\coord\List\console.lst</file>
+      <file>$PROJ_DIR$\coord\List\compiletest.map</file>
+      <file>$PROJ_DIR$\coord\List\adp.lst</file>
+      <file>$PROJ_DIR$\coord\List\nd.lst</file>
+      <file>$PROJ_DIR$\coord\List\mac.lst</file>
+      <file>$PROJ_DIR$\coord\List\memalloc.lst</file>
+      <file>$PROJ_DIR$\coord\List\evboard.lst</file>
+      <file>$PROJ_DIR$\coord\List\mp.lst</file>
+      <file>$PROJ_DIR$\coord\List\icmpv6.lst</file>
+      <file>$PROJ_DIR$\coord\List\halStack.lst</file>
+      <file>$PROJ_DIR$\coord\List\hal_dma.lst</file>
+      <file>$PROJ_DIR$\coord\List\neighbor.lst</file>
+      <file>$PROJ_DIR$\coord\List\phy.lst</file>
+      <file>$PROJ_DIR$\coord\List\slip.lst</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halHeapSpace.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_common_types.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_config.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\evboard.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\halStack.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ieee_lrwpan_defs.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</file>
+    </outputs>
+    <file>
+      <name>$PROJ_DIR$\coord\Obj\compiletest.pbd</name>
+      <inputs>
+        <tool>
+          <name>BILINK</name>
+          <file> 54 14 4 2 24 50 51 53 52 6 23 16 26 15 18 5 21 0 1</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 67 3</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 50</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 10 30 13 19 25 11 17 82 81 94 93 8</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 10 30 13 19 25 11 17 82 81 94 93 8</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>[ROOT_NODE]</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 22 62</file>
+        </tool>
+      </outputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\coord\Exe\compiletest.hex</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 62</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 36 28 32 31 29 33 38 3 34 27 20 40 41 42 43 44 45 46 47 48 49 37</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 71 20</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 52</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 75 12 10 30 13 19 25 82 81 94</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 75 12 10 30 13 19 25 82 81 94</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 39 34</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 51</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 82 81 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 82 81 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 70 27</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 53</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 10 30 13 19 25 82 81 94 88 92 97 90 101 111 99</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 10 30 13 19 25 82 81 94 88 92 97 90 101 111 99</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\adp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 63 32</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 54</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 82 81 97 92 94 10 30 13 19 25 88 90 101 107 111 99 84 109 103</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 82 81 97 92 94 10 30 13 19 25 88 90 101 107 111 99 84 109 103</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\aps.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 60 31</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 14</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 82 81 97 88 92 94 10 30 13 19 25 90 101 107 111 99 84 96 109 103 86 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 82 81 97 88 92 94 10 30 13 19 25 90 101 107 111 99 84 96 109 103 86 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\console.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 61 29</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 4</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 10 30 13 19 25 82 81 94 88 92 97 78 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 10 30 13 19 25 82 81 94 88 92 97 78 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\debug.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 59 33</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 2</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 81 82 97 10 30 13 19 25 88 92 94 90 84 86 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 81 82 97 10 30 13 19 25 88 92 94 90 84 86 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\ds.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 57 38</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 24</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 25 19 35 55 81 11 17 82 88 92 97 94 10 30 13 90 105 109 99 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 25 19 35 55 81 11 17 82 88 92 97 94 10 30 13 90 105 109 99 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 69 40</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 6</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 25 19 11 17 82 81 97 92 94 10 30 13 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 25 19 11 17 82 81 97 92 94 10 30 13 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mac.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 65 41</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 23</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 82 81 97 88 92 94 10 30 13 19 25 90 101 111 99 84 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 82 81 97 88 92 94 10 30 13 19 25 90 101 111 99 84 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 66 42</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 16</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 25 19 82 10 30 13 81 94 88 92 97 90 101 77</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 25 19 82 10 30 13 81 94 88 92 97 90 101 77</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 68 43</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 26</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 81 82 97 10 30 13 19 25 94 88 92 90 111 99 84 109 86 103 107 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 81 82 97 10 30 13 19 25 94 88 92 90 111 99 84 109 86 103 107 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nd.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 64 44</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 15</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 35 19 25 81 11 17 82 94 10 30 13 88 92 97 90 109 96 99 111 105 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 35 19 25 81 11 17 82 94 10 30 13 88 92 97 90 109 96 99 111 105 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 72 45</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 18</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 82 81 97 88 92 94 10 30 13 19 25 90 101 111 99 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 82 81 97 88 92 94 10 30 13 19 25 90 101 111 99 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nwk.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 58 46</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 5</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 35 19 25 11 17 82 81 97 92 94 10 30 13 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 35 19 25 11 17 82 81 97 92 94 10 30 13 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\phy.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 73 47</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 21</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 82 81 97 10 30 13 19 25 94 88 92 90 101 111 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 82 81 97 10 30 13 19 25 94 88 92 90 101 111 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\slip.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 74 48</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 0</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 17 81 82 10 30 13 19 25 94 88 92 97 90 111 99 84 109 86 103 107 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 17 81 82 10 30 13 19 25 94 88 92 97 90 111 99 84 109 86 103 107 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 56 49</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 1</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 78 11 17 81 82 92 97 94 10 30 13 19 25 88 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 78 11 17 81 82 92 97 94 10 30 13 19 25 88 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+      </inputs>
+    </file>
+  </configuration>
+  <configuration>
+    <name>edge_coord</name>
+    <outputs>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evbConfig.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\compiler.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_board_cfg.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdarg.h</file>
+      <file>$TOOLKIT_DIR$\inc\ioCC2530.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\sysmac.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\string.h</file>
+      <file>$TOOLKIT_DIR$\config\lnk_base.xcl</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdio.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdlib.h</file>
+      <file>$TOOLKIT_DIR$\config\lnk51ew_cc2530b.xcl</file>
+      <file>$TOOLKIT_DIR$\lib\clib\cl-pli-blxd-1e16x01.r51</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stddef.h</file>
+      <file>$PROJ_DIR$\edge_coord\List\halNeighbor.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\debug.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\aps.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\adp.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\console.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\ds.lst</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\compiletest.pbd</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\icmpv6.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\halNeighbor.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\memalloc.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\console.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\adp.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\hal_dma.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\debug.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\aps.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\halStack.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\ds.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\nd.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\slip.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\phy.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\test_demo.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\debug.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\adp.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\halStack.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\aps.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\console.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\halNeighbor.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\nwk.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\icmpv6.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\evboard.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\mac.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\hal_dma.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\ds.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\memalloc.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\mp.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\nd.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\neighbor.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\nwk.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\phy.r51</file>
+      <file>$PROJ_DIR$\edge_coord\List\evboard.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\hal_dma.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\compiletest.map</file>
+      <file>$PROJ_DIR$\edge_coord\List\halStack.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\mac.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\memalloc.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\mp.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\icmpv6.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\nd.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\neighbor.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\nwk.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\phy.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\slip.lst</file>
+      <file>$PROJ_DIR$\edge_coord\List\test_demo.lst</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\slip.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\test_demo.r51</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\evboard.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Exe\compiletest.hex</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\mp.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\mac.pbi</file>
+      <file>$PROJ_DIR$\edge_coord\Obj\neighbor.pbi</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halHeapSpace.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_common_types.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_config.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\evboard.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\halStack.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ieee_lrwpan_defs.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</file>
+    </outputs>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 54 44</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 70</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 2 10 5 7 8 3 6 82 81 94 93 0</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 2 10 5 7 8 3 6 82 81 94 93 0</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>[ROOT_NODE]</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 71 56</file>
+        </tool>
+      </outputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\edge_coord\Obj\compiletest.pbd</name>
+      <inputs>
+        <tool>
+          <name>BILINK</name>
+          <file> 26 29 25 28 31 70 23 30 27 22 73 24 72 32 74 42 34 33 35</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\edge_coord\Exe\compiletest.hex</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 56</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 12 9 37 39 40 36 47 44 41 38 46 43 45 48 49 50 51 52 53 68 69 13</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 55 46</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 27</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 75 4 2 10 5 7 8 82 81 94</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 75 4 2 10 5 7 8 82 81 94</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 15 41</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 23</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 57 38</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 30</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 90 101 111 99</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 90 101 111 99</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\adp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 18 37</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 26</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 92 94 2 10 5 7 8 88 90 101 107 111 99 84 109 103 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 92 94 2 10 5 7 8 88 90 101 107 111 99 84 109 103 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\aps.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 17 39</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 29</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 107 111 99 84 96 109 103 86 93 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 107 111 99 84 96 109 103 86 93 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\console.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 19 40</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 25</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 78 90 101 107 93 111 99 84 109 86 103 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 78 90 101 107 93 111 99 84 109 86 103 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\debug.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 16 36</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 28</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 88 92 94 90 84 86 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 88 92 94 90 84 86 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\ds.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 20 47</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 31</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 8 7 11 14 81 3 6 82 88 92 97 94 2 10 5 90 105 109 99 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 8 7 11 14 81 3 6 82 88 92 97 94 2 10 5 90 105 109 99 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 61 43</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 22</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 8 7 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 8 7 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mac.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 58 45</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 73</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 84 107 113 109</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 84 107 113 109</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 59 48</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 24</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 8 7 82 2 10 5 81 94 88 92 97 90 101 77</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 8 7 82 2 10 5 81 94 88 92 97 90 101 77</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 60 49</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 72</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 94 88 92 90 111 99 84 109 86 103 107 93 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 94 88 92 90 111 99 84 109 86 103 107 93 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nd.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 62 50</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 32</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 7 8 81 3 6 82 94 2 10 5 88 92 97 90 109 96 99 111 105 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 7 8 81 3 6 82 94 2 10 5 88 92 97 90 109 96 99 111 105 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 63 51</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 74</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nwk.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 64 52</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 42</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 7 8 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 7 8 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\phy.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 65 53</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 34</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 2 10 5 7 8 94 88 92 90 101 111 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 2 10 5 7 8 94 88 92 90 101 111 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\slip.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 66 68</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 33</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 81 82 2 10 5 7 8 94 88 92 97 90 111 99 84 109 86 103 107 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 81 82 2 10 5 7 8 94 88 92 97 90 111 99 84 109 86 103 107 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 67 69</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 35</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 78 3 6 81 82 92 97 94 2 10 5 7 8 88 90 101 107 93 111 99 84 109 86 103 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 78 3 6 81 82 92 97 94 2 10 5 7 8 88 90 101 107 93 111 99 84 109 86 103 113</file>
+        </tool>
+      </inputs>
+    </file>
+  </configuration>
+  <configuration>
+    <name>rfd</name>
+    <outputs>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evbConfig.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\compiler.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_board_cfg.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdarg.h</file>
+      <file>$TOOLKIT_DIR$\inc\ioCC2530.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\sysmac.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\string.h</file>
+      <file>$TOOLKIT_DIR$\config\lnk_base.xcl</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdio.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdlib.h</file>
+      <file>$TOOLKIT_DIR$\lib\clib\cl-pli-blxd-1e16x01.r51</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stddef.h</file>
+      <file>$PROJ_DIR$\rfd\List\slip.lst</file>
+      <file>$PROJ_DIR$\rfd\List\test_demo.lst</file>
+      <file>$TOOLKIT_DIR$\config\lnk51ew_cc2530.xcl</file>
+      <file>$PROJ_DIR$\rfd\Obj\adp.pbi</file>
+      <file>$PROJ_DIR$\rfd\List\halStack.lst</file>
+      <file>$PROJ_DIR$\rfd\List\memalloc.lst</file>
+      <file>$PROJ_DIR$\rfd\List\phy.lst</file>
+      <file>$PROJ_DIR$\rfd\List\ds.lst</file>
+      <file>$PROJ_DIR$\rfd\List\icmpv6.lst</file>
+      <file>$PROJ_DIR$\rfd\List\halNeighbor.lst</file>
+      <file>$PROJ_DIR$\rfd\List\debug.lst</file>
+      <file>$PROJ_DIR$\rfd\List\nwk.lst</file>
+      <file>$PROJ_DIR$\rfd\List\evboard.lst</file>
+      <file>$PROJ_DIR$\rfd\List\neighbor.lst</file>
+      <file>$PROJ_DIR$\rfd\List\nd.lst</file>
+      <file>$PROJ_DIR$\rfd\List\mp.lst</file>
+      <file>$PROJ_DIR$\rfd\List\mac.lst</file>
+      <file>$PROJ_DIR$\rfd\List\hal_dma.lst</file>
+      <file>$PROJ_DIR$\rfd\Obj\halNeighbor.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\evboard.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\ds.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\compiletest.pbd</file>
+      <file>$PROJ_DIR$\rfd\Obj\nwk.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\memalloc.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\mac.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\icmpv6.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\debug.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\console.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\aps.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\hal_dma.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\slip.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\phy.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\nd.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\memalloc.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\mac.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\ds.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\halStack.r51</file>
+      <file>$PROJ_DIR$\rfd\Exe\compiletest.hex</file>
+      <file>$PROJ_DIR$\rfd\Obj\halNeighbor.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\hal_dma.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\evboard.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\test_demo.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\test_demo.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\mp.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\mp.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\icmpv6.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\console.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\debug.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\aps.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\halStack.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\slip.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\adp.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\neighbor.r51</file>
+      <file>$PROJ_DIR$\rfd\Obj\phy.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\nwk.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\neighbor.pbi</file>
+      <file>$PROJ_DIR$\rfd\Obj\nd.pbi</file>
+      <file>$PROJ_DIR$\rfd\List\adp.lst</file>
+      <file>$PROJ_DIR$\rfd\List\compiletest.map</file>
+      <file>$PROJ_DIR$\rfd\List\aps.lst</file>
+      <file>$PROJ_DIR$\rfd\List\console.lst</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halHeapSpace.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_common_types.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_config.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\evboard.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\halStack.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ieee_lrwpan_defs.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</file>
+    </outputs>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 26 54</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 33</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 2 10 5 7 8 3 6 82 81 94 93 0</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 2 10 5 7 8 3 6 82 81 94 93 0</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>[ROOT_NODE]</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 51 72</file>
+        </tool>
+      </outputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\rfd\Obj\compiletest.pbd</name>
+      <inputs>
+        <tool>
+          <name>BILINK</name>
+          <file> 17 42 41 40 34 33 32 63 43 39 38 37 57 70 69 68 67 44 55</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\rfd\Exe\compiletest.hex</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 72</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 16 9 65 62 60 61 49 54 52 50 53 59 48 47 58 46 66 36 45 64 56 12</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 31 53</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 43</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 75 4 2 10 5 7 8 82 81 94</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 75 4 2 10 5 7 8 82 81 94</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 23 52</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 32</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 18 50</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 63</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 90 101 111 99</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 90 101 111 99</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\adp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 71 65</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 17</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 92 94 2 10 5 7 8 88 90 101 107 111 99 84 109 103</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 92 94 2 10 5 7 8 88 90 101 107 111 99 84 109 103</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\aps.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 73 62</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 42</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 107 111 99 84 96 109 103 86 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 107 111 99 84 96 109 103 86 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\console.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 74 60</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 41</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 78 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 2 10 5 7 8 82 81 94 88 92 97 78 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\debug.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 24 61</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 40</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 88 92 94 90 84 86 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 88 92 94 90 84 86 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\ds.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 21 49</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 34</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 8 7 11 13 81 3 6 82 88 92 97 94 2 10 5 90 105 109 99 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 8 7 11 13 81 3 6 82 88 92 97 94 2 10 5 90 105 109 99 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 22 59</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 39</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 8 7 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 8 7 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mac.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 30 48</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 38</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 84 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 84 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 19 47</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 37</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 8 7 82 2 10 5 81 94 88 92 97 90 101 77</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 8 7 82 2 10 5 81 94 88 92 97 90 101 77</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 29 58</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 57</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 94 88 92 90 111 99 84 109 86 103 107 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 81 82 97 2 10 5 7 8 94 88 92 90 111 99 84 109 86 103 107 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nd.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 28 46</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 70</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 7 8 81 3 6 82 94 2 10 5 88 92 97 90 109 96 99 111 105 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 7 8 81 3 6 82 94 2 10 5 88 92 97 90 109 96 99 111 105 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 27 66</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 69</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 107</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 88 92 94 2 10 5 7 8 90 101 111 99 107</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nwk.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 25 36</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 68</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 7 8 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 7 8 3 6 82 81 97 92 94 2 10 5 88 90 101 107 96 105 111 99 84 109 103 86 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\phy.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 20 45</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 67</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 82 81 97 2 10 5 7 8 94 88 92 90 101 111 93</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 82 81 97 2 10 5 7 8 94 88 92 90 101 111 93</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\slip.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 14 64</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 44</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 81 82 2 10 5 7 8 94 88 92 97 90 111 99 84 109 86 103 107 113</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 81 82 2 10 5 7 8 94 88 92 97 90 111 99 84 109 86 103 107 113</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 15 56</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 55</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 78 3 6 81 82 92 97 94 2 10 5 7 8 88 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 78 3 6 81 82 92 97 94 2 10 5 7 8 88 90 101 107 93 111 99 84 109 86 103</file>
+        </tool>
+      </inputs>
+    </file>
+  </configuration>
+  <configuration>
+    <name>router</name>
+    <outputs>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evbConfig.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\compiler.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_board_cfg.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdarg.h</file>
+      <file>$TOOLKIT_DIR$\inc\ioCC2530.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\sysmac.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\string.h</file>
+      <file>$TOOLKIT_DIR$\config\lnk_base.xcl</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdio.h</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stdlib.h</file>
+      <file>$TOOLKIT_DIR$\lib\clib\cl-pli-blxd-1e16x01.r51</file>
+      <file>$TOOLKIT_DIR$\inc\clib\stddef.h</file>
+      <file>$TOOLKIT_DIR$\config\lnk51ew_cc2530.xcl</file>
+      <file>$PROJ_DIR$\router\Obj\evboard.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\phy.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\debug.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\ds.r51</file>
+      <file>$PROJ_DIR$\router\Obj\adp.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\ds.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\icmpv6.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\mac.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\memalloc.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\mp.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\nd.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\neighbor.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\nwk.pbi</file>
+      <file>$PROJ_DIR$\router\Exe\compiletest.hex</file>
+      <file>$PROJ_DIR$\router\Obj\hal_dma.r51</file>
+      <file>$PROJ_DIR$\router\Obj\console.r51</file>
+      <file>$PROJ_DIR$\router\Obj\test_demo.pbi</file>
+      <file>$PROJ_DIR$\router\List\compiletest.map</file>
+      <file>$PROJ_DIR$\router\Obj\compiletest.pbd</file>
+      <file>$PROJ_DIR$\router\Obj\halStack.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\slip.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\aps.r51</file>
+      <file>$PROJ_DIR$\router\Obj\debug.r51</file>
+      <file>$PROJ_DIR$\router\Obj\evboard.r51</file>
+      <file>$PROJ_DIR$\router\Obj\icmpv6.r51</file>
+      <file>$PROJ_DIR$\router\Obj\halNeighbor.r51</file>
+      <file>$PROJ_DIR$\router\Obj\halStack.r51</file>
+      <file>$PROJ_DIR$\router\Obj\neighbor.r51</file>
+      <file>$PROJ_DIR$\router\Obj\nd.r51</file>
+      <file>$PROJ_DIR$\router\Obj\nwk.r51</file>
+      <file>$PROJ_DIR$\router\Obj\mp.r51</file>
+      <file>$PROJ_DIR$\router\Obj\memalloc.r51</file>
+      <file>$PROJ_DIR$\router\Obj\mac.r51</file>
+      <file>$PROJ_DIR$\router\Obj\halNeighbor.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\console.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\adp.r51</file>
+      <file>$PROJ_DIR$\router\Obj\slip.r51</file>
+      <file>$PROJ_DIR$\router\Obj\phy.r51</file>
+      <file>$PROJ_DIR$\router\Obj\aps.pbi</file>
+      <file>$PROJ_DIR$\router\Obj\test_demo.r51</file>
+      <file>$PROJ_DIR$\router\Obj\hal_dma.pbi</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halHeapSpace.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_common_types.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\6lowsn_config.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\adp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\aps.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\console.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\debug.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ds.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\evboard.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\halStack.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\icmpv6.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\ieee_lrwpan_defs.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mac.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\memalloc.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\mp.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nd.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\neighbor.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\nwk.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\phy.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.c</file>
+      <file>$PROJ_DIR$\..\..\..\src\stack\slip.h</file>
+      <file>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</file>
+    </outputs>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2430_evb\evboard.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 38</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 15</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 2 10 5 7 8 3 6 63 62 75 74 0</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 2 10 5 7 8 3 6 63 62 75 74 0</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>[ROOT_NODE]</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 28 32</file>
+        </tool>
+      </outputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\router\Exe\compiletest.hex</name>
+      <outputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 32</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>XLINK</name>
+          <file> 14 9 50 36 30 37 18 38 40 41 29 39 47 46 45 43 42 44 52 51 54 12</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\router\Obj\compiletest.pbd</name>
+      <inputs>
+        <tool>
+          <name>BILINK</name>
+          <file> 19 53 49 17 20 15 48 34 55 21 22 23 24 25 26 27 16 35 31</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\hal_dma.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 29</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 55</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 56 4 2 10 5 7 8 63 62 75</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 56 4 2 10 5 7 8 63 62 75</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halNeighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 40</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 48</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 63 62 88</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 63 62 88</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\target\iar51\cc2530\halStack.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 41</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 34</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 2 10 5 7 8 63 62 75 69 73 78 71 82 92 80</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 2 10 5 7 8 63 62 75 69 73 78 71 82 92 80</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\adp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 50</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 19</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 63 62 78 73 75 2 10 5 7 8 69 71 82 88 92 80 65 90 84</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 63 62 78 73 75 2 10 5 7 8 69 71 82 88 92 80 65 90 84</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\aps.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 36</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 53</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 63 62 78 69 73 75 2 10 5 7 8 71 82 88 92 80 65 77 90 84 67 74</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 63 62 78 69 73 75 2 10 5 7 8 71 82 88 92 80 65 77 90 84 67 74</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\console.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 30</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 49</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 2 10 5 7 8 63 62 75 69 73 78 59 71 82 88 74 92 80 65 90 67 84</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 2 10 5 7 8 63 62 75 69 73 78 59 71 82 88 74 92 80 65 90 67 84</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\debug.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 37</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 17</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 62 63 78 2 10 5 7 8 69 73 75 71 65 67 88</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 62 63 78 2 10 5 7 8 69 73 75 71 65 67 88</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\ds.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 18</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 20</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 8 7 11 13 62 3 6 63 69 73 78 75 2 10 5 71 86 90 80 88</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 8 7 11 13 62 3 6 63 69 73 78 75 2 10 5 71 86 90 80 88</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\icmpv6.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 39</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 21</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 8 7 3 6 63 62 78 73 75 2 10 5 69 71 82 88 77 86 92 80 65 90 84 67 74</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 8 7 3 6 63 62 78 73 75 2 10 5 69 71 82 88 77 86 92 80 65 90 84 67 74</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mac.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 47</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 22</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 63 62 78 69 73 75 2 10 5 7 8 71 82 92 80 65 88</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 63 62 78 69 73 75 2 10 5 7 8 71 82 92 80 65 88</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\memalloc.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 46</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 23</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 8 7 63 2 10 5 62 75 69 73 78 71 82 58</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 8 7 63 2 10 5 62 75 69 73 78 71 82 58</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\mp.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 45</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 24</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 62 63 78 2 10 5 7 8 75 69 73 71 92 80 65 90 67 84 88 74</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 62 63 78 2 10 5 7 8 75 69 73 71 92 80 65 90 67 84 88 74</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nd.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 43</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 25</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 7 8 62 3 6 63 75 2 10 5 69 73 78 71 90 77 80 92 86 88</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 7 8 62 3 6 63 75 2 10 5 69 73 78 71 90 77 80 92 86 88</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\neighbor.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 42</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 26</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 63 62 78 69 73 75 2 10 5 7 8 71 82 92 80 88</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 63 62 78 69 73 75 2 10 5 7 8 71 82 92 80 88</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\nwk.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 44</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 27</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 11 7 8 3 6 63 62 78 73 75 2 10 5 69 71 82 88 77 86 92 80 65 90 84 67 74</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 11 7 8 3 6 63 62 78 73 75 2 10 5 69 71 82 88 77 86 92 80 65 90 84 67 74</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\phy.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 52</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 16</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 63 62 78 2 10 5 7 8 75 69 73 71 82 92 74</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 63 62 78 2 10 5 7 8 75 69 73 71 82 92 74</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\stack\slip.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 51</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 35</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 3 6 62 63 2 10 5 7 8 75 69 73 78 71 92 80 65 90 67 84 88 94</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 3 6 62 63 2 10 5 7 8 75 69 73 78 71 92 80 65 90 67 84 88 94</file>
+        </tool>
+      </inputs>
+    </file>
+    <file>
+      <name>$PROJ_DIR$\..\..\..\src\simpletests\test_demo.c</name>
+      <outputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 54</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 31</file>
+        </tool>
+      </outputs>
+      <inputs>
+        <tool>
+          <name>ICC8051</name>
+          <file> 59 3 6 62 63 73 78 75 2 10 5 7 8 69 71 82 88 74 92 80 65 90 67 84</file>
+        </tool>
+        <tool>
+          <name>BICOMP</name>
+          <file> 59 3 6 62 63 73 78 75 2 10 5 7 8 69 71 82 88 74 92 80 65 90 67 84</file>
+        </tool>
+      </inputs>
+    </file>
+  </configuration>
+</project>
+
+

@@ -1,0 +1,139 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                26/Jun/2013  10:36:35 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  near                                               #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\staticbind.c      #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\staticbind.c -D   #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x53 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -lcN                      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\List\ -o F:\6LoWSN\6lowsn_stack\obj\compilet #
+#                          est\iar51_cc2530\rfd\Obj\ -e --no_cse --no_unroll  #
+#                          --no_inline --no_code_motion --no_tbaa --debug     #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=near --calling_convention=xdata_reent #
+#                          rant --place_constants=data --nr_virtual_regs 8    #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ol             #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\List\staticbind.lst                          #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\Obj\staticbind.r51                           #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\staticbind.c
+      1          /*
+      2          *2006/08/16 WXL 2.0
+      3           *
+      4           */
+      5          
+      6          /*
+      7          V0.2 added PC-based binding         21/July/2006
+      8          V0.1 Initial Release                10/July/2006
+      9          
+     10          */
+     11          
+     12          
+     13          #include "compiler.h"               //compiler specific
+     14          #include "hal.h"
+     15          #include "halStack.h"
+     16          #include "6lowsn_config.h"
+     17          #include "evboard.h"
+     18          #include "neighbor.h"
+     19          
+     20          
+     21          #ifdef LOWSN_COORDINATOR
+     22          #ifdef LOWSN_USE_DEMO_STATIC_BIND
+     23          #include "staticbind.h"
+     24          
+     25          //the prototypes for these functions are defined in evboard.h
+     26          //since binding other than these default static bind functions
+     27          //is assumed to be platform dependent.
+     28          
+     29          static BYTE bind_table_index;
+     30          static BYTE src_map_index;
+     31          static BYTE bindSrcEP, bindCluster;
+     32          
+     33          
+     34          //this initializes the bindTable interator
+     35          BOOL evbBindTableIterInit(BYTE srcEP, SADDR srcSADDR, BYTE cluster){
+     36          	bind_table_index = 0;
+     37          	bindSrcEP = srcEP;
+     38          	bindCluster = cluster;
+     39          	//look up this srcSADDR in the address map table
+     40          	//if SADDR is not in the address table, this function returns FALSE, indicating failure
+     41              return(ntFindAddressBySADDR(srcSADDR, &src_map_index));	
+     42          }
+     43          
+     44          //find the next binding that matches the current bindSrcEP, bindSrcSADDR, bindCluster
+     45          BOOL evbResolveBind(BYTE *dstEP, SADDR *dstSADDR)
+     46          {
+     47          	BYTE i, dst_map_index;
+     48          	BINDENTRY *bptr;
+     49          
+     50              //check if at end, if yes, exit.
+     51          	if (bind_table_index == BINDTABLE_ENTRIES) return(FALSE);
+     52          
+     53          	
+     54          
+     55          	do {
+     56          		bptr = &(bindtable[bind_table_index]);
+     57          		if ( (bptr->srcEP == bindSrcEP) &&
+     58          			(bptr->cluster == bindCluster)) {
+     59          				//match on EP and cluster
+     60          				//now check the SRC long address
+     61          				for (i=0;i<8;i++) {
+     62          					if (bptr->src.bytes[i] != mac_addr_tbl[src_map_index].laddr[i]) break;
+     63          				}
+     64          				if (i == 8) {
+     65          					if (ntFindAddressByLADDR(&bptr->dst, &dst_map_index)) {
+     66          						//successfully found the dstSADDR
+     67          					  *dstEP = bptr->dstEP;
+     68          					  *dstSADDR = mac_addr_tbl[dst_map_index].saddr;
+     69          					  //before leaving, increment BPTR to point to next map entry
+     70          					  bind_table_index++;
+     71          					  return(TRUE);  //exit with match
+     72          					}
+     73          
+     74          				}
+     75          			}
+     76               //no match, continue looking
+     77          	 bind_table_index++;
+     78          	}while(bind_table_index < BINDTABLE_ENTRIES);
+     79          
+     80          //if reach here, no match in entire table, so halt search
+     81          return(FALSE);
+     82          }
+     83          
+     84          #endif
+     85          #endif
+     86          
+
+
+ 
+ 
+ 0 bytes of memory
+
+Errors: none
+Warnings: none

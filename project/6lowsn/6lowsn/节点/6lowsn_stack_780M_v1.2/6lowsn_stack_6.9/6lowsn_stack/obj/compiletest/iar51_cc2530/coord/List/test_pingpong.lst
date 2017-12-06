@@ -1,0 +1,655 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                25/May/2013  22:32:52 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  near                                               #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\2530\6lowsn_stack\src\simpletests\test_p #
+#                          ingpong.c                                          #
+#    Command line       =  F:\6LoWSN\2530\6lowsn_stack\src\simpletests\test_p #
+#                          ingpong.c -D LOWSN_DEBUG -D                        #
+#                          aExtendedAddress_B7=0x00 -D                        #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\2530\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\coord\List\ -o F:\6LoWSN\2530\6lowsn_stack\ #
+#                          obj\compiletest\iar51_cc2530\coord\Obj\ -e         #
+#                          --debug --core=plain --dptr=16,1                   #
+#                          --data_model=large --code_model=near               #
+#                          --calling_convention=xdata_reentrant               #
+#                          --place_constants=data --nr_virtual_regs 8 -I      #
+#                          F:\6LoWSN\2530\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\..\..\..\SRC\STACK\ -I                      #
+#                          F:\6LoWSN\2530\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I  #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\2530\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\coord\List\test_pingpong.lst                #
+#    Object file        =  F:\6LoWSN\2530\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\coord\Obj\test_pingpong.r51                 #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\2530\6lowsn_stack\src\simpletests\test_pingpong.c
+      1          
+      2          
+      3          /*
+      4          This is a two node test, requires a Coordinator
+      5          and an RFD. The coordinator and node simply
+      6          ping-pong a packet back and forth, and print
+      7          out the RSSI byte.  The RFD waits before
+      8          bouncing it back, while the coordinator responds
+      9          immediately.
+     10          
+     11          Expects coordinator, and one RFD.
+     12          The topology to test should be:
+     13          
+     14          Coordinator ->  RFD1
+     15          
+     16          
+     17          Start the coordinator first, then
+     18          RFD1. If a RFD1 fails to join the network, try
+     19          again. The RFD1 will prompt the user to hit
+     20          a key to start the ping-pong.
+     21          
+     22          You can connect multiple RFDs if desired.
+     23          
+     24          You can also ping-pong through a router; see
+     25          the note in usrJoinVerifyCallback(). The topology
+     26          for a router would be:
+     27          
+     28          coord -> router -> RFD1
+     29          -> RFD2
+     30          -> ..RFDn
+     31          
+     32          
+     33          This  requires Virtual Boards to be running,
+     34          since a switch press is needed to start the pinging.
+     35          
+     36          
+     37          */
+     38          
+     39          #include "6lowsn.h"
+     40          
+     41          #ifndef LOWSN_COORDINATOR
+     42          #define PING_DELAY   2  //wait before bouncing back
+     43          #else
+     44          #define PING_DELAY   0 //coordinator does not wait
+     45          #endif
+     46          
+     47          #define RX_PING_TIMEOUT     5    //seconds
+     48          //this is assumed to be the long address of our coordinator, in little endian order
+     49          //used to test LONG ADDRESSING back to coordinator
+     50          
+     51          
+     52          UINT16 ping_cnt;
+     53          UINT32 my_timer;
+     54          UINT32  last_tx_start;
+     55          UINT8 LcdPage = 1;
+     56          
+     57          IPADDR dstIPADDR;
+     58          IPADDR network_prefix;
+     59          UINT8 prefix_len;
+     60          
+     61          //  EUI64地址使用示例(本例子中未使用长地址做目标地址)
+     62          // 按阅读顺序排列，注意第一个字节的LSB倒数第2位必须为0，即U/L原始位为0.
+     63          // 倒数第1位也为0，表示是单播。建议第一个字节为0x00.
+     64          // 可以用buf设定目标节点的EUI64地址，若要设定节点自己的EUI64，首选在IAR的工程文件编译选项
+     65          // 中的预配置中进行定义，若没有在编译参数中定义，则还可在6lowsn_config.h中
+     66          // 用aExtendedAddress_B0-aExtendedAddress_B7宏设定。若编译参数中已经定义，在在文件中定义，
+     67          // 就会出现重定义的警告。
+     68          
+     69          UINT8 coordEUI[8] = {0x00,0x10,0x20,0x30,0x40,0x50,0x51,0x00};
+     70          UINT8 rfdEUI[8] = {0x00,0x10,0x20,0x30,0x40,0x50,0x53,0x00};
+     71          
+     72          
+     73          typedef enum _PP_STATE_ENUM {
+     74          	PP_STATE_START_RX,
+     75          	PP_STATE_WAIT_FOR_RX,
+     76          	PP_STATE_SEND,
+     77          	PP_STATE_WAIT_FOR_TX
+     78          }PP_STATE_ENUM;
+     79          
+     80          PP_STATE_ENUM ppState;
+     81          BYTE rxFlag;              //set from within usrRxPacketCallback
+     82          BYTE payload[2];
+     83          UINT16 numTimeouts;
+     84          BOOL first_packet;
+     85          
+     86          void  PingPong(void);
+     87          
+     88          void PingPong (void ) {
+     89          
+     90          	apsFSM();
+     91          
+     92          	switch (ppState) {
+     93          
+     94          			case  PP_STATE_START_RX:
+     95          				if (!first_packet) {
+     96          					my_timer= halGetMACTimer();
+     97          					ppState = PP_STATE_WAIT_FOR_RX;
+     98          				}else if (rxFlag) {
+     99          					//on first packet, do not start timer, just wait for a packet.
+    100          					ppState = PP_STATE_WAIT_FOR_RX;
+    101          					first_packet = FALSE;
+    102          				}
+    103          				break;
+    104          
+    105          			case PP_STATE_WAIT_FOR_RX:
+    106          				//rxFlag is set from within usrRxPacketCallback
+    107          				if (rxFlag || halMACTimerNowDelta(my_timer) > MSECS_TO_MACTICKS( RX_PING_TIMEOUT *1000 )) {
+    108          					if (!rxFlag) numTimeouts++;     //got tired of waiting for a response, send again
+    109          					rxFlag = 0; //clear flag
+    110          					if (EVB_LED1_STATE()) EVB_LED1_OFF(); else EVB_LED1_ON();
+    111          					//start timer
+    112          					my_timer= halGetMACTimer();
+    113          					ppState = PP_STATE_SEND;
+    114          
+    115          				}
+    116          				break;
+    117          
+    118          
+    119          			case PP_STATE_SEND:
+    120          				if ((halMACTimerNowDelta(my_timer))> MSECS_TO_MACTICKS(PING_DELAY*1000)){
+    121          			//		MemDump();
+    122          
+    123          					//increment ping counter
+    124          					ping_cnt++; //this was value received by this node
+    125          					//received packet, ping it back
+    126          					//format the packet
+    127          					payload[0] = (BYTE) ping_cnt;
+    128          					payload[1] =  (BYTE) (ping_cnt>>8);
+    129          					ppState = PP_STATE_WAIT_FOR_TX;
+    130          					last_tx_start = halGetMACTimer();
+    131          
+    132          					conPrintROMString("Pingpong: Send packet to :\n");
+    133          					conPrintIP6ADDR(&dstIPADDR, 1);
+    134          					conPrintROMString("\n");
+    135          
+    136          					aplSendIPMSG(dstIPADDR,
+    137          						122,
+    138          						2, //dst EP
+    139          						0, //cluster is ignored for direct message
+    140          						121,
+    141          						1, //src EP
+    142          						&payload[0],
+    143          						2,  //msg length
+    144          						apsGenTSN());  //No APS ack requested
+    145          
+    146          					ppState = PP_STATE_WAIT_FOR_TX;
+    147          				}
+    148          				break;
+    149          
+    150          			case PP_STATE_WAIT_FOR_TX:
+    151          				if (apsBusy()) break; //status not ready yet if busy.
+    152          				if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    153          					ppState = PP_STATE_START_RX;
+    154          					//compute the latency of this TX send operation
+    155          					//aplGetLastTxTime gets the time that the LAST tx operation finished.
+    156          					//this will be the latency of the TX stack operation only if no mac retries were required
+    157          					last_tx_start = aplMacTicksToUs(aplGetLastTxTime() - last_tx_start);
+    158          					conPrintROMString("TX Stack latency(us): ");
+    159          					conPrintUINT32(last_tx_start);
+    160          					conPCRLF();
+    161          				}else {
+    162          					conPrintROMString("Pingping: Send failed! Try again\n");
+    163          					my_timer= halGetMACTimer();
+    164          					ppState = PP_STATE_SEND;
+    165          				}
+    166          				break;
+    167          	}
+    168          }
+    169          
+    170          
+    171          
+    172          void main (void){
+    173          
+    174          
+    175          	//this initialization set our SADDR to 0xFFFF,
+    176          	//PANID to the default PANID
+    177          
+    178          	//HalInit, evbInit will have to be called by the user
+    179          
+    180          	numTimeouts = 0;
+    181          	my_timer = 0;
+    182          	first_packet = TRUE;
+    183          
+    184          	halInit();
+    185          	evbInit();
+    186          
+    187          	aplInit();  //init the stack
+    188          	conPrintConfig();
+    189          	ENABLE_GLOBAL_INTERRUPT();  //enable interrupts
+    190          
+    191          
+    192          	EVB_LED1_OFF();
+    193          	EVB_LED2_OFF();
+    194          
+    195          	ping_cnt = 0;
+    196          	rxFlag = 0;
+    197          	debug_level = DBG_MAX_LEVEL;
+    198          
+    199          
+    200          #ifdef LOWSN_COORDINATOR
+    201          
+    202          	aplFormNetwork();
+    203          	while(apsBusy()) {apsFSM();} //wait for finish
+    204          	conPrintROMString("Network is formed. \n");
+    205          	EVB_LED1_ON();
+    206          
+    207          	lowsn_ip6addr(&network_prefix,0x0066,0x0077,0x1234,0x5678,0,0,0,0);
+    208          	prefix_len = LOWSN_DEFAULT_PREFIX_LEN;
+    209          	aplSetPrefix(&network_prefix, prefix_len);
+    210          	conPrintROMString("Set global prefix:  ");
+    211          	conPrintIP6ADDR(&network_prefix, 1);
+    212          	conPrintROMString("\n Prefix Len: ");
+    213          	conPrintUINT8(prefix_len);
+    214          	conPrintROMString("\n");
+    215          	
+    216          	ppState = PP_STATE_START_RX;
+    217          #else
+    218          	do {
+    219          		aplJoinNetwork();
+    220          		while(apsBusy()) {apsFSM();} //wait for finish
+    221          		if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    222          			EVB_LED1_ON();
+    223          			conPrintROMString("Network Join succeeded!\n");
+    224          			conPrintROMString("My ShortAddress is: ");
+    225          			conPrintUINT16(aplGetMyShortAddress());
+    226          			conPCRLF();
+    227          			conPrintROMString("Parent LADDR: ")
+    228          			conPrintLADDR(aplGetParentLongAddress());
+    229          			conPrintROMString(", Parent SADDR: ");
+    230          			conPrintUINT16(aplGetParentShortAddress());
+    231          			conPCRLF();
+    232          			break;
+    233          		}else {
+    234          			conPrintROMString("Network Join FAILED! Waiting, then trying again\n");
+    235          			my_timer= halGetMACTimer();
+    236          			//wait for 2 seconds
+    237          			while ((halMACTimerNowDelta(my_timer))< MSECS_TO_MACTICKS(2*1000));
+    238          		}
+    239          	} while(1);
+    240          
+    241          	do {
+    242          		conPrintROMString("Begin to get a gloabal prefix. \n");
+    243          		aplGetPrefix();
+    244          		while(apsBusy()) {apsFSM();} //wait for finish
+    245          		if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    246          			conPrintROMString("Get a global prefix!\n");
+    247          			break;
+    248          		}else {
+    249          			conPrintROMString("Prefix obtaining FAILED! Waiting, then trying again\n");
+    250                                  my_timer= halGetMACTimer();
+    251                                 //wait for 2 seconds
+    252                                while ((halMACTimerNowDelta(my_timer))< MSECS_TO_MACTICKS(2*1000));
+    253          		       }
+    254          	} while(1);
+    255          
+    256          #endif
+    257          
+    258          #ifdef LOWSN_RFD
+    259          	//now send packets
+    260          
+    261          	aplSetLinkLocalAddr16(&dstIPADDR, aplGetPanID(), 0);
+    262          	
+    263          	ppState = PP_STATE_SEND;
+    264          	conPrintROMString("Begin to send data!\n");
+    265          
+    266          #endif
+    267          
+    268          #if (defined(LOWSN_RFD) || defined(LOWSN_COORDINATOR))
+    269          	//WARNING - this is only for latency testing, max MAC retries is normally
+    270          	//set to aMaxFrameRetries (value=3) as defined in mac.h. Setting this to 0 means
+    271          	//that there will be no automatic retransmissions of frames if we do not get a MAC ACK back.
+    272          	//only do this in your normal code if you want to disable automatic retries
+    273          	aplSetMacMaxFrameRetries(0);
+    274          
+    275          	while (1) {
+    276          		PingPong();
+    277          	}
+    278          #endif
+    279          
+    280          
+    281          #ifdef LOWSN_ROUTER
+    282          	//router does nothing, just routes
+    283          	DEBUG_PRINTNEIGHBORS(DBG_INFO);
+    284          	conPrintROMString("Router, doing its thing.!\n");
+    285          	while(1) {apsFSM();}
+    286          #endif
+    287          
+    288          
+    289          }
+    290          
+    291          //########## Callbacks ##########
+    292          
+    293          //callback for anytime the Zero Endpoint RX handles a command
+    294          //user can use the APS functions to access the arguments
+    295          //and take additional action is desired.
+    296          //the callback occurs after the ZEP has already taken
+    297          //its action.
+    298          LOWSN_STATUS_ENUM  usrZepRxCallback(void){
+    299          
+    300          #ifdef LOWSN_COORDINATOR
+    301          	if (aplGetRxCluster() == ZEP_END_DEVICE_ANNOUNCE) {
+    302          		//a new end device has announced itself, print out the
+    303          		//the neightbor table and address map
+    304          		dbgPrintNeighborTable();
+    305          	}
+    306          #endif
+    307           return LOWSN_STATUS_SUCCESS;
+    308          }
+    309          
+    310          //callback from APS when packet is received
+    311          //user must do something with data as it is freed
+    312          //within the stack upon return.
+    313          
+    314          LOWSN_STATUS_ENUM  usrRxPacketCallback(void) {
+    315          
+    316          	BYTE len, *ptr;
+    317          
+    318          	//IPADDR srcIP;
+    319          			
+    320          	conPrintROMString("User Data Packet Received: \n");
+    321          	conPrintROMString("SrcSADDR: ");
+    322          	conPrintUINT16(aplGetRxSrcSADDR());
+    323          
+    324          	conPrintROMString(", DstEp: ");
+    325          	conPrintUINT8(aplGetRxDstEp());
+    326          
+    327          
+    328          	conPrintROMString(", DstPort: ");
+    329          	conPrintUINT16(aplGetRxDstPort());
+    330          
+    331          	conPrintROMString(", SrcPort: ");
+    332          	conPrintUINT16(aplGetRxSrcPort());
+    333          
+    334          	//srcIP = aplGetRxSrcIPAddr();
+    335          	conPrintROMString("\n Source IP is : ");
+    336          	conPrintIP6ADDR(&(aplGetRxSrcIPAddr()), 1);
+    337          	conPrintROMString("\n");
+    338          	
+    339          	conPrintROMString("\n , Cluster: ");
+    340          	conPrintUINT8(aplGetRxCluster());
+    341          	conPrintROMString(", MsgLen: ");
+    342          	
+    343          	len = aplGetRxMsgLen();
+    344          	conPrintUINT8(len);
+    345          	
+    346          	conPrintROMString(",RSSI: ");
+    347          	conPrintUINT8(aplGetRxRSSI());
+    348          
+    349          	conPCRLF();
+    350          	conPrintROMString("PingCnt: ");
+    351          	ptr = aplGetRxMsgData();
+    352          	ping_cnt = *ptr;
+    353          	ptr++;
+    354          	ping_cnt += ((UINT16)*ptr)<<8;
+    355          	conPrintUINT16(ping_cnt);
+    356          
+    357          	conPrintROMString(", RxTimeouts: ");
+    358          	conPrintUINT16(numTimeouts);
+    359          	rxFlag = 1;//signal that we got a packet
+    360          	
+    361          	//use this source address as the next destination address
+    362          	dstIPADDR = aplGetRxSrcIPAddr();
+    363          	
+    364          	conPCRLF();
+    365          	return LOWSN_STATUS_SUCCESS;
+    366          }
+    367          
+    368          #ifdef LOWSN_FFD
+    369          //Callback to user level to see if OK for this node
+    370          //to join - implement Access Control Lists here based
+    371          //upon IEEE address if desired
+    372          BOOL usrJoinVerifyCallback(LADDR *ptr, BYTE capinfo){\
+    373          
+    374          #if 0      //set this to '1' if you want to test through a router
+    375          //only accept routers.
+    376          //only let routers join us if we are coord
+    377          #ifdef LOWSN_COORDINATOR
+    378          if (LOWSN_GET_CAPINFO_DEVTYPE(capinfo)) {
+    379          	//this is a router, let it join
+    380          	conPrintROMString("Accepting router\n");
+    381          	return TRUE;
+    382          }else {
+    383          	conPrintROMString("Rejecting non-router\n");
+    384          	return FALSE;
+    385          }
+    386          #else
+    387          return TRUE;
+    388          #endif
+    389          
+    390          #else
+    391          
+    392          return TRUE;
+    393          
+    394          #endif
+    395          
+    396          }
+    397          
+    398          BOOL usrJoinNotifyCallback(LADDR *ptr){
+    399          
+    400          	//allow anybody to join
+    401          
+    402          	conPrintROMString("Node joined: ");
+    403          	conPrintLADDR(ptr);
+    404          	conPCRLF();
+    405          	DEBUG_PRINTNEIGHBORS(DBG_INFO);
+    406          	return TRUE;
+    407          }
+    408          #endif
+    409          
+    410          BOOL usrGetPrefixCallback(IPADDR *prefix_ptr, UINT8 prefix_len)
+    411          {
+    412          
+    413          	conPrintROMString("Get Prefix Successfully, Prefix: ");
+    414          	conPrintIP6ADDR(prefix_ptr, 1);
+    415          	conPCRLF();
+    416          	conPrintROMString("Prefix Length: ");
+    417          	conPrintUINT8(prefix_len);
+    418          	conPCRLF();
+    419          	
+    420          	return TRUE;
+    421          
+    422          
+    423          }
+    424          
+    425          //called when the slow timer interrupt occurs
+    426          #ifdef LOWSN_ENABLE_SLOW_TIMER
+    427          void usrSlowTimerInt(void ) {}
+    428          #endif
+    429          
+    430          
+    431          //general interrupt callback , when this is called depends on the HAL layer.
+    432          void usrIntCallback(void){}
+
+   Maximum stack usage in bytes:
+
+     Function                    ISTACK PSTACK XSTACK
+     --------                    ------ ------ ------
+     PingPong                        0      0     37
+       -> apsFSM                     0      0     30
+       -> halGetMACTimer             0      0     30
+       -> halGetMACTimer             0      0     30
+       -> evbLedGet                  0      0     30
+       -> evbLedSet                  0      0     30
+       -> evbLedSet                  0      0     30
+       -> halGetMACTimer             0      0     30
+       -> halGetMACTimer             0      0     30
+       -> halGetMACTimer             0      0     30
+       -> conPrintROMString_func     0      0     30
+       -> conPrintIP6ADDR            0      0     30
+       -> conPrintROMString_func     0      0     30
+       -> aplFmtSendIPMSG            0      0     74
+       -> apsFSM                     0      0     30
+       -> aplMacTicksToUs            0      0     30
+       -> conPrintROMString_func     0      0     30
+       -> conPrintUINT32             0      0     30
+       -> conPCRLF                   0      0     30
+       -> conPrintROMString_func     0      0     30
+       -> halGetMACTimer             0      0     30
+     main                            0      0      8
+       -> halInit                    0      0      0
+       -> evbInit                    0      0      0
+       -> apsInit                    0      0      0
+       -> conPrintConfig             0      0      0
+       -> evbLedSet                  0      0      0
+       -> evbLedSet                  0      0      0
+       -> apsFSM                     0      0      0
+       -> apsFSM                     0      0      0
+       -> apsFSM                     0      0      0
+       -> conPrintROMString_func     0      0      0
+       -> evbLedSet                  0      0      0
+       -> lowsn_ds6_prefix_add       0      0     16
+       -> conPrintROMString_func     0      0      0
+       -> conPrintIP6ADDR            0      0      0
+       -> conPrintROMString_func     0      0      0
+       -> conPrintUINT8              0      0      0
+       -> conPrintROMString_func     0      0      0
+       -> PingPong                   0      0      0
+     usrGetPrefixCallback            0      0      8
+       -> conPrintROMString_func     0      0     16
+       -> conPrintIP6ADDR            0      0     16
+       -> conPCRLF                   0      0     16
+       -> conPrintROMString_func     0      0     16
+       -> conPrintUINT8              0      0     16
+       -> conPCRLF                   0      0     16
+     usrIntCallback                  0      0      0
+     usrJoinNotifyCallback           2      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintLADDR              4      0      0
+       -> conPCRLF                   4      0      0
+       -> dbgPrintNeighborTable      4      0      0
+     usrJoinVerifyCallback           0      0      0
+     usrRxPacketCallback             2      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT16             4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT8              4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT16             4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT16             4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintIP6ADDR            4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT8              4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT8              4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT8              4      0      0
+       -> conPCRLF                   4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT16             4      0      0
+       -> conPrintROMString_func     4      0      0
+       -> conPrintUINT16             4      0      0
+       -> conPCRLF                   4      0      0
+     usrSlowTimerInt                 0      0      0
+     usrZepRxCallback                2      0      0
+       -> dbgPrintNeighborTable      4      0      0
+
+
+   Segment part sizes:
+
+     Function/Label                         Bytes
+     --------------                         -----
+     _A_IEN0                                   1
+     ping_cnt                                  2
+     my_timer                                  4
+     last_tx_start                             4
+     LcdPage                                   1
+     dstIPADDR                                16
+     network_prefix                           16
+     prefix_len                                1
+     coordEUI                                  8
+     rfdEUI                                    8
+     ppState                                   1
+     rxFlag                                    1
+     payload                                   2
+     numTimeouts                               2
+     first_packet                              1
+     PingPong                                429
+     ?Subroutine3                             10
+     ?Subroutine0                              9
+     ?Subroutine6                             12
+     ?Subroutine4                             14
+     ?Subroutine5                              6
+     xxxxromstr                               28
+     xxxxromstr                                2
+     xxxxromstr                               23
+     xxxxromstr                               34
+     main                                    304
+     ?Subroutine2                              6
+     xxxxromstr                               21
+     xxxxromstr                               21
+     xxxxromstr                               15
+     xxxxromstr                                2
+     usrZepRxCallback                         15
+     ?Subroutine7                              2
+     ??Subroutine8_0                           5
+     usrRxPacketCallback                     214
+     ?Subroutine1                              9
+     xxxxromstr                               29
+     xxxxromstr                               11
+     xxxxromstr                               10
+     xxxxromstr                               12
+     xxxxromstr                               12
+     xxxxromstr                               18
+     xxxxromstr                                2
+     xxxxromstr                               14
+     xxxxromstr                               11
+     xxxxromstr                                8
+     xxxxromstr                               10
+     xxxxromstr                               15
+     usrJoinVerifyCallback                     3
+     usrJoinNotifyCallback                    42
+     xxxxromstr                               14
+     usrGetPrefixCallback                     50
+     xxxxromstr                               34
+     xxxxromstr                               16
+     usrSlowTimerInt                           1
+     usrIntCallback                            1
+     __Constant_ffffff                         4
+     __Constant_4baf1                          4
+     __Constant_0                              4
+     __Constant_ffffffff                       4
+     ?<Initializer for LcdPage>                1
+     ?<Initializer for coordEUI>               8
+     ?<Initializer for rfdEUI>                 8
+     ?<Initializer for __Constant_ffffff>      4
+     ?<Initializer for __Constant_4baf1>       4
+     ?<Initializer for __Constant_0>           4
+     ?<Initializer for __Constant_ffffffff>    4
+
+ 
+   362 bytes in segment CODE_C
+ 1 132 bytes in segment NEAR_CODE
+     1 byte  in segment SFR_AN
+    33 bytes in segment XDATA_I
+    33 bytes in segment XDATA_ID
+    50 bytes in segment XDATA_Z
+ 
+ 1 511 bytes of CODE  memory (+ 16 bytes shared)
+     0 bytes of DATA  memory (+  1 byte  shared)
+    67 bytes of XDATA memory (+ 16 bytes shared)
+
+Errors: none
+Warnings: none

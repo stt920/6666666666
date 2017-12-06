@@ -1,0 +1,731 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:20:31 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\debug.c           #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\debug.c -D        #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_SLIP_TO_HOST -lcN F:\6LoWSN\6lowsn_stack\obj #
+#                          \compiletest\iar51_cc2530\edge_coord\List\ -o      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\ -e --debug --core=plain          #
+#                          --dptr=16,1 --data_model=large                     #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\List\debug.lst                        #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\edge_coord\Obj\debug.r51                         #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\debug.c
+      1          /*
+      2          *2006/08/16 WXL 2.0
+      3           *
+      4           */
+      5          
+      6          /*
+      7          V0.2 added PC-based binding         21/July/2006
+      8          V0.1 Initial Release                10/July/2006
+      9          
+     10          打印数据包的函数慎用，因为未跟进实际格式的改动而改变这些打印函数
+     11          
+     12          */
+     13          
+     14          
+     15          
+     16          #include "compiler.h"               //compiler specific
+     17          #include "6lowsn_common_types.h"
+     18          #include "6lowsn_config.h"
+     19          #include "ieee_lrwpan_defs.h"
+     20          #include "hal.h"
+     21          #include "console.h"
+     22          #include "debug.h"
+     23          #include "adp.h"
+     24          #include "aps.h"
+     25          #include "neighbor.h"
+     26          
+     27          
+     28          //print functions for debugging
+     29          
+     30          #define LOWSN_FRAME_TYPE_BEACON 0
+     31          #define LOWSN_FRAME_TYPE_DATA 1
+     32          #define LOWSN_FRAME_TYPE_ACK 2
+     33          #define LOWSN_FRAME_TYPE_MAC_COMMENT 3
+     34          
+     35          BYTE debug_level;
+     36          
+     37          #define PRINTBIT(x)\
+     38          {\
+     39          	if(x){ conPrintROMString("1");}\
+     40           else {conPrintROMString("0");}}
+     41          
+     42          #ifdef LOWSN_DEBUG
+     43          
+     44          BYTE *dbgPrintNwkPacket (BYTE *ptr);
+     45          BYTE *dbgPrintApsPacket (BYTE *ptr);
+     46          void dbgPrintAfPacket (BYTE *ptr);
+     47          static void dbgPrintBeacon(BYTE *ptr);
+     48          static void dbgPrintMacCmd(BYTE *ptr, BYTE plen);
+     49          
+     50          void dbgPrintMacPacketFCS(BYTE *ptr){
+     51          	//FCS
+     52              conPrintROMString("\nFCS bytes (2): ");
+     53              conPrintUINT8(*ptr);ptr++;
+     54              conPrintROMString("  ")
+     55              conPrintUINT8(*ptr);
+     56              conPrintROMString("\n");
+     57          }
+     58          
+     59          void dbgPrintPacket(BYTE *ptr, BYTE plen){
+     60          
+     61          	ptr = dbgPrintMacPacket(ptr,plen);
+     62          	if (!ptr) return;
+     63          	ptr = dbgPrintNwkPacket(ptr);
+     64          	if (!ptr) return;
+     65              ptr = dbgPrintApsPacket(ptr);
+     66              if (!ptr) return;
+     67          	dbgPrintAfPacket(ptr);
+     68          }
+     69          
+     70          
+     71          //returns a ptr to the payload if this is a data packet
+     72          BYTE *dbgPrintMacPacket (BYTE *ptr, BYTE plen){
+     73          
+     74          	BYTE c, fcflsb;
+     75          	BYTE srcmode, dstmode;
+     76          	BYTE addr[8];
+     77          	SADDR saddr;
+     78          	BYTE len;
+     79          	BYTE *orgptr;
+     80          
+     81          	orgptr = ptr;
+     82          	len = 0;
+     83          	//FCS LSB
+     84          	c = *ptr;ptr++;len++;	
+     85          	fcflsb = c;
+     86          	conPrintROMString("#########DUMPED PACKET################\n");
+     87          	conPrintROMString("Length: ");conPrintUINT8(plen);conPrintROMString("\n");
+     88          	conPrintROMString("Frame Control LSB: ");conPrintUINT8(c);conPrintROMString("\n");
+     89          	conPrintROMString("  Frame Type: ");
+     90          	switch(LOWSN_GET_FRAME_TYPE(c)) {
+     91          		case LOWSN_FRAME_TYPE_BEACON: conPrintROMString("BCN");break;
+     92          		case LOWSN_FRAME_TYPE_DATA: conPrintROMString("DAT");break;
+     93          		case LOWSN_FRAME_TYPE_ACK:conPrintROMString("ACK");break;
+     94          		case LOWSN_FRAME_TYPE_MAC:conPrintROMString("MAC");break;
+     95          		default: conPrintROMString("RSV");break;
+     96          	}
+     97          	conPrintROMString(", Security:");
+     98          	PRINTBIT(LOWSN_GET_SECURITY_ENABLED(c));
+     99          	conPrintROMString(", FrmPend:");
+    100          	PRINTBIT(LOWSN_GET_FRAME_PENDING(c));
+    101          	conPrintROMString(", AckReq:");
+    102          	PRINTBIT(LOWSN_GET_ACK_REQUEST(c));
+    103          	conPrintROMString(", IntraPan:");
+    104          	PRINTBIT(LOWSN_GET_INTRAPAN(c));
+    105          	if (len >= plen) return(NULL);
+    106          
+    107          	//FCS MSB
+    108          	c = *ptr;ptr++;len++;
+    109          	dstmode = LOWSN_GET_DST_ADDR(c);
+    110          	conPrintROMString("\nFrame Control MSB: ");conPrintUINT8(c);conPrintROMString("\n");
+    111          	conPrintROMString("  DstMode: ");
+    112          	switch(dstmode) {
+    113          	  case LOWSN_ADDRMODE_NOADDR: conPrintROMString("NONE");  break;
+    114          	  case LOWSN_ADDRMODE_SADDR:  conPrintROMString("SHORT");  break;
+    115          	  case LOWSN_ADDRMODE_LADDR:  conPrintROMString("LONG");  break;
+    116          	  default:  conPrintROMString("RSV");break;
+    117          	}
+    118          	conPrintROMString("\n  SrcMode: ");
+    119          	srcmode = LOWSN_GET_SRC_ADDR(c);
+    120          	switch(srcmode) {
+    121          	  case LOWSN_ADDRMODE_NOADDR: conPrintROMString("NONE");  break;
+    122          	  case LOWSN_ADDRMODE_SADDR:  conPrintROMString("SHORT");  break;
+    123          	  case LOWSN_ADDRMODE_LADDR:  conPrintROMString("LONG");  break;
+    124          	  default:  conPrintROMString("RSV");break;
+    125          	}
+    126          	if (len >= plen) return(NULL);
+    127          
+    128          
+    129          	//DSN
+    130          	c = *ptr;ptr++;len++;
+    131          	conPrintROMString("\nData Sequence Num: ");conPrintUINT8(c);conPrintROMString("\n");
+    132          	if (len >= plen) return(NULL);
+    133          
+    134          	if (LOWSN_IS_ACK(fcflsb)){
+    135          		dbgPrintMacPacketFCS(ptr);
+    136          		return(NULL);
+    137          	}
+    138          		
+    139          
+    140          	//DEST PANID
+    141          	conPrintROMString("\n");
+    142          	if (dstmode != LOWSN_ADDRMODE_NOADDR){
+    143          		conPrintROMString(" DstPanID (MSB 1st): ");
+    144          		addr[0] = *ptr; ptr++;
+    145          		addr[1] = *ptr; ptr++;
+    146          		len = len + 2;
+    147          		saddr = ((UINT16)addr[1]) << 8;
+    148          		saddr = saddr + addr[0];
+    149          		conPrintUINT16(saddr);
+    150          	}
+    151          	//addressing information
+    152          	if (dstmode == LOWSN_ADDRMODE_SADDR || dstmode == LOWSN_ADDRMODE_LADDR) {
+    153          		conPrintROMString("  DstAddress (MSB 1st): ");
+    154          		if (dstmode == LOWSN_ADDRMODE_SADDR) {
+    155          			addr[0] = *ptr; ptr++;
+    156          			addr[1] = *ptr; ptr++;
+    157          			len = len + 2;
+    158          			saddr = ((UINT16)addr[1]) << 8;
+    159          			saddr = saddr + addr[0];
+    160          			conPrintUINT16(saddr);
+    161          		} else {
+    162          			conPrintLADDR_bytes(ptr);
+    163          			len = len + 8;
+    164          			ptr = ptr + 8;
+    165          		}
+    166          	}
+    167          
+    168          	conPrintROMString("\n");
+    169          	if ( !LOWSN_GET_INTRAPAN(fcflsb) &&
+    170          		srcmode != LOWSN_ADDRMODE_NOADDR
+    171          		) {
+    172          			//PANID present if INTRAPAN is zero, and src is nonzero
+    173          			conPrintROMString(" SrcPanID(MSB 1st): ");
+    174          			addr[0] = *ptr; ptr++;
+    175          			addr[1] = *ptr; ptr++;
+    176          			len = len + 2;
+    177          			saddr = ((UINT16)addr[1]) << 8;
+    178          			saddr = saddr + addr[0];
+    179          			conPrintUINT16(saddr);
+    180          
+    181          		}
+    182          		if (srcmode == LOWSN_ADDRMODE_SADDR || srcmode == LOWSN_ADDRMODE_LADDR) {
+    183          			conPrintROMString("  SrcAddress(MSB 1st): ");
+    184          			if (srcmode == LOWSN_ADDRMODE_SADDR) {
+    185          				addr[0] = *ptr; ptr++;
+    186          				addr[1] = *ptr; ptr++;
+    187          				len = len + 2;
+    188          				saddr = ((UINT16)addr[1]) << 8;
+    189          				saddr = saddr + addr[0];
+    190          				conPrintUINT16(saddr);
+    191          			} else {
+    192          				conPrintLADDR_bytes(ptr);
+    193          				len = len+8;
+    194          				ptr = ptr + 8;				
+    195          			}
+    196          		}
+    197          		conPrintROMString("\n")
+    198          
+    199          
+    200          	//payload
+    201              conPrintROMString("MAC payload size: ");
+    202              conPrintUINT8(plen - (len + PACKET_FOOTER_SIZE) );
+    203              conPCRLF();
+    204              dbgPrintMacPacketFCS(orgptr+plen-PACKET_FOOTER_SIZE);
+    205          	if (LOWSN_IS_DATA(fcflsb)) {
+    206          		return(ptr);
+    207          	} else if (LOWSN_IS_BCN(fcflsb)){
+    208          		if ((plen - (len +PACKET_FOOTER_SIZE)) == LOWSN_ADP_BEACON_SIZE) dbgPrintBeacon(ptr);
+    209          		return(NULL);
+    210          	}else if (LOWSN_IS_MAC(fcflsb)){
+    211                    dbgPrintMacCmd(ptr, (plen - (len + PACKET_FOOTER_SIZE)));
+    212          		  return(NULL);
+    213          	}
+    214          	return(NULL);
+    215          }
+    216          
+    217          static void dbgPrintMacCmd(BYTE *ptr, BYTE plen){
+    218            conPrintROMString("MAC CMD: ");
+    219            switch(*ptr) {
+    220          
+    221          	 case LOWSN_MACCMD_ASSOC_REQ : conPrintROMString("Assoc Request"); break;
+    222          	 case LOWSN_MACCMD_ASSOC_RSP: conPrintROMString("Assoc Response"); break;
+    223               case LOWSN_MACCMD_DISASSOC: conPrintROMString("DisAssoc Request"); break;
+    224               case LOWSN_MACCMD_DATA_REQ : conPrintROMString("Data Request"); break;
+    225               case LOWSN_MACCMD_PAN_CONFLICT : conPrintROMString("Pan Conflict"); break;
+    226               case LOWSN_MACCMD_ORPHAN: conPrintROMString("Orphan Notification"); break;
+    227               case LOWSN_MACCMD_BCN_REQ: conPrintROMString("Beacon Request"); break;
+    228               case LOWSN_MACCMD_COORD_REALIGN: conPrintROMString("Coord Realign"); break;
+    229               case LOWSN_MACCMD_GTS_REQ : conPrintROMString("GTS Request"); break;
+    230          	 default: conPrintROMString("Unknown");
+    231          
+    232            }
+    233           conPCRLF();
+    234           ptr++;plen--;
+    235           conPrintROMString("MAC Payload bytes: ");
+    236           while (plen) {
+    237          	 conPrintUINT8(*ptr);
+    238          	 ptr++, plen--;
+    239          	 conPrintROMString(" ");
+    240           }
+    241           conPCRLF();
+    242          }
+    243          
+    244          //works only for our beacons
+    245          static void dbgPrintBeacon(BYTE *ptr){
+    246          	BYTE i;
+    247          
+    248          	conPrintROMString("Beacon Superframe, LSB: ");
+    249          	conPrintUINT8(*ptr);
+    250          	ptr++;
+    251          	conPrintROMString(", MSB: ");
+    252          	conPrintUINT8(*ptr);
+    253          	ptr++;
+    254              conPCRLF();
+    255          	conPrintROMString("GTS spec: ");
+    256              conPrintUINT8(*ptr);
+    257          	ptr++;
+    258          	conPrintROMString(", Pending addr: ");
+    259              conPrintUINT8(*ptr);
+    260          	ptr++;
+    261          	conPCRLF();
+    262              conPrintROMString("Beacon payload\n");
+    263          	conPrintROMString("Protocol: ");
+    264          	conPrintUINT8(*ptr); ptr++;
+    265          	conPrintROMString(", StkProfile: ");
+    266              conPrintUINT8(*ptr); ptr++;
+    267              conPrintROMString(", ProtoVer: ");
+    268              conPrintUINT8(*ptr); ptr++;
+    269              conPrintROMString(", Router Room?: ");
+    270          	if (*ptr) {
+    271          		 conPrintROMString("Y");
+    272          	}
+    273          	else {
+    274          		conPrintROMString("N");
+    275          	}
+    276          	ptr++;
+    277              conPrintROMString(", Depth: ");
+    278              conPrintUINT8(*ptr); ptr++;
+    279              conPrintROMString(", EndDev Room?: ");
+    280          	if (*ptr) {
+    281          		conPrintROMString("Y");
+    282          	}
+    283          	else {
+    284          		conPrintROMString("N");
+    285          	}
+    286          	ptr++;
+    287          	conPCRLF();
+    288          	conPrintROMString("Beacon Offset: ");
+    289          	for (i=0;i<3;i++){
+    290          		conPrintUINT8(*ptr);
+    291          		conPrintROMString(" ");
+    292          		ptr++;
+    293          	}
+    294          #ifndef LOWSN_ZIGBEE_BEACON_COMPLY
+    295          	conPrintROMString(", Magic Num: ");
+    296          	for (i=0;i<4;i++){
+    297          		conPrintUINT8(*ptr);
+    298          		conPrintROMString(" ");
+    299          		ptr++;
+    300          	}
+    301          #endif
+    302          	
+    303          	conPCRLF();
+    304          }
+    305          
+    306          
+    307          //ptr is assumed to pointing to the network header
+    308          // 这个打印函数未跟随ADP Mesh头的改进而改动
+    309          BYTE *dbgPrintNwkPacket (BYTE *ptr){
+    310          	BYTE fcflsb;
+    311          	BYTE i;
+    312          	SADDR saddr;
+    313          
+    314          	fcflsb = *ptr; ptr++;
+    315          	conPrintROMString("ADP Header:\n");
+    316          	conPrintROMString(" Type: ");
+    317          	//if (ADP_IS_DATA(fcflsb)) {
+    318                // conPrintROMString("DATA");
+    319          	//}else if (ADP_IS_CMD(fcflsb)) {
+    320          	//	conPrintROMString("CMD");
+    321             // }else {
+    322              //    conPrintROMString("RSV");
+    323          	//}
+    324          	conPrintROMString(",  Protocol: ");
+    325          	i = ADP_GET_PROTOCOL(fcflsb);
+    326          	conPrintUINT8(i);
+    327          	conPrintROMString(",  RouteDiscovery: ");
+    328              switch(ADP_GET_ROUTE(fcflsb)) {
+    329          		case  ADP_SUPPRESS_ROUTE_DISCOVER:
+    330          			conPrintROMString("SUPPRESS");
+    331          			break;
+    332          		case ADP_ENABLE_ROUTE_DISCOVER:
+    333          			conPrintROMString("ENABLE");
+    334          			break;
+    335          		case ADP_FORCE_ROUTE_DISCOVER:
+    336                      conPrintROMString("FORCE");
+    337          			break;
+    338          		default:
+    339          			conPrintROMString("RSV");
+    340          			break;
+    341          	}//end switch()
+    342          
+    343          	//get MSF FCF
+    344          	i = *ptr; ptr++;
+    345          	conPrintROMString(", Security: ");
+    346          	PRINTBIT(ADP_GET_ROUTE(i));
+    347          	conPCRLF();
+    348          
+    349          	//DST Addr
+    350          	conPrintROMString("DstAddr: ");
+    351          	saddr = *ptr;
+    352          	ptr++;
+    353          	saddr += (((UINT16)*ptr) << 8);
+    354          	ptr++;			
+    355          	conPrintUINT16(saddr);
+    356          
+    357              //SRC Addr
+    358          	conPrintROMString(", SrcAddr: ");
+    359          	saddr = *ptr;
+    360          	ptr++;
+    361          	saddr += (((UINT16)*ptr) << 8);
+    362          	ptr++;			
+    363          	conPrintUINT16(saddr);
+    364          
+    365              //radius
+    366              conPrintROMString(", Radius: ");
+    367          	conPrintUINT8(*ptr);
+    368          	ptr++;
+    369          
+    370          
+    371              //sequence
+    372          	conPrintROMString(", Sequence#: ");
+    373          	conPrintUINT8(*ptr);
+    374          	ptr++;
+    375          
+    376          	conPCRLF();
+    377          	//if (ADP_IS_DATA(fcflsb)) {
+    378          		return(ptr);
+    379          	//}else {
+    380               // return(NULL);
+    381          	//}
+    382          }
+    383          
+    384          #if 0
+    385          //ptr is assumed to pointing to the APS header
+    386           BYTE *dbgPrintApsPacket (BYTE *ptr){
+    387              BYTE i;
+    388          	BYTE fcf;
+    389          	UINT16 profile;
+    390          	
+    391          	i = *ptr; ptr++;
+    392          	fcf = i;
+    393          	conPrintROMString("APS Header:\n");
+    394          	conPrintROMString(" Type: ");
+    395              switch(APS_GET_FRM_TYPE(i)) {
+    396          		case APS_FRM_TYPE_DATA: conPrintROMString("DAT");break;
+    397          		case APS_FRM_TYPE_CMD: conPrintROMString("CMD");break;
+    398          		case APS_FRM_TYPE_ACK:conPrintROMString("ACK");break;
+    399          		default: conPrintROMString("RSV");break;
+    400          	}
+    401          	conPrintROMString(", DeliveryMode: ");
+    402          	switch(APS_GET_FRM_DLVRMODE(i)) {
+    403                  case APS_FRM_DLVRMODE_NORMAL: conPrintROMString("NORMAL");break;
+    404          		case APS_FRM_DLVRMODE_INDIRECT: conPrintROMString("INDIRECT");break;
+    405          		case APS_FRM_DLVRMODE_BCAST: conPrintROMString("BCAST");break;
+    406          		default: conPrintROMString("RSV");break;
+    407          	}
+    408          	conPrintROMString(", IndirectSubMode: ");
+    409              PRINTBIT(APS_GET_FRM_INDIRECT_SUBMODE(i));
+    410              conPrintROMString(", Security: ");
+    411          	PRINTBIT(APS_GET_FRM_SECURITY(i));
+    412          	conPrintROMString(", AckReq: ");
+    413          	PRINTBIT(APS_GET_FRM_ACKREQ(i));
+    414          
+    415              conPCRLF();
+    416          
+    417          	//DST EP
+    418          	conPrintROMString(" DstEP: ");
+    419              if ((APS_GET_FRM_DLVRMODE(fcf) == APS_FRM_DLVRMODE_INDIRECT) &&
+    420          		(APS_GET_FRM_INDIRECT_SUBMODE(fcf))) {
+    421          			//no dest EP
+    422                      conPrintROMString("NONE");
+    423          		}else {
+    424          		  conPrintUINT8(*ptr);ptr++;
+    425          		}
+    426          
+    427              conPrintROMString(", Cluster: ");
+    428          	if (APS_GET_FRM_TYPE(fcf) == APS_FRM_TYPE_DATA) {
+    429                  conPrintUINT8(*ptr);ptr++;
+    430          	}else {
+    431                conPrintROMString("NONE");
+    432          	}
+    433          
+    434          	
+    435          	//Profile
+    436              if ((APS_GET_FRM_TYPE(fcf) == APS_FRM_TYPE_DATA) ||
+    437                  (APS_GET_FRM_TYPE(fcf) == APS_FRM_TYPE_ACK)
+    438          	   ){
+    439          		   profile = *ptr; ptr++;
+    440          		   profile += (((UINT16) *ptr) << 8);
+    441          		   ptr++;
+    442          		   conPrintROMString(", Profile: ");
+    443          		   conPrintUINT16(profile);
+    444          	   }
+    445          
+    446          
+    447          	//SRC EP
+    448              conPrintROMString(", SrcEP: ");
+    449          
+    450              if ((APS_GET_FRM_DLVRMODE(fcf) == APS_FRM_DLVRMODE_INDIRECT) &&
+    451          		(!APS_GET_FRM_INDIRECT_SUBMODE(fcf))) {
+    452          			//no src EP
+    453                      conPrintROMString("NONE");
+    454          		}else {
+    455          		  conPrintUINT8(*ptr);ptr++;
+    456          		}
+    457              conPCRLF();
+    458          
+    459             if (APS_GET_FRM_TYPE(fcf) == APS_FRM_TYPE_DATA) return(ptr);
+    460             else return(NULL);
+    461          
+    462          }
+    463          
+    464           //ptr is assumed to pointing to the AF header
+    465           //we only understand how to print MSG types
+    466           void dbgPrintAfPacket (BYTE *ptr){
+    467          	BYTE i;
+    468          	BYTE fcf;
+    469          	BYTE len;
+    470          
+    471              conPrintROMString("AF Header: ");
+    472              i = *ptr; ptr++;
+    473              fcf = i;
+    474          
+    475              conPrintROMString(" TransCnt: ");
+    476          	conPrintUINT8(AF_GET_TRANS_COUNT(fcf));
+    477              conPrintROMString(" FrmType: ");
+    478          	if (AF_GET_FRM_TYPE(fcf) == AF_FRM_TYPE_MSG) {
+    479          		conPrintROMString("MSG, Trans#: ");
+    480          		//only one transaction in MSG frame, get transaction umber
+    481                   conPrintUINT8(*ptr);ptr++;
+    482          		//only one transaction in MSG frame, first byte is length
+    483                  conPrintROMString(", Length: ");
+    484          		len = *ptr;
+    485                  conPrintUINT8(len);ptr++;
+    486          		conPCRLF();
+    487          		conPrintROMString("Data: ");
+    488          		i=0;
+    489          		while(len){
+    490          			conPrintUINT8(*ptr);ptr++;
+    491          			conPrintROMString(" ");
+    492          			i++;
+    493          			if (i == 16) {
+    494          				i = 0;
+    495                          conPCRLF();
+    496          			}
+    497          			len--;
+    498          		}
+    499          	} else if (AF_GET_FRM_TYPE(fcf) == AF_FRM_TYPE_KVP){
+    500                conPrintROMString("KVP");
+    501          	} else {
+    502                conPrintROMString("RSV");
+    503          	}
+    504             conPCRLF();
+    505           }
+    506          
+    507           #endif
+    508          
+    509          #ifdef LOWSN_FFD
+    510           void dbgPrintNeighborTable(void){
+    511          	NAYBORENTRY *nt_ptr;
+    512          	BYTE j, cnt;
+    513          	
+    514          	nt_ptr = &mac_nbr_tbl[0];
+    515          	cnt = 0;
+    516          	for (j=0;j<NTENTRIES;j++,nt_ptr++) {
+    517          		if (nt_ptr->flags.bits.used) cnt++;
+    518          	}
+    519          	conPrintROMString("Number of Neighbors: ");
+    520          	conPrintUINT8(cnt);
+    521              conPCRLF();
+    522          	cnt = 1;
+    523          	nt_ptr = &mac_nbr_tbl[0];
+    524              for (j=0;j<NTENTRIES;j++,nt_ptr++) {
+    525          		if (nt_ptr->flags.bits.used) {
+    526          		 conPrintUINT8(cnt);cnt++;
+    527          		 conPrintROMString(" LADDR: ");
+    528                   conPrintLADDR_bytes(&mac_addr_tbl[nt_ptr->map_index].laddr[0]);
+    529          		 conPrintROMString(" SADDR: ");
+    530          		 conPrintUINT16(mac_addr_tbl[nt_ptr->map_index].saddr);
+    531          		 conPrintROMString(" CapInfo: ");
+    532          		 conPrintUINT8(nt_ptr->capinfo);
+    533          		 conPrintROMString(" LQI: ");
+    534          		 conPrintUINT8(nt_ptr->flags.bits.lqi);
+    535          		 conPCRLF();
+    536          		}
+    537          	}
+    538          	//print the address table
+    539              cnt = 0;
+    540          	for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+    541          		if (mac_addr_tbl[j].saddr != LOWSN_BCAST_SADDR) cnt++;
+    542          	}
+    543              conPrintROMString("Number of Address Map Entries: ");
+    544          	conPrintUINT8(cnt);
+    545              conPCRLF();
+    546          	cnt = 1;
+    547          	for (j=0;j<LOWSN_MAX_ADDRESS_MAP_ENTRIES;j++) {
+    548                if (mac_addr_tbl[j].saddr == LOWSN_BCAST_SADDR)continue;
+    549          	  conPrintROMString(" LADDR: ");
+    550                conPrintLADDR_bytes(&mac_addr_tbl[j].laddr[0]);
+    551          	  conPrintROMString(" SADDR: ");
+    552          	  conPrintUINT16(mac_addr_tbl[j].saddr);
+    553          	  conPCRLF();
+    554          	}
+    555          
+    556          
+    557           }
+    558          #endif
+    559          
+    560          
+    561          #endif
+
+   Maximum stack usage in bytes:
+
+     Function                  ISTACK PSTACK XSTACK
+     --------                  ------ ------ ------
+     dbgPrintBeacon                0      0     33
+       -> conPrintUINT8            0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPCRLF                 0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPCRLF                 0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPCRLF                 0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPCRLF                 0      0     18
+     dbgPrintMacPacket             1      0     34
+       -> conPrintUINT8            0      0     48
+       -> conPrintUINT8            0      0     48
+       -> conPrintUINT8            0      0     48
+       -> conPrintUINT8            0      0     48
+       -> dbgPrintMacPacketFCS     0      0     48
+       -> conPrintUINT16           0      0     48
+       -> conPrintLADDR_bytes      0      0     48
+       -> conPrintUINT16           0      0     48
+       -> conPrintLADDR_bytes      0      0     48
+       -> conPrintUINT8            0      0     48
+       -> conPCRLF                 0      0     48
+       -> dbgPrintMacPacketFCS     0      0     48
+       -> conPrintUINT16           0      0     48
+       -> conPrintUINT16           0      0     48
+       -> dbgPrintBeacon           0      0     48
+       -> conPCRLF                 0      0     48
+       -> conPrintUINT8            0      0     48
+       -> conPCRLF                 0      0     48
+     dbgPrintMacPacketFCS          0      0     33
+       -> conPrintUINT8            0      0     18
+       -> conPrintUINT8            0      0     18
+     dbgPrintNeighborTable         0      0     12
+       -> conPrintUINT8            0      0     24
+       -> conPCRLF                 0      0     24
+       -> conPrintUINT8            0      0     24
+       -> conPrintLADDR_bytes      0      0     24
+       -> conPrintUINT16           0      0     24
+       -> conPrintUINT8            0      0     24
+       -> conPrintUINT8            0      0     24
+       -> conPCRLF                 0      0     24
+       -> conPrintUINT8            0      0     24
+       -> conPCRLF                 0      0     24
+       -> conPrintLADDR_bytes      0      0     24
+       -> conPrintUINT16           0      0     24
+       -> conPCRLF                 0      0     24
+     dbgPrintNwkPacket             0      0     19
+       -> conPrintUINT8            0      0     18
+       -> conPCRLF                 0      0     18
+       -> conPrintUINT16           0      0     18
+       -> conPrintUINT16           0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPrintUINT8            0      0     18
+       -> conPCRLF                 0      0     18
+     dbgPrintPacket                0      0     10
+       -> dbgPrintMacPacket        0      0     20
+       -> dbgPrintNwkPacket        0      0     20
+       -> dbgPrintApsPacket        0      0     20
+       -> dbgPrintAfPacket         0      0     20
+
+
+   Segment part sizes:
+
+     Function/Label                Bytes
+     --------------                -----
+     debug_level                      1
+     dbgPrintMacPacketFCS            11
+     ?Subroutine19                    5
+     ?Subroutine7                     8
+     ??Subroutine23_0                 1
+     ??Subroutine24_0                 4
+     ?Subroutine18                    6
+     ??Subroutine25_0                10
+     dbgPrintPacket                  40
+     dbgPrintMacPacket              435
+     ?Subroutine11                    4
+     ?Subroutine14                    1
+     ?Subroutine20                    9
+     ?Subroutine9                     4
+     ?Subroutine5                    16
+     ?Subroutine4                    23
+     ?Subroutine1                    11
+     ?Subroutine16                   13
+     ?Subroutine21                    5
+     ?Subroutine6                    14
+     ?Subroutine17                    3
+     ?Subroutine22                    5
+     ?Subroutine15                    1
+     ??Subroutine26_0                 7
+     dbgPrintBeacon                  53
+     ?Subroutine0                    10
+     ?Subroutine13                    6
+     ?Subroutine2                     7
+     dbgPrintNwkPacket               58
+     ?Subroutine3                    21
+     dbgPrintNeighborTable          248
+     ?Subroutine12                   15
+     ?Subroutine10                    7
+     ?Subroutine8                     2
+     ??dbgPrintMacPacketFCS?relay     6
+     ??dbgPrintPacket?relay           6
+     ??dbgPrintMacPacket?relay        6
+     ??dbgPrintBeacon?relay           6
+     ??dbgPrintNwkPacket?relay        6
+     ??dbgPrintNeighborTable?relay    6
+
+ 
+ 1 063 bytes in segment BANKED_CODE
+    36 bytes in segment BANK_RELAYS
+     1 byte  in segment XDATA_Z
+ 
+ 1 099 bytes of CODE  memory
+     1 byte  of XDATA memory
+
+Errors: none
+Warnings: none

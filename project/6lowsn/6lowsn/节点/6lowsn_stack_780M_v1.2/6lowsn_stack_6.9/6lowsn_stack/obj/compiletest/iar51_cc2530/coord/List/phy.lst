@@ -1,0 +1,233 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                16/Oct/2013  13:31:33 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  banked                                             #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\stack\phy.c             #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\stack\phy.c -D          #
+#                          LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D         #
+#                          aExtendedAddress_B6=0x51 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_COORDINATOR -D   #
+#                          LOWSN_USE_DEMO_STATIC_BIND -lcN                    #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\ -o F:\6LoWSN\6lowsn_stack\obj\compil #
+#                          etest\iar51_cc2530\coord\Obj\ -e --debug           #
+#                          --core=plain --dptr=16,1 --data_model=large        #
+#                          --code_model=banked --calling_convention=xdata_ree #
+#                          ntrant --place_constants=data --nr_virtual_regs 8  #
+#                          -I F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc #
+#                          2530\..\..\..\SRC\STACK\ -I                        #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ohz            #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\List\phy.lst                               #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\coord\Obj\phy.r51                                #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\stack\phy.c
+      1          
+      2          
+      3          
+      4          #include "compiler.h"
+      5          #include "6lowsn_config.h"         //user configurations
+      6          #include "6lowsn_common_types.h"   //types common acrosss most files
+      7          #include "ieee_lrwpan_defs.h"
+      8          #include "hal.h"
+      9          #include "halStack.h"
+     10          
+     11          #include "console.h"
+     12          #include "debug.h"
+     13          #include "memalloc.h"
+     14          #include "phy.h"
+     15          
+     16          
+     17          #include "evboard.h"
+     18          
+     19          
+     20          
+     21          PHY_PIB phy_pib;
+     22          PHY_SERVICE a_phy_service;
+     23          PHY_STATE_ENUM phyState;
+     24          
+     25          //static tmp space for that is used by NET, APS, MAC layers
+     26          //since only one TX can be in progress at a time, there will be
+     27          //not contention for this.
+     28          //The current frame is built up in this space, in reverse transmit order.
+     29          BYTE tmpTxBuff[LOWSN_MAX_FRAME_SIZE];
+     30          
+     31          void phyInit(void ) {
+     32            MemInit();  //initialize memory
+     33            phyState = PHY_STATE_IDLE;
+     34            phy_pib.flags.val = 0;
+     35          }
+     36          
+     37          
+     38          //call back from HAL to here, can be empty functions
+     39          //not needed in this stack
+     40          void phyRxCallback(void) {
+     41          }
+     42          
+     43          void phyTxStartCallBack(void) {
+     44          phy_pib.txStartTime = halGetMACTimer();
+     45          
+     46          }
+     47          
+     48          void phyTxEndCallBack(void) {
+     49          phy_pib.flags.bits.txFinished = 1;   //TX is finished.
+     50          }
+     51          
+     52          
+     53          
+     54          void phyFSM(void) {
+     55          
+     56          	UINT16 i;	
+     57          	BYTE *pt;
+     58          	
+     59            //do evbpolling here
+     60            evbPoll();
+     61          
+     62            //check background tasks here
+     63          
+     64            switch (phyState) {
+     65            case PHY_STATE_IDLE:
+     66          	  halIdle();  //Hal Layer might want to do something in idle state
+     67              break;
+     68            case PHY_STATE_COMMAND_START:
+     69              switch(a_phy_service.cmd) {
+     70                case LOWSN_SVC_PHY_INIT_RADIO: //not split phase
+     71                 a_phy_service.status = halInitRadio(phy_pib.phyCurrentFrequency,
+     72                                                            phy_pib.phyCurrentChannel,
+     73                                                            a_phy_service.args.phy_init_radio_args.radio_flags
+     74                                                              );
+     75          	   phyState = PHY_STATE_IDLE;
+     76                 break;
+     77                case LOWSN_SVC_PHY_TX_DATA:
+     78                  phy_pib.flags.bits.txFinished = 0;
+     79          
+     80          	// 打印发出的数据包
+     81          	DEBUG_STRING(DBG_INFO, " \n***** TX BUF *********\n");
+     82          	pt=phy_pib.currentTxFrm;
+     83          	for (i=0; i<phy_pib.currentTxFlen;i++) {
+     84          		DEBUG_UINT8(DBG_INFO, *pt);
+     85          		DEBUG_STRING(DBG_INFO, "  ");
+     86          		pt++;
+     87              	}	
+     88          	DEBUG_STRING(DBG_INFO, " \n***** TX BUF *********\n");
+     89          		
+     90                  a_phy_service.status =
+     91                     halSendPacket(phy_pib.currentTxFlen,
+     92                                   phy_pib.currentTxFrm);
+     93                  if (a_phy_service.status == LOWSN_STATUS_SUCCESS) {
+     94                    //TX started, wait for it to end.
+     95                    phyState = PHY_STATE_TX_WAIT;
+     96                  }else {
+     97                    //something failed, will give up on this, MAC can take action if it wants
+     98                    //should not happen, indicate an error to console
+     99                    DEBUG_STRING(1,"PHY: TX did not start\n");
+    100                    phyState = PHY_STATE_IDLE;
+    101                  }
+    102                 break;
+    103               default: break;
+    104              }//end switch cmd
+    105              break;
+    106            case PHY_STATE_TX_WAIT:  //wait for TX out of radio to complete or timeout
+    107              if (phy_pib.flags.bits.txFinished){
+    108                  phyState = PHY_STATE_IDLE;
+    109               }
+    110              else if  (halMACTimerNowDelta(phy_pib.txStartTime) > MAX_TX_TRANSMIT_TIME){
+    111                //should not happen, indicate an error to console
+    112                DEBUG_STRING(1,"PHY: MAX_TX_TRANSMIT_TIME timeout\n");
+    113          	  a_phy_service.status = LOWSN_STATUS_PHY_TX_FINISH_FAILED;
+    114                //no action for now, will see if this happens
+    115                phyState = PHY_STATE_IDLE;
+    116              }
+    117              break;
+    118            default: break;
+    119            }//end switch phyState
+    120          }
+    121          
+
+   Maximum stack usage in bytes:
+
+     Function                    ISTACK PSTACK XSTACK
+     --------                    ------ ------ ------
+     phyFSM                          0      0     18
+       -> evbPoll                    0      0     32
+       -> halInitRadio               0      0     36
+       -> conPrintROMString_func     0      0     32
+       -> conPrintUINT8              0      0     32
+       -> conPrintROMString_func     0      0     32
+       -> conPrintROMString_func     0      0     32
+       -> halSendPacket              0      0     32
+       -> conPrintROMString_func     0      0     32
+       -> halGetMACTimer             0      0     32
+       -> conPrintROMString_func     0      0     32
+     phyInit                         2      0      0
+       -> MemInit                    4      0      0
+     phyRxCallback                   0      0      0
+     phyTxEndCallBack                2      0      0
+     phyTxStartCallBack              0      0     12
+       -> halGetMACTimer             0      0     24
+
+
+   Segment part sizes:
+
+     Function/Label                       Bytes
+     --------------                       -----
+     phy_pib                                17
+     a_phy_service                           4
+     phyState                                1
+     tmpTxBuff                             127
+     phyInit                                15
+     ?Subroutine1                            8
+     phyRxCallback                           3
+     phyTxStartCallBack                     16
+     ?Subroutine0                           17
+     phyTxEndCallBack                       15
+     phyFSM                                303
+     xxxxromstr                             26
+     xxxxromstr                              3
+     xxxxromstr                             26
+     xxxxromstr                             23
+     xxxxromstr                             35
+     __Constant_ffffff                       4
+     ?<Initializer for __Constant_ffffff>    4
+     __Constant_12d                          4
+     ?<Initializer for __Constant_12d>       4
+     ??phyInit?relay                         6
+     ??phyRxCallback?relay                   6
+     ??phyTxStartCallBack?relay              6
+     ??phyTxEndCallBack?relay                6
+     ??phyFSM?relay                          6
+
+ 
+ 377 bytes in segment BANKED_CODE
+  30 bytes in segment BANK_RELAYS
+ 113 bytes in segment CODE_C
+   8 bytes in segment XDATA_I
+   8 bytes in segment XDATA_ID
+ 149 bytes in segment XDATA_Z
+ 
+ 520 bytes of CODE  memory (+ 8 bytes shared)
+ 149 bytes of XDATA memory (+ 8 bytes shared)
+
+Errors: none
+Warnings: none

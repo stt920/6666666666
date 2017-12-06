@@ -1,0 +1,992 @@
+###############################################################################
+#                                                                             #
+# IAR C/C++ Compiler V7.51A/W32 for 8051                19/Aug/2013  15:48:39 #
+# Copyright 2004-2009 IAR Systems AB.                                         #
+#                                                                             #
+#    Core               =  plain                                              #
+#    Code model         =  near                                               #
+#    Data model         =  large                                              #
+#    Calling convention =  xdata reentrant                                    #
+#    Constant location  =  data                                               #
+#    Dptr setup         =  1,16                                               #
+#    Source file        =  F:\6LoWSN\6lowsn_stack\src\simpletests\test_ping.c #
+#    Command line       =  F:\6LoWSN\6lowsn_stack\src\simpletests\test_ping.c #
+#                           -D LOWSN_DEBUG -D aExtendedAddress_B7=0x00 -D     #
+#                          aExtendedAddress_B6=0x53 -D                        #
+#                          aExtendedAddress_B5=0x50 -D                        #
+#                          aExtendedAddress_B4=0x40 -D                        #
+#                          aExtendedAddress_B3=0x30 -D                        #
+#                          aExtendedAddress_B2=0x20 -D                        #
+#                          aExtendedAddress_B1=0x10 -D                        #
+#                          aExtendedAddress_B0=0x00 -D LOWSN_SENSOR_TYPE=1    #
+#                          -lcN F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_ #
+#                          cc2530\rfd\List\ -o F:\6LoWSN\6lowsn_stack\obj\com #
+#                          piletest\iar51_cc2530\rfd\Obj\ -e --no_cse         #
+#                          --no_unroll --no_inline --no_code_motion           #
+#                          --no_tbaa --debug --core=plain --dptr=16,1         #
+#                          --data_model=large --code_model=near               #
+#                          --calling_convention=xdata_reentrant               #
+#                          --place_constants=data --nr_virtual_regs 8 -I      #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\ -I                           #
+#                          F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\..\..\..\SRC\STACK\TARGET\IAR51\CC2530\ -I       #
+#                          "C:\Program Files\IAR Systems\Embedded Workbench   #
+#                          5.3 Evaluation version\8051\INC\" -I "C:\Program   #
+#                          Files\IAR Systems\Embedded Workbench 5.3           #
+#                          Evaluation version\8051\INC\CLIB\" -Ol             #
+#    List file          =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\List\test_ping.lst                           #
+#    Object file        =  F:\6LoWSN\6lowsn_stack\obj\compiletest\iar51_cc253 #
+#                          0\rfd\Obj\test_ping.r51                            #
+#                                                                             #
+#                                                                             #
+###############################################################################
+
+F:\6LoWSN\6lowsn_stack\src\simpletests\test_ping.c
+      1          
+      2          /******************************************************************************************************
+      3          *
+      4          * 文 件 名：test_ping.c
+      5          *
+      6          * 文件描述：互操作性测试例子1
+      7          *
+      8          * 创 建 者：
+      9          *
+     10          * 当前版本:  
+     11          
+     12          * 修 改 者：
+     13          *
+     14          * 修改历史：
+     15          
+     16          
+     17          ********************************************************************************************************/
+     18          
+     19          #include "6lowsn.h"
+     20          
+     21          
+     22          
+     23          // 若定义LOWSN_SIMULATED_SENSOR_DATA，则采用从0-99循环递增的温度模拟数据，方便测试
+     24          // 若取消该宏的定义，则利用CC2530真实的温度传感器功能读取环境温度值作为数据.
+     25          #define LOWSN_SIMULATED_SENSOR_DATA
+     26          
+     27          
+     28          #ifdef LOWSN_RFD
+     29          #define NODE_SLEEP_TIME  3   //节点睡眠时间
+     30          #endif
+     31          
+     32          UINT32 my_timer;
+     33          IPADDR dstIPADDR;
+     34          IPADDR network_prefix;
+     35          UINT8 prefix_len;
+     36          
+     37          //  EUI64地址使用示例(本例子中未使用长地址做目标地址)
+     38          // 按阅读顺序排列，注意第一个字节的LSB倒数第2位必须为0，即U/L原始位为0.
+     39          // 倒数第1位也为0，表示是单播。建议第一个字节为0x00.
+     40          // 可以用buf设定目标节点的EUI64地址，若要设定节点自己的EUI64，首选在IAR的工程文件编译选项
+     41          // 中的预配置中进行定义，若没有在编译参数中定义，则还可在6lowsn_config.h中
+     42          // 用aExtendedAddress_B0-aExtendedAddress_B7宏设定。若编译参数中已经定义，在在文件中定义，
+     43          // 就会出现重定义的警告。
+     44          
+     45          UINT8 coordEUI[8] = {0x00,0x10,0x20,0x30,0x40,0x50,0x51,0x00};
+     46          UINT8 rfdEUI[8] = {0x00,0x10,0x20,0x30,0x40,0x50,0x53,0x00};
+     47          
+     48          #ifdef LOWSN_RFD
+     49          
+     50          #define REMOTE_PORT    0xF0B2
+     51          #define LOCAL_PORT      0xF0B3
+     52          #define DEFAULT_SLEEP_PERIOD  100   //以ms为单位	
+     53          #define DEFAULT_RX_PERIOD  2000   //以ms为单位
+     54          #define REMOTE_OBJECT_ID    1
+     55          #define OBJECT_ID_TEMP    1
+     56          #define ATTRIBUTE_ID_CURRENT_TEMP    1
+     57          #define ATTRIBUTE_ID_TEMP_UPPER    2
+     58          #define ATTRIBUTE_ID_TEMP_LOWER    3						
+     59          #define OBJECT_ID_LIGHT   2
+     60          
+     61          typedef enum _NODE_STATE_ENUM {
+     62          	NODE_STATE_SENSE_DATA, 
+     63          	NODE_STATE_SEND_DATA, 
+     64          	NODE_STATE_SLEEP,
+     65          	NODE_STATE_SEND,
+     66          	NODE_STATE_WAIT_FOR_TX, 
+     67          	NODE_STATE_WAIT_FOR_RX, 
+     68          	NODE_STATE_WAIT_FOR_RESPONSE_TX
+     69          }NODE_STATE_ENUM;
+     70          
+     71          typedef struct _RESPONSE_PARAM {
+     72          	IPADDR dstIPADDR;
+     73          	UINT16 dstPort;
+     74          	BYTE dstObjID;
+     75          	UINT16 srcPort;
+     76          	BYTE srcObjID; 
+     77          	BYTE serviceID; 
+     78          	BYTE actDirection; 
+     79          	BYTE actType;
+     80          	BYTE *pload;
+     81          	BYTE plen;
+     82          }RESPONSE_PARAM;
+     83          
+     84          NODE_STATE_ENUM NodeState;
+     85          RESPONSE_PARAM ResponseParam;
+     86          INT8 temp_upper_bound, temp_lower_bound;
+     87          INT8 current_temp;
+     88          INT8 SensorPayload[20];
+     89          INT8 ResponsePayload[20];
+     90          UINT32 SleepPeriod, RxPeriod;
+     91          BOOL sendResponseFlag;
+     92          INT8 temp_value=0;
+     93          
+     94          #ifdef  LOWSN_SIMULATED_SENSOR_DATA
+     95          
+     96          INT8 getTempValue()
+     97          {
+     98          	temp_value++;
+     99          	
+    100          	if (temp_value > 100)  {
+    101          		temp_value=0;
+    102          	}
+    103          
+    104          	return (temp_value);
+    105          
+    106          }
+    107          
+    108          #else
+    109          
+    110          #define HAL_ADC_REF_125V    0x00    /* Internal 1.25V Reference */
+    111          #define HAL_ADC_DEC_064     0x00    /* Decimate by 64 : 8-bit resolution */
+    112          #define HAL_ADC_DEC_128     0x10    /* Decimate by 128 : 10-bit resolution */
+    113          #define HAL_ADC_DEC_512     0x30    /* Decimate by 512 : 14-bit resolution */
+    114          #define HAL_ADC_CHN_VDD3    0x0f    /* Input channel: VDD/3 */
+    115          #define HAL_ADC_CHN_TEMP    0x0e    /* Temperature sensor */
+    116          
+    117          
+    118          INT8 getTempValue()
+    119          {
+    120            static UINT16 voltageAtTemp22;
+    121            static UINT8 bCalibrate=TRUE;
+    122            UINT16 value;
+    123            INT8 temp;
+    124          
+    125            ATEST = 0x01;
+    126            TR0  |= 0x01; 
+    127            
+    128            ADCIF = 0;
+    129          
+    130            ADCCON3 = (HAL_ADC_REF_125V | HAL_ADC_DEC_512 | HAL_ADC_CHN_TEMP);
+    131          
+    132            while ( !ADCIF );
+    133          
+    134            value = ADCL;
+    135            value |= ((UINT16) ADCH) << 8;
+    136          
+    137            value >>= 4;
+    138            
+    139              /* Assume ADC = 1480 at 25C and ADC = 4/C */
+    140            #define VOLTAGE_AT_TEMP_25        1480
+    141            #define TEMP_COEFFICIENT          4
+    142          
+    143            if(bCalibrate) {
+    144              voltageAtTemp22=value;
+    145              bCalibrate=FALSE;
+    146            }
+    147            
+    148            temp = 22 + ( (value - voltageAtTemp22) / TEMP_COEFFICIENT );
+    149            
+    150            // 温度只支持0-100度之间，负温度不支持
+    151            if( temp >= 100) 
+    152            {
+    153              return 100;
+    154            }
+    155            else if (temp <= 0) {
+    156              return 0;
+    157            }
+    158            else { 
+    159              return temp;
+    160            }
+    161          
+    162          }
+    163          
+    164          #endif
+    165          
+    166          
+    167          void NodeAction (void ) {
+    168          
+    169          	apsFSM();
+    170          
+    171          	switch (NodeState) {
+    172          
+    173          			case NODE_STATE_SENSE_DATA:
+    174          				
+    175          
+    176          					current_temp = getTempValue();
+    177          
+    178          					//conPrintROMString("Current temperature is : ");
+    179          					//conPrintUINT8((UINT8)current_temp);
+    180                                             //conPrintROMString("\n");
+    181          				
+    182          					NodeState = NODE_STATE_SEND_DATA;
+    183          
+    184          					// 对温度值进行滤波等处理
+    185          
+    186          				break;
+    187          				
+    188          			case NODE_STATE_SEND_DATA:
+    189          				
+    190          
+    191          					// 准备温度发送的负载
+    192          					SensorPayload[0] = 1;  // Attribute Number
+    193          					SensorPayload[1] = ATTRIBUTE_ID_CURRENT_TEMP; //  Attribute identifier
+    194          					SensorPayload[2] = 0; //  Attribute secondary identifier
+    195          					SensorPayload[3] = 1; // Length 
+    196          					SensorPayload[4] = current_temp; // Value 
+    197          					
+    198          
+    199          					#if 1
+    200          					// 判定温度值是否超标
+    201          					if ((current_temp >= temp_upper_bound) || (current_temp <= temp_lower_bound))  {
+    202          
+    203          						// 做本地的报警动作，闪烁LED
+    204          
+    205          
+    206          						// 以report/alarm方式发送数据
+    207            						aplSendReportData(dstIPADDR, REMOTE_PORT, REMOTE_OBJECT_ID, LOCAL_PORT, OBJECT_ID_TEMP, 
+    208            						                                  apsGenServiceID(), 0, (BYTE *)(&SensorPayload[0]), 5); 						
+    209          						
+    210          					}	
+    211          					else  {
+    212          						
+    213          						// 以publish方式发送数据
+    214            						aplSendPublishData(dstIPADDR, REMOTE_PORT, REMOTE_OBJECT_ID, LOCAL_PORT, OBJECT_ID_TEMP, 
+    215            						                                  apsGenServiceID(), 0, (BYTE *)(&SensorPayload[0]), 5); 
+    216          									
+    217          					}	
+    218          
+    219          					#endif
+    220          
+    221          					conPrintROMString("#");
+    222          
+    223          					NodeState = NODE_STATE_WAIT_FOR_TX;
+    224          
+    225          				break;
+    226          
+    227          			case NODE_STATE_WAIT_FOR_TX:
+    228          				if (apsBusy()) break; 
+    229          				if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    230          					conPrintROMString("Sensor Data Sent Successfully! \n");
+    231          					my_timer= halGetMACTimer();
+    232          					NodeState =NODE_STATE_WAIT_FOR_RX;
+    233          
+    234          				}else {
+    235          					conPrintROMString("Sensor Data Send failed! Retry! \n");
+    236          					my_timer= halGetMACTimer();
+    237          					NodeState =NODE_STATE_WAIT_FOR_RX;  //不再重传, 协议栈内部会重传
+    238          					//NodeState = NODE_STATE_SEND_DATA;
+    239          				}
+    240          				break;
+    241          
+    242          			case  NODE_STATE_WAIT_FOR_RX:
+    243          				
+    244          				if (halMACTimerNowDelta(my_timer) > MSECS_TO_MACTICKS(RxPeriod)) {
+    245          					NodeState =NODE_STATE_SLEEP;
+    246          					
+    247          					break;
+    248          					
+    249          				}
+    250          
+    251          				if (sendResponseFlag)  {
+    252          
+    253          					sendResponseFlag = 1;
+    254          				
+    255          					
+    256          					aplSendCSData(ResponseParam.dstIPADDR, ResponseParam.dstPort, ResponseParam.dstObjID, ResponseParam.srcPort, ResponseParam.srcObjID, 
+    257          					                          ResponseParam.serviceID, 0, ResponseParam.pload, ResponseParam.plen, ResponseParam.actDirection, ResponseParam.actType); 		
+    258          
+    259          					NodeState = NODE_STATE_WAIT_FOR_RESPONSE_TX;
+    260          	
+    261          				}	
+    262          				
+    263          				break;	
+    264          
+    265          			case NODE_STATE_WAIT_FOR_RESPONSE_TX:
+    266          				if (apsBusy()) break; 
+    267          				if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    268          					
+    269          					conPrintROMString("Response Sent Successfully! \n");
+    270          					NodeState =NODE_STATE_WAIT_FOR_RX;
+    271          
+    272          				}else {
+    273          				
+    274          					conPrintROMString("Response Send failed! Retry! \n");
+    275          					NodeState =NODE_STATE_WAIT_FOR_RX;
+    276          
+    277          				}
+    278          				break;
+    279          				
+    280          			case  NODE_STATE_SLEEP:
+    281          			    conPrintROMString("Node begin to sleep! \n");
+    282          			    // 须保障sleep时不掉网, 不丢RAM数据，醒来无需重新入网
+    283          			    halSleep(POWER_MODE_2, SleepPeriod);
+    284          			    conPrintROMString("Node wake up!\n");
+    285          			    NodeState = NODE_STATE_SENSE_DATA;
+    286          				break;		
+    287          
+    288          			default:
+    289          				conPrintROMString("Never run to this state, something must be wrong! \n");
+    290          				break;
+    291          
+    292          	}
+    293          }
+    294          
+    295          // 返回负载的实际长度
+    296          UINT8 FmtCurrentTempResponsePayload(void)
+    297          {
+    298          	INT8 temp;
+    299          	
+    300          	temp = getTempValue();
+    301          
+    302          	ResponsePayload[0] = 1;
+    303          	ResponsePayload[1] = APS_RESULT_OK;
+    304          	ResponsePayload[2] = ATTRIBUTE_ID_CURRENT_TEMP;
+    305          	ResponsePayload[3] = 0;
+    306          	ResponsePayload[4] = 1;
+    307          	ResponsePayload[5] = temp;
+    308          
+    309          	return 6;
+    310          }
+    311          
+    312          UINT8 FmtTempUpperResponsePayload(void)
+    313          {
+    314          
+    315          	ResponsePayload[0] = 1;
+    316          	ResponsePayload[1] = APS_RESULT_OK;
+    317          	ResponsePayload[2] = ATTRIBUTE_ID_TEMP_UPPER;
+    318          	ResponsePayload[3] = 0;
+    319          	ResponsePayload[4] = 1;
+    320          	ResponsePayload[5] = temp_upper_bound;
+    321          
+    322          	return 6;
+    323          }
+    324          
+    325          UINT8 FmtTempLowerResponsePayload(void)
+    326          {
+    327          	ResponsePayload[0] = 1;
+    328          	ResponsePayload[1] = APS_RESULT_OK;
+    329          	ResponsePayload[2] = ATTRIBUTE_ID_TEMP_LOWER;
+    330          	ResponsePayload[3] = 0;
+    331          	ResponsePayload[4] = 1;
+    332          	ResponsePayload[5] = temp_lower_bound;
+    333          
+    334          	return 6;
+    335          }
+    336          
+    337          #endif
+    338          
+    339          void main (void){
+    340          
+    341          	my_timer = 0;
+    342          	halInit();
+    343          	evbInit();
+    344          
+    345          	aplInit(); 
+    346          
+    347          	#ifdef LOWSN_COORDINATOR
+    348          	#ifdef LOWSN_SLIP_TO_HOST
+    349          	slipInit();
+    350                 #endif
+    351          	#endif
+    352          		
+    353          	conPrintConfig();
+    354          	ENABLE_GLOBAL_INTERRUPT();  //enable interrupts
+    355          
+    356          
+    357          	EVB_LED1_OFF();
+    358          	EVB_LED2_OFF();
+    359          
+    360          
+    361          	debug_level = DBG_MAX_LEVEL;
+    362          
+    363          	#ifdef LOWSN_COORDINATOR
+    364          
+    365          	#ifdef LOWSN_SLIP_TO_HOST
+    366          
+    367          	// First, get a prefix from host.
+    368          	do {
+    369          			my_timer= halGetMACTimer();
+    370          			while(slipTxLocked());
+    371          			conPrintROMString("Request a golbal prefix ...  \n");
+    372          			slipGrabTxLock(); 
+    373          			slipRequestPrefix();
+    374          			slipReleaseTxLock(); 
+    375          
+    376          			while ((!slipReady()) && (halMACTimerNowDelta(my_timer) < MSECS_TO_MACTICKS(2*1000)));
+    377          
+    378          			if (slipReady())  {
+    379          		
+    380          				slipRcv();
+    381          
+    382          				if (slipParsePrefix(&network_prefix, &prefix_len)  == 0)  {
+    383          					conPrintROMString("Get global prefix successfully! \n");
+    384          					aplSetPrefix(&network_prefix, prefix_len);
+    385          					conPrintROMString("Set global prefix:  ");
+    386          					conPrintIP6ADDR(&network_prefix, 1);
+    387          					conPrintROMString("\n Prefix Len: ");
+    388          					conPrintUINT8(prefix_len);
+    389          					conPrintROMString("\n");
+    390          					break;
+    391          
+    392          				}	
+    393          
+    394          				else  {
+    395          					conPrintROMString("Not a prefix slip command. Try again! \n");
+    396          				}
+    397          			}	
+    398          		
+    399          	 } while (1);
+    400          
+    401          	#else
+    402          
+    403          	lowsn_ip6addr(&network_prefix,0x0066,0x0077,0x1234,0x5678,0,0,0,0);
+    404          	prefix_len = LOWSN_DEFAULT_PREFIX_LEN;
+    405          	aplSetPrefix(&network_prefix, prefix_len);
+    406          	conPrintROMString("Set global prefix:  ");
+    407          	conPrintIP6ADDR(&network_prefix, 1);
+    408          	conPrintROMString("  Prefix Len: ");
+    409          	conPrintUINT8(prefix_len);
+    410          	conPrintROMString("\n");
+    411          
+    412          	#endif
+    413          	
+    414          	// Second, form a subnet.
+    415          
+    416          	#ifdef  LOWSN_NO_JOIN_PROCESS
+    417          	aplFormNetworkDirectly(); 
+    418          	#else
+    419          	aplFormNetwork();
+    420          	#endif
+    421          	while(apsBusy()) {apsFSM();} //wait for finish
+    422          	conPrintROMString("Network is formed. \n");
+    423          	EVB_LED1_ON();
+    424          	
+    425          
+    426          	#else
+    427          
+    428          	#ifdef LOWSN_NO_JOIN_PROCESS
+    429          	aplJoinNetworkDirectly(0x1699, 0, &coordEUI[0], 1);
+    430          	while(apsBusy()) {apsFSM();} 
+    431          	#else
+    432          	do {
+    433          		aplJoinNetwork();
+    434          		while(apsBusy()) {apsFSM();} //wait for finish
+    435          		if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    436          			EVB_LED1_ON();
+    437          			conPrintROMString("Network Join succeeded!\n");
+    438          			conPrintROMString("My ShortAddress is: ");
+    439          			conPrintUINT16(aplGetMyShortAddress());
+    440          			conPCRLF();
+    441          			conPrintROMString("Parent LADDR: ")
+    442          			conPrintLADDR(aplGetParentLongAddress());
+    443          			conPrintROMString(", Parent SADDR: ");
+    444          			conPrintUINT16(aplGetParentShortAddress());
+    445          			conPCRLF();
+    446          			break;
+    447          		}else {
+    448          			conPrintROMString("Network Join FAILED! Waiting, then trying again\n");
+    449          			my_timer= halGetMACTimer();
+    450          			//wait for 2 seconds
+    451          			while ((halMACTimerNowDelta(my_timer))< MSECS_TO_MACTICKS(2*1000));
+    452          		}
+    453          	} while(1);
+    454          	#endif
+    455          
+    456          	#ifdef LOWSN_NO_PREFIX_PROCESS
+    457          	// 手动设置节点的全局前缀
+    458          	lowsn_ip6addr(&network_prefix,0x0066,0x0077,0x1234,0x5678,0,0,0,0);
+    459          	prefix_len = LOWSN_DEFAULT_PREFIX_LEN;
+    460          	aplSetPrefix(&network_prefix, prefix_len);
+    461          	conPrintROMString("Manually Set global prefix:  ");
+    462          	conPrintIP6ADDR(&network_prefix, 1);
+    463          	conPrintROMString("  Prefix Len: ");
+    464          	conPrintUINT8(prefix_len);
+    465          	conPrintROMString("\n");
+    466          	#else
+    467          	do {
+    468          		conPrintROMString("Begin to get a gloabal prefix. \n");
+    469          		aplGetPrefix();
+    470          		while(apsBusy()) {apsFSM();} //wait for finish
+    471          		if (aplGetStatus() == LOWSN_STATUS_SUCCESS) {
+    472          			conPrintROMString("Get a global prefix!\n");
+    473          			break;
+    474          		}else {
+    475          			conPrintROMString("Prefix obtaining FAILED! Waiting, then trying again\n");
+    476                                  my_timer= halGetMACTimer();
+    477                                 //wait for 2 seconds
+    478                                while ((halMACTimerNowDelta(my_timer))< MSECS_TO_MACTICKS(2*1000));
+    479          		       }
+    480          	} while(1);
+    481          	#endif
+    482          
+    483          
+    484          	#endif
+    485          
+    486          	aplSetMacMaxFrameRetries(0);
+    487          
+    488          	#ifdef LOWSN_COORDINATOR
+    489          
+    490          	while (1) {
+    491          		
+    492          		apsFSM();
+    493          
+    494          		#ifdef LOWSN_SLIP_TO_HOST
+    495          		slipFSM();
+    496          		#endif
+    497          	}	
+    498          	#endif
+    499          
+    500          	#ifdef LOWSN_ROUTER
+    501          
+    502          	while (1) {
+    503          		
+    504          		apsFSM();
+    505          
+    506          	}	
+    507          	#endif
+    508          
+    509          	#ifdef LOWSN_RFD
+    510          	aplSetLinkLocalAddr16(&dstIPADDR, aplGetPanID(), 0);
+    511          
+    512          	conPrintROMString("RFD Object IP is: \n");
+    513          	conPrintIP6ADDR(&dstIPADDR, 1);
+    514          	conPrintROMString("\n");
+    515          
+    516          	SleepPeriod = DEFAULT_SLEEP_PERIOD;
+    517          	RxPeriod = DEFAULT_RX_PERIOD;
+    518          
+    519          	NodeState = NODE_STATE_SENSE_DATA;
+    520          	
+    521          	conPrintROMString("Node FSM Start!\n");
+    522          	
+    523          	while (1) {
+    524          		NodeAction();
+    525          	}
+    526          
+    527          	#endif
+    528          	
+    529          }
+    530          
+    531          
+    532          LOWSN_STATUS_ENUM  usrRxPacketCallback(void) 
+    533          {
+    534          
+    535          	BYTE *ptr;
+    536          	UINT8 plen;
+    537          
+    538          	#if 1  //打印一些接收包的信息，仅供调试
+    539          	conPrintROMString("Data Received. \n");
+    540          	conPrintROMString("Source IP: \n");
+    541          	conPrintIP6ADDR(&(aplGetRxSrcIPAddr()), 1);
+    542          	conPrintROMString("\n");
+    543          	conPrintROMString("Source Port: ");
+    544          	conPrintUINT16(aplGetRxSrcPort());
+    545          	conPrintROMString(", Service Type: ");
+    546          	conPrintUINT8(aplGetRxServiceType());
+    547          	conPCRLF();
+    548          
+    549          
+    550          	ptr = aplGetRxMsgData();
+    551          
+    552          	#ifdef LOWSN_COORDINATOR
+    553          	#ifndef  LOWSN_SLIP_TO_HOST
+    554          	conPrintROMString(", Msg Length: ");
+    555          	plen = aplGetRxMsgLen();
+    556          	conPrintUINT8(plen);
+    557          	conPCRLF();
+    558          	conPrintROMString("Msg:  ");
+    559          	while(plen){
+    560          		conPrintUINT8(*ptr);
+    561          		conPrintROMString("  ");
+    562          		ptr++; plen--;
+    563          	}
+    564          	conPCRLF();
+    565          	#endif
+    566          	#endif
+    567          
+    568          	#endif
+    569          	
+    570          	
+    571          	#ifdef LOWSN_RFD
+    572          
+    573          	conPrintROMString("111. \n");
+    574          
+    575          	// 检查端口号
+    576          	if ((aplGetRxSrcPort() != REMOTE_PORT) || (aplGetRxDstPort() != LOCAL_PORT)) {
+    577          		conPrintROMString("invalid port, discard it. ");
+    578          		return LOWSN_STATUS_SUCCESS;
+    579          	}	
+    580          
+    581          	conPrintROMString("222. \n");
+    582          
+    583          	// 设节点只支持C/S读写 , 设一次只读/写一个属性
+    584          	if (aplGetRxServiceType() != APS_SERVICE_TYPE_CS) {
+    585          		conPrintROMString("Not a client/server type, discard it. ");
+    586          		return LOWSN_STATUS_SUCCESS;
+    587          	}	
+    588          
+    589          	//  准备发送响应帧的部分参数
+    590          	ResponseParam.dstIPADDR = aplGetRxSrcIPAddr();
+    591          	ResponseParam.dstPort = aplGetRxSrcPort();
+    592          	ResponseParam.dstObjID = aplGetRxSrcObjectID();
+    593          	ResponseParam.srcPort = LOCAL_PORT;
+    594          	ResponseParam.serviceID = aplGetRxServiceType();
+    595          	ResponseParam.actDirection = APS_ACTION_RESPONSE;
+    596          	ResponseParam.actType = aplGetRxActType();
+    597          
+    598          	//  处理C/S请求
+    599          	
+    600          
+    601          	conPrintROMString("333. \n");
+    602          	
+    603          	switch (ResponseParam.actType)  {
+    604          		
+    605          		case APS_ACTION_TYPE_READ:
+    606          
+    607          			if ((*ptr == 1)  && (aplGetRxDstObjectID() ==  OBJECT_ID_TEMP))  {
+    608          				if (*(ptr+1) == ATTRIBUTE_ID_CURRENT_TEMP) {
+    609          					
+    610          					plen = FmtCurrentTempResponsePayload();
+    611          					conPrintROMString("444. \n");
+    612          				}	
+    613          
+    614          				else if (*(ptr+1) == ATTRIBUTE_ID_TEMP_UPPER) {
+    615          					plen = FmtTempUpperResponsePayload();
+    616          				}	
+    617          
+    618          				else if (*(ptr+1) == ATTRIBUTE_ID_TEMP_LOWER) {
+    619          					plen = FmtTempLowerResponsePayload();
+    620          				}	
+    621          
+    622          				else
+    623          				{
+    624          					conPrintROMString("invalid attribute ID for temperature, discard it. ");
+    625          					return LOWSN_STATUS_SUCCESS;
+    626          
+    627          				}
+    628          
+    629          						
+    630          				ResponseParam.srcObjID = OBJECT_ID_TEMP;
+    631          				ResponseParam.pload = (BYTE *)(&ResponsePayload[0]);
+    632          				ResponseParam.plen = plen;
+    633          				sendResponseFlag = 1;
+    634          					
+    635          			}	
+    636          
+    637          
+    638          		break;
+    639          		
+    640          		case APS_ACTION_TYPE_WRITE:
+    641          
+    642          			if (*ptr == 1)  {
+    643          
+    644          				if (aplGetRxDstObjectID() ==  OBJECT_ID_TEMP)  {
+    645          
+    646          					
+    647          					if (*(ptr+1) == ATTRIBUTE_ID_TEMP_UPPER) {
+    648          					
+    649          						temp_upper_bound = *(ptr+4);
+    650          					}	
+    651          
+    652          					else if (*(ptr+1) == ATTRIBUTE_ID_TEMP_LOWER) {
+    653          					
+    654          						temp_lower_bound = *(ptr+4);
+    655          					}	
+    656          
+    657          					else
+    658          					{
+    659          						conPrintROMString("invalid attribute ID for temperature bound write, discard it. \n");
+    660          						return LOWSN_STATUS_SUCCESS;
+    661          					}
+    662          
+    663          				}	
+    664          
+    665          				else if  (aplGetRxDstObjectID() ==  OBJECT_ID_LIGHT)  {
+    666          					
+    667          
+    668          						 conPrintROMString("Not support light control now, discard it. \n ");
+    669          						return LOWSN_STATUS_SUCCESS;
+    670          
+    671          				}	
+    672          				
+    673          				ResponsePayload[0] = 1;
+    674          				ResponsePayload[1] = APS_RESULT_OK;
+    675          				
+    676          				ResponseParam.srcObjID = aplGetRxDstObjectID();
+    677          				ResponseParam.pload = (BYTE *)(&ResponsePayload[0]);
+    678          				ResponseParam.plen = 2;
+    679          				sendResponseFlag = 1;
+    680          					
+    681          			}	
+    682          
+    683          		break;		
+    684          
+    685          		default: 
+    686          
+    687          			conPrintROMString("invalid action type, discard it. ");
+    688          			break;
+    689          		
+    690          	}
+    691          
+    692          	#endif 
+    693          	
+    694          	return LOWSN_STATUS_SUCCESS;
+    695          	
+    696          }
+    697          
+    698          #ifdef LOWSN_FFD
+    699          //Callback to user level to see if OK for this node
+    700          //to join - implement Access Control Lists here based
+    701          //upon IEEE address if desired
+    702          BOOL usrJoinVerifyCallback(LADDR *ptr, BYTE capinfo)
+    703          {
+    704          
+    705          #if 0      //set this to '1' if you want to test through a router
+    706          //only accept routers.
+    707          //only let routers join us if we are coord
+    708          #ifdef LOWSN_COORDINATOR
+    709          if (LOWSN_GET_CAPINFO_DEVTYPE(capinfo)) {
+    710          	//this is a router, let it join
+    711          	conPrintROMString("Accepting router\n");
+    712          	return TRUE;
+    713          }else {
+    714          	conPrintROMString("Rejecting non-router\n");
+    715          	return FALSE;
+    716          }
+    717          #else
+    718          return TRUE;
+    719          #endif
+    720          
+    721          #else
+    722          
+    723          return TRUE;
+    724          
+    725          #endif
+    726          
+    727          }
+    728          
+    729          BOOL usrJoinNotifyCallback(LADDR *ptr){
+    730          
+    731          	//allow anybody to join
+    732          	#ifndef LOWSN_SLIP_TO_HOST
+    733          	conPrintROMString("Node joined: ");
+    734          	conPrintLADDR(ptr);
+    735          	conPCRLF();
+    736          	DEBUG_PRINTNEIGHBORS(DBG_INFO);
+    737          	#endif
+    738          	
+    739          	return TRUE;
+    740          }
+    741          #endif
+    742          
+    743          
+    744          #ifndef LOWSN_COORDINATOR
+    745          BOOL usrGetPrefixCallback(IPADDR *prefix_ptr, UINT8 prefix_len)
+    746          {
+    747          
+    748          	conPrintROMString("Get Prefix Successfully, Prefix: ");
+    749          	conPrintIP6ADDR(prefix_ptr, 1);
+    750          	conPCRLF();
+    751          	conPrintROMString("Prefix Length: ");
+    752          	conPrintUINT8(prefix_len);
+    753          	conPCRLF();
+    754          	
+    755          	return TRUE;
+    756          
+    757          }
+    758          #endif
+    759          
+    760          //called when the slow timer interrupt occurs
+    761          #ifdef LOWSN_ENABLE_SLOW_TIMER
+    762          void usrSlowTimerInt(void ) {}
+    763          #endif
+    764          
+    765          
+    766          //general interrupt callback , when this is called depends on the HAL layer.
+    767          void usrIntCallback(void){}
+
+   Maximum stack usage in bytes:
+
+     Function                       ISTACK PSTACK XSTACK
+     --------                       ------ ------ ------
+     FmtCurrentTempResponsePayload      2      0      8
+       -> getTempValue                  4      0      0
+     FmtTempLowerResponsePayload        2      0      8
+     FmtTempUpperResponsePayload        2      0      8
+     NodeAction                         1      0     43
+       -> apsFSM                        0      0     38
+       -> getTempValue                  0      0     38
+       -> aplFmtSendReportData          0      0     82
+       -> apsFSM                        0      0     38
+       -> aplFmtSendPublishData         0      0     82
+       -> apsFSM                        0      0     38
+       -> conPrintROMString_func        0      0     38
+       -> conPrintROMString_func        0      0     38
+       -> halGetMACTimer                0      0     38
+       -> conPrintROMString_func        0      0     38
+       -> halGetMACTimer                0      0     38
+       -> halGetMACTimer                0      0     38
+       -> aplFmtSendCSData              0      0     86
+       -> apsFSM                        0      0     38
+       -> conPrintROMString_func        0      0     38
+       -> conPrintROMString_func        0      0     38
+       -> conPrintROMString_func        0      0     38
+       -> halSleep                      0      0     38
+       -> conPrintROMString_func        0      0     38
+       -> conPrintROMString_func        0      0     38
+     getTempValue                       2      0     19
+     main                               0      0      4
+       -> halInit                       0      0      0
+       -> evbInit                       0      0      0
+       -> apsInit                       0      0      0
+       -> conPrintConfig                0      0      0
+       -> evbLedSet                     0      0      0
+       -> evbLedSet                     0      0      0
+       -> aplJoinNetworkDirectly        0      0      4
+       -> apsFSM                        0      0      0
+       -> lowsn_ds6_prefix_add          0      0      8
+       -> conPrintROMString_func        0      0      0
+       -> conPrintIP6ADDR               0      0      0
+       -> conPrintROMString_func        0      0      0
+       -> conPrintUINT8                 0      0      0
+       -> conPrintROMString_func        0      0      0
+       -> ds6GenInterfaceID16           0      0      4
+       -> conPrintROMString_func        0      0      0
+       -> conPrintIP6ADDR               0      0      0
+       -> conPrintROMString_func        0      0      0
+       -> conPrintROMString_func        0      0      0
+       -> NodeAction                    0      0      0
+     usrGetPrefixCallback               0      0      8
+       -> conPrintROMString_func        0      0     16
+       -> conPrintIP6ADDR               0      0     16
+       -> conPCRLF                      0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintUINT8                 0      0     16
+       -> conPCRLF                      0      0     16
+     usrIntCallback                     0      0      0
+     usrRxPacketCallback                0      0      8
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintIP6ADDR               0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintUINT16                0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintUINT8                 0      0     16
+       -> conPCRLF                      0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> FmtCurrentTempResponsePayload
+                                        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> FmtTempUpperResponsePayload
+                                        0      0     16
+       -> FmtTempLowerResponsePayload
+                                        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+       -> conPrintROMString_func        0      0     16
+     usrSlowTimerInt                    0      0      0
+
+
+   Segment part sizes:
+
+     Function/Label                       Bytes
+     --------------                       -----
+     _A_IEN0                                 1
+     my_timer                                4
+     dstIPADDR                              16
+     network_prefix                         16
+     prefix_len                              1
+     coordEUI                                8
+     rfdEUI                                  8
+     NodeState                               1
+     ResponseParam                          28
+     temp_upper_bound                        1
+     temp_lower_bound                        1
+     current_temp                            1
+     SensorPayload                          20
+     ResponsePayload                        20
+     SleepPeriod                             4
+     RxPeriod                                4
+     sendResponseFlag                        1
+     temp_value                              1
+     getTempValue                           41
+     NodeAction                            761
+     xxxxromstr                              2
+     xxxxromstr                             33
+     xxxxromstr                             34
+     xxxxromstr                             30
+     xxxxromstr                             31
+     xxxxromstr                             23
+     xxxxromstr                             15
+     xxxxromstr                             52
+     FmtCurrentTempResponsePayload          51
+     FmtTempUpperResponsePayload            49
+     FmtTempLowerResponsePayload            49
+     main                                  387
+     xxxxromstr                             30
+     xxxxromstr                             15
+     xxxxromstr                              2
+     xxxxromstr                             20
+     xxxxromstr                              2
+     xxxxromstr                             17
+     usrRxPacketCallback                   526
+     xxxxromstr                             17
+     xxxxromstr                             13
+     xxxxromstr                              2
+     xxxxromstr                             14
+     xxxxromstr                             17
+     xxxxromstr                              7
+     xxxxromstr                             27
+     xxxxromstr                              7
+     xxxxromstr                             39
+     xxxxromstr                              7
+     xxxxromstr                              7
+     xxxxromstr                             51
+     xxxxromstr                             64
+     xxxxromstr                             46
+     xxxxromstr                             34
+     usrGetPrefixCallback                   52
+     xxxxromstr                             34
+     xxxxromstr                             16
+     usrSlowTimerInt                         1
+     usrIntCallback                          1
+     __Constant_3e                           4
+     __Constant_ffffff                       4
+     __Constant_0                            4
+     __Constant_64                           4
+     __Constant_7d0                          4
+     ?<Initializer for coordEUI>             8
+     ?<Initializer for rfdEUI>               8
+     ?<Initializer for __Constant_3e>        4
+     ?<Initializer for __Constant_ffffff>    4
+     ?<Initializer for __Constant_0>         4
+     ?<Initializer for __Constant_64>        4
+     ?<Initializer for __Constant_7d0>       4
+
+ 
+   708 bytes in segment CODE_C
+ 1 918 bytes in segment NEAR_CODE
+     1 byte  in segment SFR_AN
+    36 bytes in segment XDATA_I
+    36 bytes in segment XDATA_ID
+   119 bytes in segment XDATA_Z
+ 
+ 2 642 bytes of CODE  memory (+ 20 bytes shared)
+     0 bytes of DATA  memory (+  1 byte  shared)
+   135 bytes of XDATA memory (+ 20 bytes shared)
+
+Errors: none
+Warnings: none
